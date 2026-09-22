@@ -97,8 +97,8 @@ func (uc *ArticleUsecase) CreateComment(comment domain.Comment) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if err:= uc.repo.IncrementComments(id);err != nil{
-		log.Printf(err.Error())
+	if err := uc.repo.IncrementComments(id); err != nil {
+		log.Printf("failed to increment comment count: %v", err)
 	}
 	return id,nil
 }

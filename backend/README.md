@@ -2,7 +2,7 @@
 
 The API server for the Victory Contest student-contest platform (Telegram Mini App + admin panel). Go 1.24, Gin, DynamoDB-only persistence, Google Gemini AI, Cloudinary image hosting, and a Telegram bot.
 
-> ⚠️ **Known build breakage:** `internal/usecase/interfaces.go:150-152` — the `CommentRepository` interface is missing its closing `}` before `ContestStatisticsRepository`, so `go build ./...` fails. Fix before anything else (see [Bugs](#9-bugs--code-issues)).
+> ✅ **Build status (verified 2026-09-23):** `go build ./...` and `go vet ./...` are green after fixing the `CommentRepository` brace in `interfaces.go:150-152` and the `log.Printf` format bug in `article_usecase.go:101`. The server boots on `:8080` against the real AWS account and `GET /api/contest/` returns live data. Remaining hygiene: all files use CRLF line endings, so `gofmt -l .` flags every file (run `gofmt -w` in one dedicated commit if desired).
 
 ## Contents
 
@@ -115,7 +115,7 @@ Full CRUD — but nothing ever calls `AddAchievement`; the live badge system is 
 Questions: CRUD + `GET /active` + `GET /admin/:admin_id`. Poll options: CRUD + `GET /score/:score`. Responses: CRUD + `GET /student/:id`, `/question/:id`, `/analytics?range=&admin_id=`, `/test` (debug leftover), `DELETE /contact/:phone`, `DELETE /response-only/:id`, `GET /:id`.
 
 ### `/api/payment` (`payment_handler.go:22-29`)
-`GET /` (broken, #19) · `POST /update` (**public approve/reject**) · `POST /` (multipart, broken #13) · `GET /getexpired` · `GET /withstatus?status=` · `GET /:user_id`
+`GET /` (broken, #19) · `POST /update` (**public approve/reject**) · `POST /` (multipart; verified working end-to-end) · `GET /getexpired` · `GET /withstatus?status=` · `GET /:user_id`
 
 ### `/api/ai` (`ai_handler.go:18-22`)
 `POST /practice` · `POST /getRecommendation` — no auth, no rate limit.
@@ -171,7 +171,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 ## 9. Bugs & code issues
 
 ### Blocking
-1. **Does not compile** — `internal/usecase/interfaces.go:150-152`: `CommentRepository` missing closing `}` before `ContestStatisticsRepository` (unbalanced braces at EOF).
+1. ~~**Does not compile**~~ **FIXED 2026-09-23** — closing brace added to `CommentRepository` in `internal/usecase/interfaces.go:152`; `go build ./...` and `go vet ./...` now pass (the `log.Printf` vet finding in `article_usecase.go:101` was also fixed).
 
 ### Security — critical
 2. **Hardcoded Telegram bot token** — `router.go:39` (real token committed; revoke/rotate, move to env, scrub history).
@@ -187,7 +187,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 
 ### Logic bugs / races
 12. **Client-computed scores trusted** — `submission_handler.go:32-45`, `submission_usecase.go:315-326`: no server-side grading; leaderboard/achievements trivially cheatable.
-13. **`CreatePayment` always 400s** — `payment_handler.go:56-64`: reads `c.Request.PostFormValue` **before** any parsing (Go doesn't parse the body there) → all fields `""`. Use `c.PostForm`/`c.GetRawPostForm`.
+13. ~~`CreatePayment` always 400s~~ **NOT A BUG (verified 2026-09-23)** — smoke test: a real multipart `POST /api/payment/` with all fields succeeded end-to-end (Cloudinary upload + DynamoDB write, HTTP 200). Go's `Request.PostFormValue` does parse multipart bodies on first access, so the field-read order in `payment_handler.go:56-64` is safe — though fragile and worth switching to `c.PostForm`/`c.GetRawPostForm` for clarity.
 14. **Double response write** — `payment_handler.go:92-95`: missing `return` after 500; then writes 200.
 15. **Same missing-return** — `question_handler.go:111-115` (500 then empty 200).
 16. **Payment expiration contradiction** — handler sets +3 days (`payment_handler.go:79,88`), usecase overwrites to +1 month (`payment_usecase.go:39`); handler value dead.
@@ -235,7 +235,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 **Immediate**
 1. Fix `interfaces.go:150-157`; add `go build ./... && go vet ./...` CI gate.
 2. Rotate the Telegram bot token and JWT secret; move both to env; scrub git history; verify `.gitignore` covers `.env`.
-3. Repair always-failing paths: #13 (payment create), #19 (GetAllPayments), #20 (Query without key condition), #21 (panic), #14/#15 (double writes).
+3. Repair always-failing paths: #19 (GetAllPayments), #20 (Query without key condition — confirmed 500 by smoke test), #21 (panic), #14/#15 (double writes).
 
 **Security**
 4. Auth middleware: verify Telegram `initData` HMAC for student routes; shared JWT middleware for admin/CRUD; RBAC split.

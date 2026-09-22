@@ -54,14 +54,14 @@ DynamoDB  Gemini  Cloudinary      Telegram Bot API (welcome message,
 
 ## Current state & priority issues
 
-> ⚠️ The backend is mid-refactor and **does not currently compile**: the `CommentRepository` interface in `backend/internal/usecase/interfaces.go:150-152` is missing its closing brace. Fix this first.
+> ✅ The backend now compiles: the missing brace in `CommentRepository` (`backend/internal/usecase/interfaces.go:152`) and a `log.Printf` vet finding were fixed on 2026-09-23; `go build`, `go vet` and a live boot smoke test against the real AWS account all pass.
 
 Top cross-cutting issues (full lists in the tier READMEs):
 
 1. **Committed secrets** — the Telegram bot token is hardcoded in `backend/internal/handler/http/router.go:39` *and* in `frontend/src/services/api.ts:10-13`; the admin JWT secret is hardcoded in `backend/internal/handler/http/admin_handler.go:45,144`. All must be revoked/rotated and moved to environment variables immediately.
 2. **No authentication on any API route** — students are never verified via Telegram `initData` HMAC, admin CRUD endpoints are public, and `SignIn` (`backend/internal/repository/admin_dynamo.go:141-167`) never compares passwords.
 3. **Client-trusted integrity** — contest scores, payment status (`status=Approved` self-declared), and student identity all come from the client; leaderboards and premium are trivially gameable.
-4. **Broken code paths** — `POST /api/payment/` always 400s (form parsed after being read), `GET /api/student/paid` always 500s (DynamoDB Query without key condition), `GET /api/payment/` uses a hardcoded debug key, and several missing `return`s cause double response writes.
+4. **Broken code paths** — `GET /api/student/paid` always 500s (DynamoDB Query without key condition, confirmed by smoke test), `GET /api/payment/` uses a hardcoded debug key and returns empty (confirmed), and several missing `return`s cause double response writes.
 5. **No tests, CI, IaC, or pagination** — zero test files in either tier; DynamoDB tables/GSIs exist only in the cloud (nothing in-repo); every Scan/Query ignores `LastEvaluatedKey`, so results silently truncate past 1 MB.
 
 ## Getting started
@@ -94,7 +94,7 @@ npm run dev            # Vite dev server; open inside Telegram or mock WebApp
 
 ## Roadmap / recommendations (summary)
 
-- **Fix build & secrets** → close the brace in `interfaces.go`, rotate all tokens, scrub git history.
+- **~~Fix build~~ & secrets** → build is fixed; rotate all tokens, scrub git history.
 - **Real auth** → verify Telegram `initData` HMAC for students; JWT middleware + bcrypt for admins; server-side scoring and payment reconciliation.
 - **Repair broken endpoints** (payment create/list, student/paid, admin lookup panics) and add response helpers with correct status codes.
 - **Data layer** → shared DynamoDB client, env-driven config, `LastEvaluatedKey` pagination, GSIs replacing Scan+Filter hot paths, conditional writes for read-modify-write races (badges, registration IsActive).
