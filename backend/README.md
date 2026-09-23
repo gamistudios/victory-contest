@@ -64,6 +64,18 @@ cp .env.example .env   # CLOUDINARY_URL, GOOGLE_API_KEY, AWS creds, *_TABLE name
 go run .               # from backend/ — serves on :8080
 ```
 
+### Fully local dev/test stack (no prod contact)
+
+`backend/.env` is currently a **local test config** (prod credentials are backed up in the repo-root `.env`, gitignored). Nothing in the local config can reach live services: dummy Cloudinary account, invalid Gemini key, no bot token, and `AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000` keeps every DynamoDB call on localhost (honored automatically by `LoadDefaultConfig` in all repos — zero code change).
+
+```bash
+npx -y dynalite --port 8000     # local DynamoDB (in-memory)
+go run ./cmd/setup-tables       # idempotent: creates all 15 tables + every queried GSI
+go run .                        # boots against the local stack
+```
+
+Verified end-to-end on the local stack (2026-09-23): student register/list/profile/quickstat, admin register + bcrypt login (200/401), question add (multipart, no image), contest add/get with hydrated questions, submission + leaderboard + rank, contest-registration check, notifications list, dashboard 200. `GET /api/student/paid` → 500 (#20) and `GET /api/payment/` → empty (#19) reproduce exactly as documented.
+
 **Reality check:** only `GOOGLE_API_KEY` and the AWS credential chain (plus `CLOUDINARY_URL` implicitly) are actually consumed. `AWS_REGION` and every `*_TABLE` variable are **ignored** — region (`eu-north-1`) and all table names are hardcoded string literals in `router.go:42-59` (including the `contest_registeration` table-name typo). The Telegram bot token and JWT secret are **not in env at all** — both hardcoded (see Bugs #2, #3).
 
 ## 4. Domain model
@@ -222,7 +234,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 41. **No `LastEvaluatedKey` pagination in any Scan/Query** — e.g. `contest_dynamo.go:53-66`, `student_dynamo.go:121-134`, `pageview_dynamo.go:56-80`, `feedback_response_dynamo.go:139-152`.
 42. **Questions attribute written as `SS` on update but `L` on insert** — `contest_dynamo.go:136-139`.
 43. **Stray `reason` attribute** on payment status updates — `payment_dynamo.go:119-141`.
-44. **No table/GSI provisioning code** (FEEDBACK readme's `cmd/setup-tables` doesn't exist).
+44. ~~**No table/GSI provisioning code**~~ **PARTIALLY FIXED 2026-09-23** — `cmd/setup-tables/main.go` creates all 15 tables and every GSI the code queries (idempotent; used against dynalite for local e2e). Prod still needs real IaC.
 45. **16 independent AWS SDK clients** — `router.go:43-59`.
 46. **`context.TODO()` everywhere** — no timeouts/cancellation.
 47. **Typos**: `pyament.go`, `NewImageRepostory` (`image_repo.go:18`), table `contest_registeration` (`router.go:50`), "Feadback" (`student_handler.go:51`, `feedback_handler.go:51`), `GetStudentStatisctis` (`submission_handler.go:29`), "recepientId"/"reciepientId" (`student_handler.go:53`, `feedback_handler.go:257`), module `victor-contest-go`.
