@@ -24,5 +24,14 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
     },
+  },
+  {
+    // shadcn/ui primitives export cva variant maps alongside components, and
+    // context modules export their useX hook next to the provider. Both are
+    // intentional and only affect dev Fast Refresh, so the rule is disabled here.
+    files: ['src/components/ui/**/*.{ts,tsx}', 'src/context/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
   }
 );
