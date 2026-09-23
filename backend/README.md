@@ -87,7 +87,7 @@ Verified end-to-end on the local stack (2026-09-23): student register/list/profi
 | `student.go` | `Student{ID, TelegramID, Name, Age, Grade, School, City, Region, ImgURL, IsSuspended, PhoneNumber, Badge[]string, Gender, IsPremium, ReadNotifications map, DefaultScoreRange, CreatedAt}` + profile-statistics DTOs |
 | `contest.go` | `Contest{ID, Title, Description, StartTime/EndTime (free-form strings), Subject, Grade, Prize, Questions []string (ids), Status, Type}`; `ContestTypeWithQuestionObj` = hydrated questions variant |
 | `question.go` | `Question{ID, QuestionText, Answer int (correct index), QuestionImg, Explanation, ExplanationImg, Subject, Grade, Chapter, MultipleChoice[]string}` + `AiPracticeSetting` |
-| `submission.go` | `Submission{ID, ContestID, StudentID, Student (sub-struct), Score float64, MissedQuestions[]{ID, SelectedAnswer}, SubmissionTime, TimeSpend "HH:MM:SS"}`, `LeaderboardEntry`, `Editorial`. ⚠️ Also implements `Error()` with `panic("unimplemented")` (`:20-22`) |
+| `submission.go` | `Submission{ID, ContestID, StudentID, Student (sub-struct), Score float64, MissedQuestions[]{ID, SelectedAnswer}, SubmissionTime, TimeSpend "HH:MM:SS"}`, `LeaderboardEntry`, `Editorial` (the old `Error() { panic() }` landmine from §9 #40 is gone) |
 | `contest_registration.go` | `ContestRegistration{ID, ContestID, StudentID, IsActive, RegisteredAt}` |
 | `pyament.go` (**filename typo**) | `PaymentRequest{ID, UserID, FullName, BankName, BillScreenshotURL, Status, RejectionReason, CreatedAt, UpdatedAt, ExpirationDate, GSI1PK}`; statuses `Pending/Approved/Rejected` |
 | `achievement.go` | `Achievement{ID, Earned (student id), Name, Description, Type, EarnedDate, Rarity, Progress}` |
@@ -248,6 +248,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 50. **No input validation** — no bound `binding:` tags; `Answer` not range-checked (`question_handler.go:44-50`); contest times free-form; student IDs taken from client bodies; **no file type/size limits** on multipart uploads (`question_handler.go:52-72`, `payment_handler.go:66-78`, `image_handler.go:25-44`).
 51. ~~**`log.Printf(err.Error())`** non-constant format — `article_usecase.go:101`.~~ **FIXED 2026-09-23** — `log.Printf("%v", err)`-style constant format restored; vet clean.
 52. ~~**Fire-and-forget goroutines discarding errors** — `student_handler.go:49-57`, `feedback_handler.go:50-57,253-260`.~~ **FIXED 2026-09-23** — registration broadcast goroutine removed (#28); both feedback notification goroutines now log `SendNotification` failures (`feedback_handler.go`) without changing their best-effort control flow.
+53. ~~**Editorial showed a stale attempt for repeat submitters** — `submission_dynamo.go:170-181` (`GetSubmissionsByStudentAndContest`) unmarshalled `Items[0]`; the `contest_id-student_id-index` GSI has no time sort key, so with multiple submissions per student the returned row was arbitrary.~~ **FIXED 2026-09-23** — all matched items are unmarshalled and the one with the newest `submission_time` is returned (later item wins ties); covered by `submission_editorial_newest_test.go` against dynalite.
 
 ## 10. Recommendations
 

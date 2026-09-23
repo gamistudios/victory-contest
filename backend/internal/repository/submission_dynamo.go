@@ -171,13 +171,22 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudentAndContest(conId, st
 		return nil, nil
 	}
 
-	var submission domain.Submission
-	err = attributevalue.UnmarshalMap(out.Items[0], &submission)
-	if err != nil {
+	// The GSI is keyed (contest_id, student_id) with no time sort, so a
+	// student who submitted N times has N items in arbitrary order. The
+	// editorial must reflect their LATEST attempt, not whichever row the
+	// index happens to return first.
+	var submissions []domain.Submission
+	if err := attributevalue.UnmarshalListOfMaps(out.Items, &submissions); err != nil {
 		return nil, err
 	}
+	newest := submissions[0]
+	for _, s := range submissions[1:] {
+		if !s.SubmissionTime.Before(newest.SubmissionTime) {
+			newest = s
+		}
+	}
 
-	return &submission, nil
+	return &newest, nil
 }
 
 // DeleteSubmission removes a submission row by primary key. The conditional
