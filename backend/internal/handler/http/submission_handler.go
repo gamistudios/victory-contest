@@ -31,7 +31,7 @@ func (h *SubmissionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin
 	rg.GET("/rank/:conId", h.GetRankForContest)
 	rg.GET("/editorial/:student_id", h.GetStudentEditorial)
 	rg.GET("/statistics-profile/:student_id", h.GetStudentProfileStatistics)
-	rg.GET("/statistics/:student_id", h.GetStudentStatisctis)
+	rg.GET("/statistics/:student_id", h.GetStudentStatistics)
 }
 
 func (h *SubmissionHandler) AddSubmission(c *gin.Context) {
@@ -76,7 +76,7 @@ func (h *SubmissionHandler) GetAllSubmissions(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *SubmissionHandler) GetStudentStatisctis(c *gin.Context) {
+func (h *SubmissionHandler) GetStudentStatistics(c *gin.Context) {
 	userId := c.Param("student_id")
 	userStat, err := h.usecase.GetStudentStatistics(userId)
 	if err != nil {

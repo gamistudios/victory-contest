@@ -61,7 +61,7 @@ func NewServer() *Server {
 	}
 
 	// --- Initialize Repositories ---
-	imgRepo := repository.NewImageRepostory("something")
+	imgRepo := repository.NewImageRepository()
 	questionRepo := repository.NewQuestionDynamoRepository("eu-north-1", "question")
 	contestRepo := repository.NewContestDynamoRepository("eu-north-1", "contests")
 	studentRepo := repository.NewStudentDynamoRepository("eu-north-1", "student")

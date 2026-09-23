@@ -53,6 +53,9 @@ func (a *aiUsecase) GenerateRecommendations(input domain.RecommendationInput) (*
 	}
 	`, string(inputJSON), input.Subject)
 	rawText, err := generateContentFromAPI(prompt)
+	if err != nil {
+		return nil, err
+	}
 
 	startIndex := strings.Index(rawText, "{")
 	endIndex := strings.LastIndex(rawText, "}")
@@ -64,9 +67,6 @@ func (a *aiUsecase) GenerateRecommendations(input domain.RecommendationInput) (*
 
 	// Slice the string to get only the JSON part.
 	jsonStr := rawText[startIndex : endIndex+1]
-	if err != nil {
-		return nil, err
-	}
 	var recommendations domain.Recommendations
 	if err := json.Unmarshal([]byte(jsonStr), &recommendations); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON response from API: %w", err)

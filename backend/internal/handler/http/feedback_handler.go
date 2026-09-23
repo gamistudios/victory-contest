@@ -2,6 +2,7 @@ package http
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"victor-contest-go/internal/domain"
 	"victor-contest-go/internal/usecase"
@@ -50,12 +51,13 @@ func (h *FeedbackQuestionHandler) AddFeedbackQuestion(c *gin.Context) {
 	// Send notifications to all students about the new feedback question
 	if h.notificationService != nil {
 		go func() {
-			message := "Feadback questions are added. so everybody fill all the questions"
+			message := "Feedback questions are added. so everybody fill all the questions"
 			title := "New feedback question"
-			recepientId := "all"
+			recipientId := "all"
 			Type := "feedback_question"
-			h.notificationService.SendNotification(title, message, Type, recepientId)
-
+			if err := h.notificationService.SendNotification(title, message, Type, recipientId); err != nil {
+				log.Printf("feedback_question: notification to %q failed: %v", recipientId, err)
+			}
 		}()
 	}
 
@@ -265,8 +267,10 @@ func (h *FeedbackResponseHandler) AddFeedbackResponse(c *gin.Context) {
 			// Notify the admins who review feedback, not the student who just
 			// submitted it ("admin" is the recipient the notification usecase
 			// special-cases for admin audiences).
-			reciepientId := "admin"
-			h.notificationService.SendNotification("New Feedback response", message, Type, reciepientId)
+			recipientId := "admin"
+			if err := h.notificationService.SendNotification("New Feedback response", message, Type, recipientId); err != nil {
+				log.Printf("feedback_response: notification to %q failed: %v", recipientId, err)
+			}
 		}
 	}()
 

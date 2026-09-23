@@ -12,11 +12,10 @@ import (
 )
 
 
-type ImageRepository struct{
-	cloudinaryurl string
-}
-func NewImageRepostory(cloud_url string) *ImageRepository{
-	return &ImageRepository{cloudinaryurl: cloud_url}
+type ImageRepository struct{}
+
+func NewImageRepository() *ImageRepository {
+	return &ImageRepository{}
 }
 
 func(r *ImageRepository) UploadImage(file multipart.File,folderName string)(string, error) {

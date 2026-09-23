@@ -17,23 +17,6 @@ func ContestHasEnded(endTime string) bool {
 	return ok && t.Before(time.Now())
 }
 
-type ContestInput struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	StartTime   string `json:"start_time"`
-	EndTime     string `json:"end_time"`
-	// Add other fields as needed
-}
-
-func (ci *ContestInput) ToDomain() domain.Contest {
-	return domain.Contest{
-		Title:       ci.Title,
-		Description: ci.Description,
-		StartTime:   ci.StartTime,
-		EndTime:     ci.EndTime,
-	}
-}
-
 type ContestUsecase interface {
 	GetAllContests() ([]domain.Contest, error)
 	GetContestByID(id string) (*domain.ContestTypeWithQuestionObj, error)

@@ -339,9 +339,9 @@ func (h *ContestHandler) AnnounceContest(c *gin.Context) {
 			message = fmt.Sprintf("%s\n\nContest: %s", message, contest.Contest.Title)
 		}
 		title := "New contest added"
-		recepientId := "all"
+		recipientId := "all"
 		Type := "contest_announcement"
-		if err := h.notificationService.SendNotification(title, message, Type, recepientId); err != nil {
+		if err := h.notificationService.SendNotification(title, message, Type, recipientId); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send announcement notification: " + err.Error()})
 			return
 		}
