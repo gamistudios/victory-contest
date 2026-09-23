@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   TelegramWebApp,
   TelegramUser,
   InlineQueryResultArticle,
 } from "../types";
-import { getPreparedMessageIdTelegram } from "../services/articleService";
+import { getPreparedMessageIdTelegram } from "../services/telegramServices";
 
 export const useTelegram = () => {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
@@ -13,7 +13,7 @@ export const useTelegram = () => {
 
   useEffect(() => {
     const app = window.Telegram?.WebApp;
-    console.log("Telegram WebApp:", app);
+
     if (app) {
       app.ready();
       app.setHeaderColor("#8b5cf6");
@@ -24,7 +24,7 @@ export const useTelegram = () => {
     setIsLoading(false);
   }, []);
 
-  const sendData = (data: any) => {
+  const sendData = (data: unknown) => {
     if (webApp) {
       webApp.sendData(JSON.stringify(data));
     }
@@ -72,11 +72,14 @@ export const useTelegram = () => {
     if (webApp) {
       switch (type) {
         case "impact":
-          webApp.HapticFeedback.impactOccurred((style as any) || "medium");
+          webApp.HapticFeedback.impactOccurred(
+            (style as "light" | "medium" | "heavy" | "rigid" | "soft") ||
+              "medium"
+          );
           break;
         case "notification":
           webApp.HapticFeedback.notificationOccurred(
-            (style as any) || "success"
+            (style as "error" | "success" | "warning") || "success"
           );
           break;
         case "selection":
@@ -116,9 +119,7 @@ export const useTelegram = () => {
           message,
           buttons: buttons || [{ id: "ok", type: "ok", text: "OK" }],
         },
-        (buttonId) => {
-          console.log("Popup button clicked:", buttonId);
-        }
+        () => {}
       );
     }
   };
@@ -146,7 +147,7 @@ export const useTelegram = () => {
   const openInvoice = (url: string, callback?: (status: string) => void) => {
     if (webApp && webApp.openInvoice) {
       webApp.openInvoice(url, (status: string) => {
-        console.log("Invoice status:", status);
+
         if (callback) callback(status);
       });
     } else {
@@ -162,17 +163,13 @@ export const useTelegram = () => {
 
   const requestWriteAccess = () => {
     if (webApp) {
-      webApp.requestWriteAccess((granted) => {
-        console.log("Write access:", granted);
-      });
+      webApp.requestWriteAccess(() => {});
     }
   };
 
   const requestContact = () => {
     if (webApp) {
-      webApp.requestContact((shared) => {
-        console.log("Contact shared:", shared);
-      });
+      webApp.requestContact(() => {});
     }
   };
 
@@ -203,28 +200,23 @@ export const useTelegram = () => {
   const PrepareAndShareMessageShare = async (
     data: InlineQueryResultArticle
   ) => {
+    if (!user?.id) return;
     const payload = {
-      user_id: user?.id,
+      user_id: user.id,
       result: data,
-      allow_user_chats: true,
-      allow_bot_chats: true,
-      allow_group_chats: true,
-      allow_channel_chats: true,
     };
     const res = await getPreparedMessageIdTelegram(payload);
     const chatId = res?.result?.id;
     if (chatId) {
       if (webApp) {
-        return webApp.shareMessage(chatId, (success) => {
-          console.log("Shared:", success);
-        });
+        return webApp.shareMessage(chatId, () => {});
       }
     }
     return;
   };
   const setCloudData = (
     key: string,
-    value: any,
+    value: unknown,
     callback?: (success: boolean) => void
   ) => {
     if (webApp?.CloudStorage) {
@@ -242,19 +234,22 @@ export const useTelegram = () => {
       try {
         localStorage.setItem(`telegram_cloud_${key}`, JSON.stringify(value));
         if (callback) callback(true);
-      } catch (error) {
+      } catch {
         if (callback) callback(false);
       }
     }
   };
 
-  const getCloudData = (key: string, callback: (data: any) => void) => {
+  const getCloudData = <T,>(
+    key: string,
+    callback: (data: T | null) => void
+  ) => {
     if (webApp?.CloudStorage) {
       webApp.CloudStorage.getItem(key, (error, result) => {
         if (!error && result) {
           try {
-            callback(JSON.parse(result));
-          } catch (e) {
+            callback(JSON.parse(result) as T);
+          } catch {
             callback(null);
           }
         } else {
@@ -265,8 +260,8 @@ export const useTelegram = () => {
       // Fallback to localStorage
       try {
         const data = localStorage.getItem(`telegram_cloud_${key}`);
-        callback(data ? JSON.parse(data) : null);
-      } catch (error) {
+        callback(data ? (JSON.parse(data) as T) : null);
+      } catch {
         callback(null);
       }
     }
@@ -287,7 +282,7 @@ export const useTelegram = () => {
       try {
         localStorage.removeItem(`telegram_cloud_${key}`);
         if (callback) callback(true);
-      } catch (error) {
+      } catch {
         if (callback) callback(false);
       }
     }
@@ -307,36 +302,43 @@ export const useTelegram = () => {
     }
   };
 
-  return {
-    webApp,
-    user,
-    isLoading,
-    sendData,
-    showMainButton,
-    hideMainButton,
-    showBackButton,
-    hideBackButton,
-    hapticFeedback,
-    close,
-    setHeaderColor,
-    setBackgroundColor,
-    showPopup,
-    showAlert,
-    showConfirm,
-    openLink,
-    openInvoice,
-    openTelegramLink,
-    requestWriteAccess,
-    requestContact,
-    enableClosingConfirmation,
-    disableClosingConfirmation,
-    switchInlineQuery,
-    readTextFromClipboard,
-    downloadFile,
-    PrepareAndShareMessageShare,
-    removeCloudData,
-    setCloudData,
-    getCloudData,
-    getCloudKeys,
-  };
+  // Stable identity: the wrappers only close over webApp/user, which are set
+  // once. Without this, every consumer effect listing these in deps re-runs
+  // on each render.
+  return useMemo(
+    () => ({
+      webApp,
+      user,
+      isLoading,
+      sendData,
+      showMainButton,
+      hideMainButton,
+      showBackButton,
+      hideBackButton,
+      hapticFeedback,
+      close,
+      setHeaderColor,
+      setBackgroundColor,
+      showPopup,
+      showAlert,
+      showConfirm,
+      openLink,
+      openInvoice,
+      openTelegramLink,
+      requestWriteAccess,
+      requestContact,
+      enableClosingConfirmation,
+      disableClosingConfirmation,
+      switchInlineQuery,
+      readTextFromClipboard,
+      downloadFile,
+      PrepareAndShareMessageShare,
+      removeCloudData,
+      setCloudData,
+      getCloudData,
+      getCloudKeys,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [webApp, user, isLoading]
+  );
 };
