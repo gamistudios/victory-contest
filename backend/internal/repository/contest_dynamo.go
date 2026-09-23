@@ -65,6 +65,10 @@ func (r *ContestDynamoRepository) GetAllContests() ([]domain.Contest, error) {
 	return contests, nil
 }
 
+// GetContestByID loads a contest. The questions attribute is decoded through
+// attributevalue, which accepts both the "L" list written from now on (#42) and
+// legacy "SS" string-set rows written by the old update path, so already stored
+// data stays readable.
 func (r *ContestDynamoRepository) GetContestByID(id string) (*domain.Contest, error) {
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
@@ -132,12 +136,22 @@ func (r *ContestDynamoRepository) UpdateContest(id string, update domain.Contest
 	updateParts = append(updateParts, "#questions = :questions")
 	expressionAttributeNames["#questions"] = "questions"
 
-	// Handle both cases: when questions exist and when they don't
-	if len(currentContest.Questions) > 0 {
-		expressionAttributeValues[":questions"] = &types.AttributeValueMemberSS{Value: currentContest.Questions}
-	} else {
-		expressionAttributeValues[":questions"] = &types.AttributeValueMemberSS{Value: []string{}}
+	// The questions attribute must have ONE DynamoDB type. AddContest marshals
+	// []string as "L" (ordered list), so the update path has to write "L" too;
+	// it used to write "SS", which reordered/deduped the ids and made readers
+	// see two different shapes for the same attribute (#42).
+	//
+	// The list on the update request is authoritative; an empty/absent list never
+	// wipes stored questions (callers merge the current value first).
+	questions := update.Questions
+	if len(questions) == 0 {
+		questions = currentContest.Questions
 	}
+	questionMembers := make([]types.AttributeValue, 0, len(questions))
+	for _, q := range questions {
+		questionMembers = append(questionMembers, &types.AttributeValueMemberS{Value: q})
+	}
+	expressionAttributeValues[":questions"] = &types.AttributeValueMemberL{Value: questionMembers}
 
 	// Build the final update expression
 	updateExpression += strings.Join(updateParts, ", ")

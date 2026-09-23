@@ -15,7 +15,8 @@ type Contest struct {
 }
 
 type ContestAnnouncementRequest struct {
-	Message string `json:"message"`
+	Message string `json:"message" form:"message"`
+	File    string `json:"file" form:"file"` // File path or URL if a file was uploaded alongside the announcement
 }
 type ContestTypeWithQuestionObj struct {
 	Contest

@@ -87,19 +87,48 @@ func (h *ContestHandler) UpdateContest(c *gin.Context) {
 		"type":        "Type",
 	}
 
-	// Process only the fields that are provided in the update
+	// Process only the fields that are provided in the update. Anything that is
+	// not a string is a client error (#27) -- it used to be dropped silently, so
+	// {"title": 42} answered 200 while changing nothing.
+	providedAnyUpdate := false
 	for jsonField, structField := range allowedFields {
-		if value, exists := rawData[jsonField]; exists && value != nil {
-			// Convert interface{} to string safely
-			if strValue, ok := value.(string); ok && strValue != "" {
-				// Use reflection to set the field value
-				reflect.ValueOf(&update).Elem().FieldByName(structField).SetString(strValue)
-			}
+		value, exists := rawData[jsonField]
+		if !exists || value == nil {
+			continue
+		}
+		strValue, ok := value.(string)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Field %q must be a string", jsonField)})
+			return
+		}
+		if strValue == "" {
+			// Empty string keeps the partial-update semantics: leave unchanged.
+			continue
+		}
+		// Use reflection to set the field value
+		reflect.ValueOf(&update).Elem().FieldByName(structField).SetString(strValue)
+		providedAnyUpdate = true
+	}
+
+	// Questions are updatable too (#27): a provided, valid list replaces the
+	// stored one; anything malformed is rejected instead of being ignored.
+	var newQuestions []string
+	questionsProvided := false
+	if rawQuestions, exists := rawData["questions"]; exists && rawQuestions != nil {
+		parsed, err := parseQuestionsUpdate(rawQuestions)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		questionsProvided = true
+		newQuestions = parsed
+		if len(newQuestions) > 0 {
+			providedAnyUpdate = true
 		}
 	}
 
 	// Validate that at least one field was updated
-	if reflect.DeepEqual(update, domain.Contest{ID: id}) {
+	if !providedAnyUpdate {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No valid fields provided for update"})
 		return
 	}
@@ -133,20 +162,16 @@ func (h *ContestHandler) UpdateContest(c *gin.Context) {
 		update.Type = currentContest.Contest.Type
 	}
 
-	// Preserve questions
+	// Preserve questions unless the caller sent a valid replacement list.
 	update.Questions = currentContest.Contest.Questions
-
-	// Additional safety check: ensure questions are never empty if they existed before
-	if len(currentContest.Contest.Questions) > 0 && len(update.Questions) == 0 {
-		update.Questions = currentContest.Contest.Questions
+	if questionsProvided && len(newQuestions) > 0 {
+		update.Questions = newQuestions
 	}
 
-	if rawData["questions"] != nil {
-		if questionsArray, ok := rawData["questions"].([]interface{}); ok {
-			if len(questionsArray) == 0 && len(currentContest.Contest.Questions) > 0 {
-				update.Questions = currentContest.Contest.Questions
-			}
-		}
+	// Additional safety check: ensure questions are never emptied if they existed
+	// before (an explicit [] is treated as "no change", not "clear").
+	if len(currentContest.Contest.Questions) > 0 && len(update.Questions) == 0 {
+		update.Questions = currentContest.Contest.Questions
 	}
 
 	// Perform the update
@@ -157,6 +182,29 @@ func (h *ContestHandler) UpdateContest(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Contest updated successfully"})
+}
+
+// parseQuestionsUpdate validates the optional "questions" value of a PATCH
+// body (#27). Every entry has to be a non-empty string (question ids), so
+// payloads such as [1, "ok"], {"a":1} or an array holding nulls fail with 400
+// instead of being dropped on the floor.
+func parseQuestionsUpdate(raw interface{}) ([]string, error) {
+	questionsArray, ok := raw.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf(`Field "questions" must be an array of question id strings`)
+	}
+	questions := make([]string, 0, len(questionsArray))
+	for i, entry := range questionsArray {
+		value, ok := entry.(string)
+		if !ok {
+			return nil, fmt.Errorf("questions[%d] must be a string, got %T", i, entry)
+		}
+		if strings.TrimSpace(value) == "" {
+			return nil, fmt.Errorf("questions[%d] must not be empty", i)
+		}
+		questions = append(questions, value)
+	}
+	return questions, nil
 }
 
 func (h *ContestHandler) GetAllContests(c *gin.Context) {
@@ -192,10 +240,7 @@ func (h *ContestHandler) AnnounceContest(c *gin.Context) {
 	id := c.Param("id")
 
 	// Parse the announce request data - handle both JSON and form data
-	var announceRequest struct {
-		Message string `json:"message" form:"message"`
-		File    string `json:"file" form:"file"` // File path or URL if file was uploaded
-	}
+	var announceRequest domain.ContestAnnouncementRequest
 	// Try to bind JSON first, then form data if JSON fails
 	if err := c.ShouldBindJSON(&announceRequest); err != nil {
 		// If JSON binding fails, try form data
@@ -231,13 +276,21 @@ func (h *ContestHandler) AnnounceContest(c *gin.Context) {
 		"announced_at":  time.Now().Format(time.RFC3339),
 	}
 
-	// Send notifications to all students
+	// Send notifications to all students. The message the admin posted is the
+	// body of that notification (#39): previously the decoded payload was
+	// dropped and a generated placeholder was sent instead.
 	if h.notificationService != nil {
-		message := fmt.Sprintf("New contest is announce for grade %s", contest.Grade)
+		message := strings.TrimSpace(announceRequest.Message)
+		if contest.Contest.Title != "" {
+			message = fmt.Sprintf("%s\n\nContest: %s", message, contest.Contest.Title)
+		}
 		title := "New contest added"
 		recepientId := "all"
 		Type := "contest_announcement"
-		h.notificationService.SendNotification(title, message, Type, recepientId)
+		if err := h.notificationService.SendNotification(title, message, Type, recepientId); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send announcement notification: " + err.Error()})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
