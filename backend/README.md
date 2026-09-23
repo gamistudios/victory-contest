@@ -236,7 +236,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 40. **`Submission.Error() { panic(...) }`** — `domain/submission.go:20-22`: implements `error` as a landmine.
 
 ### Data access / hygiene
-41. **No `LastEvaluatedKey` pagination in any Scan/Query** — e.g. `contest_dynamo.go:53-66`, `student_dynamo.go:121-134`, `pageview_dynamo.go:56-80`, `feedback_response_dynamo.go:139-152`.
+41. **No `LastEvaluatedKey` pagination in any Scan/Query** — e.g. `contest_dynamo.go:53-66`, `student_dynamo.go:121-134`, `pageview_dynamo.go:56-80`, `feedback_response_dynamo.go:139-152`. **PARTIALLY FIXED 2026-09-23 (client issue #3)** — `GET /api/student/`, `/api/submission/` and `/api/question/` now accept opt-in `?page=&page_size=` (legacy response untouched without params), and the admin dashboard dropped its per-contest registration fan-out plus its 30× rescans. Storage-level `Limit`+`ExclusiveStartKey` continuation remains open for every Scan.
 42. **Questions attribute written as `SS` on update but `L` on insert** — `contest_dynamo.go:136-139`.
 43. ~~**Stray `reason` attribute** on payment status updates — `payment_dynamo.go:119-141`.~~ **FIXED 2026-09-23** — `UpdateStatus` no longer writes `reason`; legacy items fold `reason` into `rejection_reason` at read time via `normalizeReasons` and never write it back.
 44. ~~**No table/GSI provisioning code**~~ **PARTIALLY FIXED 2026-09-23** — `cmd/setup-tables/main.go` creates all 16 tables (incl. `banks`) and every GSI the code queries (idempotent; used against dynalite for local e2e). Prod still needs real IaC.
