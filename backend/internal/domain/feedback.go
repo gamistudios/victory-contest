@@ -2,12 +2,16 @@ package domain
 
 import "time"
 
-// FeedbackQuestion represents a feedback question created by admin
+// FeedbackQuestion represents a feedback question created by admin.
+// Type is "options" (radio list from Options; also the legacy default when
+// empty) or "rating" (student answers on a 1-5 scale; the chosen value is
+// stored in the response's selected_option as "1".."5").
 type FeedbackQuestion struct {
 	ID        string    `json:"id"          dynamodbav:"id"`
 	AdminID   string    `json:"admin_id"    dynamodbav:"admin_id"`
 	Question  string    `json:"question"    dynamodbav:"question"`
-	Options   []string  `json:"options"     dynamodbav:"options"`
+	Options   []string  `json:"options"     dynamodbav:"options,omitempty"`
+	Type      string    `json:"type"        dynamodbav:"type,omitempty"`
 	IsActive  bool      `json:"is_active"   dynamodbav:"is_active"`
 	CreatedAt time.Time `json:"created_at"  dynamodbav:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"  dynamodbav:"updated_at"`

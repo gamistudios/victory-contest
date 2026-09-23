@@ -48,6 +48,7 @@ interface FeedbackQuestion {
   id: string;
   question: string;
   options: string[];
+  type: string;
   isActive: boolean;
 }
 
@@ -82,6 +83,7 @@ interface RawFeedbackQuestion {
   id: string;
   question: string;
   options?: string[];
+  type?: string;
   is_active?: boolean;
 }
 
@@ -129,6 +131,63 @@ const initialFeedbackState: FeedbackState = {
   comment: "",
   pollResponse: "",
 };
+
+const RATING_VALUES = ["1", "2", "3", "4", "5"];
+const RATING_LABELS: Record<string, string> = {
+  "1": "Poor",
+  "2": "Fair",
+  "3": "Good",
+  "4": "Very good",
+  "5": "Excellent",
+};
+
+// RatingScale renders a 1-5 star picker for questions without selectable
+// options (type "rating", or legacy questions saved with an empty options
+// list) so the form is still answerable and submittable.
+function RatingScale({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Rate from 1 to 5"
+      className="flex items-center gap-2"
+    >
+      {RATING_VALUES.map((v) => {
+        const selected = value === v;
+        return (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={`${v} out of 5 (${RATING_LABELS[v]})`}
+            onClick={() => onChange(v)}
+            className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
+              selected
+                ? "bg-yellow-50 text-yellow-500 dark:bg-yellow-900/20"
+                : "text-gray-300 hover:text-yellow-400 dark:text-gray-600"
+            }`}
+          >
+            <Star className="w-6 h-6" fill={selected ? "currentColor" : "none"} />
+            <span className={`text-xs font-medium ${selected ? "" : "text-gray-500 dark:text-gray-400"}`}>
+              {v}
+            </span>
+          </button>
+        );
+      })}
+      {value && (
+        <span className="ml-2 text-sm text-gray-600 dark:text-gray-300">
+          {RATING_LABELS[value]}
+        </span>
+      )}
+    </div>
+  );
+}
 
 // Helper function to calculate progress
 const calculateProgress = (
@@ -381,6 +440,7 @@ export function FeedbackPage() {
               id: q.id,
               question: q.question,
               options: q.options || [],
+              type: q.type || "",
               isActive: !!q.is_active, // Transform from snake_case to camelCase
             })
           );
@@ -565,7 +625,8 @@ export function FeedbackPage() {
 
         setIsSubmitted(true);
       } else {
-        const errorData = await response.data.error;
+        const errorData: string =
+          typeof response.data?.error === "string" ? response.data.error : "";
         console.error("Failed to submit feedback:", errorData);
 
         // Check if it's a duplicate submission error
@@ -593,8 +654,10 @@ export function FeedbackPage() {
 
     // Score range validation based on student eligibility
     let scoreRangeValid = true;
-    if (shouldShowScoreRange(studentProfile)) {
-      // For eligible students, score range is required
+    if (pollOptions.length > 0 && shouldShowScoreRange(studentProfile)) {
+      // For eligible students, score range is required. (Only when options
+      // exist to choose from — otherwise the picker is not rendered at all
+      // and the student could never submit.)
       scoreRangeValid = Boolean(
         feedback.pollResponse && feedback.pollResponse !== ""
       );
@@ -862,32 +925,42 @@ export function FeedbackPage() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <RadioGroup
-                          value={feedback.questionResponses[question.id] || ""}
-                          onValueChange={(value) =>
-                            handleQuestionResponse(question.id, value)
-                          }
-                          className="space-y-3"
-                        >
-                          {question.options.map((option, optionIndex) => (
-                            <div
-                              key={optionIndex}
-                              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
-                            >
-                              <RadioGroupItem
-                                value={option}
-                                id={`${question.id}-${optionIndex}`}
-                                className="text-blue-600"
-                              />
-                              <Label
-                                htmlFor={`${question.id}-${optionIndex}`}
-                                className="text-sm flex-1 cursor-pointer group-hover:text-blue-600 transition-colors"
+                        {question.type === "rating" ||
+                        question.options.length === 0 ? (
+                          <RatingScale
+                            value={feedback.questionResponses[question.id] || ""}
+                            onChange={(value) =>
+                              handleQuestionResponse(question.id, value)
+                            }
+                          />
+                        ) : (
+                          <RadioGroup
+                            value={feedback.questionResponses[question.id] || ""}
+                            onValueChange={(value) =>
+                              handleQuestionResponse(question.id, value)
+                            }
+                            className="space-y-3"
+                          >
+                            {question.options.map((option, optionIndex) => (
+                              <div
+                                key={optionIndex}
+                                className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
                               >
-                                {option}
-                              </Label>
-                            </div>
-                          ))}
-                        </RadioGroup>
+                                <RadioGroupItem
+                                  value={option}
+                                  id={`${question.id}-${optionIndex}`}
+                                  className="text-blue-600"
+                                />
+                                <Label
+                                  htmlFor={`${question.id}-${optionIndex}`}
+                                  className="text-sm flex-1 cursor-pointer group-hover:text-blue-600 transition-colors"
+                                >
+                                  {option}
+                                </Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        )}
                       </CardContent>
                     </Card>
                   );
