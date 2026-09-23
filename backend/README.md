@@ -110,10 +110,10 @@ Mounted under `/api/...` (`router.go:137-156`). **No route uses auth middleware*
 `POST /` register · `PUT /:id` · `DELETE /:id` · `GET /` (**full student PII list**) · `GET /paid` (broken, #20) · `GET /quickstat/:id` (TODO stub) · `GET /rank` and `GET /rank/:contest_id` (**return nil, nil — stubs**) · `GET /:id` · `GET /grades-and-schools` · `GET /profile/:id` · `GET /profile-admin/:student_id`
 
 ### `/api/question` (`question_handler.go:24-31`)
-`POST /add` (multipart → Cloudinary) · `POST /multiple-add` · `PATCH /:id` (JSON *or* multipart) · `DELETE /delete/:id` · `GET /` (**returns correct answers**) · `GET /:id`
+`POST /add` (multipart → Cloudinary) · `POST /multiple-add` · `POST /multiple-delete` (`{"ids":[...]}`, chunked BatchWriteItem, per-id failures reported — added 2026-09-23 for client issue #4) · `PATCH /:id` (JSON *or* multipart) · `DELETE /delete/:id` · `GET /` (**returns correct answers**) · `GET /:id`
 
 ### `/api/submission` (`submission_handler.go:19-30`)
-`POST /` (**client-computed score**) · `GET /` · `GET /contest/:contest_id` · `GET /student/:student_id` · `GET /leaderboard?timeFrame=today|week|month|all` · `GET /rank/:conId` · `GET /:id` · `GET /editorial/:student_id?contest_id=` · `GET /statistics-profile/:student_id` · `GET /statistics/:student_id`
+`POST /` (**client-computed score**) · `GET /` · `GET /contest/:contest_id` · `GET /student/:student_id` · `GET /leaderboard?timeFrame=today|week|month|all` · `GET /rank/:conId` · `DELETE /:id` (404 on missing row; added 2026-09-23) · `GET /:id` · `GET /editorial/:student_id?contest_id=` · `GET /statistics-profile/:student_id` · `GET /statistics/:student_id`
 
 ### `/api/admin` (`admin_handler.go:24-33`)
 `POST /register` (**public admin creation**) · `PUT /:id` · `DELETE /:id` · `GET /:id` (looks up by *email*, #22) · `GET /me` (JWT cookie — the only guarded route) · `GET /` (**leaks plaintext passwords**) · `POST /login` (sets `token` cookie, SameSite=None; **no password check**, #4) · `GET /dashboard`
@@ -128,10 +128,10 @@ Full CRUD — but nothing ever calls `AddAchievement`; the live badge system is 
 `POST /` · `PUT /:id` · `DELETE /:id` · `GET /check/:student_id/:contest_id` · `GET /isActive/:contest_id/:student_id` (check-then-set, racy #32) · `GET /contest/:contest_id` (count)
 
 ### `/api/feedback-question`, `/api/poll-option`, `/api/feedback-response` (`feedback_handler.go:26-34, 135-142, 228-240`)
-Questions: CRUD + `GET /active` + `GET /admin/:admin_id`. Poll options: CRUD + `GET /score/:score`. Responses: CRUD + `GET /student/:id`, `/question/:id`, `/analytics?range=&admin_id=`, `/test` (debug leftover), `DELETE /contact/:phone`, `DELETE /response-only/:id`, `GET /:id`.
+Questions: CRUD + `GET /active` + `GET /admin/:admin_id`. Poll options: CRUD + `GET /score/:score`. Responses: CRUD + `GET /student/:id`, `/question/:id`, `/analytics?range=&admin_id=`, `DELETE /contact/:phone`, `DELETE /response-only/:id`, `GET /:id` (404 for unknown ids; the `/test` debug route was removed 2026-09-23).
 
 ### `/api/payment` (`payment_handler.go:22-29`)
-`GET /` (broken, #19) · `POST /update` (**public approve/reject**) · `POST /` (multipart; verified working end-to-end) · `GET /getexpired` · `GET /withstatus?status=` · `GET /:user_id`
+`GET /` (fixed, #19) · `POST /update` (**public approve/reject**) · `POST /` (multipart; verified working end-to-end; does not accept `amount` yet) · `DELETE /:id` (404 on missing row; added 2026-09-23) · `GET /getexpired` · `GET /withstatus?status=` · `GET /:user_id`
 
 ### `/api/banks` (`bank_handler.go`)
 `GET /` (active banks, ordered by `display_order`) · `GET /all` (incl. inactive, admin) · `GET /:id` · `POST /` · `PUT /:id` (omitted `is_active` preserves stored flag) · `DELETE /:id` — admin-managed payment bank list; replaces the values previously hardcoded in the frontend. Table `banks` (partition `id`), provisioned by `cmd/setup-tables`. Write routes inherit the open auth gap (#6).
@@ -146,7 +146,7 @@ Questions: CRUD + `GET /active` + `GET /admin/:admin_id`. Poll options: CRUD + `
 `POST /track` · `GET /stats?days=30`
 
 ### `/api/articles*` (`article_handler.go:20-32`)
-`GET /articles` · `GET /articles/published?number=` · `GET /articles/status/:status` · `GET /articles/:id` · `GET|POST /articles/:id/comments` · `POST /articles` · `PUT|DELETE /articles/:id` · `PATCH /articles/:id/status` · `PATCH /articles/:id/stats` — all public.
+`GET /articles` · `GET /articles/published?number=` · `GET /articles/status/:status` · `GET /articles/:id` · `GET|POST /articles/:id/comments` · `PUT|DELETE /articles/:id/comments/:commentId` (added 2026-09-23; delete decrements the comment counter; author check waits on auth middleware) · `POST /articles` · `PUT|DELETE /articles/:id` · `PATCH /articles/:id/status` · `PATCH /articles/:id/stats` — all public.
 
 ### `/api/images` (`image_handler.go:19-23`)
 `POST /upload` · `GET /list?folder=&max=` · `DELETE /delete?id=` — folder param ignored (# image repo), unauthenticated delete.
