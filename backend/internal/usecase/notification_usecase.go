@@ -3,6 +3,7 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"victor-contest-go/internal/domain"
@@ -96,6 +97,19 @@ func (u *notificationUsecase) GetNotificationByID(id string) (*domain.Notificati
 func (u *notificationUsecase) GetAllNotifications() ([]domain.Notification, error) {
 	return u.repo.GetAllNotifications()
 }
+// sortNotificationsNewestFirst orders by sent_at descending. Notifications
+// with unparseable timestamps sink to the end instead of being dropped.
+func sortNotificationsNewestFirst(notifications []domain.Notification) {
+	sort.SliceStable(notifications, func(i, j int) bool {
+		ti, eri := time.Parse(time.RFC3339, notifications[i].SentAt)
+		tj, erj := time.Parse(time.RFC3339, notifications[j].SentAt)
+		if eri != nil || erj != nil {
+			return eri == nil && erj != nil
+		}
+		return ti.After(tj)
+	})
+}
+
 func (u *notificationUsecase) GetNotificationsByRecipient(recipientID string) ([]domain.Notification, error) {
 	notifications := make([]domain.Notification, 0)
 	n, err := u.repo.GetNotificationsByRecipient(recipientID)
@@ -106,6 +120,7 @@ func (u *notificationUsecase) GetNotificationsByRecipient(recipientID string) ([
 		return notifications, nil
 	}
 
+	sortNotificationsNewestFirst(n)
 	return n, nil
 }
 
@@ -132,6 +147,7 @@ func (u *notificationUsecase) GetNotificationsByRecipientAfterDate(recipientID s
 		}
 	}
 
+	sortNotificationsNewestFirst(filteredNotifications)
 	return filteredNotifications, nil
 }
 

@@ -29,6 +29,53 @@ func (f *fakeNotificationRepo) UpdateNotification(id string, update domain.Notif
 	return nil
 }
 
+func (f *fakeNotificationRepo) GetNotificationsByRecipient(recipientID string) ([]domain.Notification, error) {
+	var out []domain.Notification
+	for _, n := range f.byID {
+		if n.RecipientID == recipientID || n.RecipientID == "all" {
+			out = append(out, *n)
+		}
+	}
+	return out, nil
+}
+
+// TestNotificationsNewestFirst covers the client report that fresh
+// notifications appeared at the bottom: sent_at strings mix UTC ("Z") and
+// "+03:00" offsets, so the API must order by parsed instant, not raw string.
+func TestNotificationsNewestFirst(t *testing.T) {
+	repo := &fakeNotificationRepo{byID: map[string]*domain.Notification{
+		"old":  {ID: "old", RecipientID: "s1", SentAt: "2026-09-23T05:07:11Z"},
+		"new":  {ID: "new", RecipientID: "all", SentAt: "2026-09-23T11:08:46+03:00"},
+		"mid":  {ID: "mid", RecipientID: "s1", SentAt: "2026-09-23T09:00:00Z"},
+		"junk": {ID: "junk", RecipientID: "s1", SentAt: "not-a-date"},
+	}}
+	u := &notificationUsecase{repo: repo}
+
+	got, err := u.GetNotificationsByRecipient("s1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// "new" is 08:08 UTC despite its later-looking "+03:00" wall clock, so a
+	// naive string sort would wrongly place it above "mid".
+	want := []string{"mid", "new", "old", "junk"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d notifications, want %d", len(got), len(want))
+	}
+	for i, id := range want {
+		if got[i].ID != id {
+			t.Fatalf("order = %v, want %v", ids(got), want)
+		}
+	}
+}
+
+func ids(ns []domain.Notification) []string {
+	out := make([]string, len(ns))
+	for i, n := range ns {
+		out[i] = n.ID
+	}
+	return out
+}
+
 // TestMarkNotificationAsRead covers #30: an unknown id must produce
 // ErrNotificationNotFound (mapped to 404 by the handler) instead of a nil
 // dereference, while a known id is marked read and persisted.
