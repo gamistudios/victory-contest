@@ -29,7 +29,6 @@ import {
 import {
   BarChart3,
   Target,
-  Clock,
   TrendingUp,
   AlertTriangle,
   CheckCircle,
@@ -61,6 +60,7 @@ const Statistics: React.FC = () => {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
   const navigate = useNavigate();
   const [selectedFilter, setSelectedFilter] = useState<
     "subjects" | "chapters" | "grades"
@@ -101,82 +101,6 @@ const Statistics: React.FC = () => {
         } else {
           setError("Invalid statistics data format");
         }
-        // const mockStat = {
-        //   total_contests: 15,
-        //   total_questions: 350,
-        //   correct_answers: 280,
-        //   accuracy: 0.8,
-        //   average_time: 45.5,
-        //   subjects: {
-        //     Mathematics: {
-        //       total: 150,
-        //       correct: 110,
-        //       accuracy: 0.733,
-        //     },
-        //     Physics: {
-        //       total: 100,
-        //       correct: 90,
-        //       accuracy: 0.9,
-        //     },
-        //     Chemistry: {
-        //       total: 100,
-        //       correct: 80,
-        //       accuracy: 0.8,
-        //     },
-        //   },
-        //   chapters: {
-        //     Algebra: {
-        //       total: 75,
-        //       correct: 50,
-        //       accuracy: 0.667,
-        //     },
-        //     Kinematics: {
-        //       total: 50,
-        //       correct: 48,
-        //       accuracy: 0.96,
-        //     },
-        //     Stoichiometry: {
-        //       total: 60,
-        //       correct: 45,
-        //       accuracy: 0.75,
-        //     },
-        //   },
-        //   grades: {
-        //     "Grade 9": {
-        //       total: 100,
-        //       correct: 85,
-        //       accuracy: 0.85,
-        //     },
-        //     "Grade 10": {
-        //       total: 120,
-        //       correct: 95,
-        //       accuracy: 0.792,
-        //     },
-        //     "Grade 11": {
-        //       total: 130,
-        //       correct: 100,
-        //       accuracy: 0.769,
-        //     },
-        //   },
-        //   performance_trend: [
-        //     {
-        //       month: "May",
-        //       accuracy: 0.75,
-        //       questions: 100,
-        //     },
-        //     {
-        //       month: "June",
-        //       accuracy: 0.82,
-        //       questions: 120,
-        //     },
-        //     {
-        //       month: "July",
-        //       accuracy: 0.81,
-        //       questions: 130,
-        //     },
-        //   ],
-        // };
-        // setStats(mockStat);
       } catch (err) {
         setError("Failed to fetch statistics");
         console.error("Error fetching statistics:", err);
@@ -186,7 +110,7 @@ const Statistics: React.FC = () => {
     };
 
     fetchStats();
-  }, [tgUser]);
+  }, [tgUser, retryTick]);
 
   const getAccuracyColor = (accuracy: number) => {
     if (accuracy >= 90) return "#10b981"; // green
@@ -243,7 +167,7 @@ const Statistics: React.FC = () => {
   const getRadarData = () => {
     if (!stats) return [];
 
-    const mainSubjects = Object.keys(stats.subjects);
+    const mainSubjects = Object.keys(stats.subjects ?? {});
 
     return mainSubjects.map((subject) => ({
       subject,
@@ -346,7 +270,7 @@ const Statistics: React.FC = () => {
       <div className="flex flex-col items-center justify-center h-64 text-red-500">
         <div className="text-lg mb-2">{error}</div>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => setRetryTick((t) => t + 1)}
           className="px-4 py-2 bg-blue-500 text-white rounded-lg"
         >
           Retry

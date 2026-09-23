@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/solid";
 
@@ -69,14 +69,17 @@ const ProfessionalWelcomeCarousel: React.FC<WelcomeCarouselProps> = ({
   const [[page, direction], setPage] = useState([0, 0]);
   const pageIndex = Math.abs(page % welcomeMessages.length);
 
-  const paginate = (newDirection: number) => {
-    setPage([page + newDirection, newDirection]);
-  };
+  const paginate = useCallback(
+    (newDirection: number) => {
+      setPage([page + newDirection, newDirection]);
+    },
+    [page]
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => paginate(1), 5000); // Auto-play interval
     return () => clearTimeout(timer);
-  }, [page]);
+  }, [paginate]);
 
   return (
     <div className="relative flex flex-col justify-between bg-gradient-to-br from-blue-700 via-purple-700 to-indigo-800 text-white p-6 rounded-2xl shadow-lg overflow-hidden min-h-[340px]">

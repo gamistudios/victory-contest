@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { PremiumUpgradeButton } from "./ContestCard";
+import { safePercent } from "../lib/utils";
 
 export default function LeaderboardModal({
   selectedContest,
@@ -31,14 +32,14 @@ export default function LeaderboardModal({
       try {
         const leaderboard = await getLeaderboardByContest(selectedContest.id);
         setPreviousContestLeaderboard(leaderboard);
-      } catch (e) {
+      } catch {
         setPreviousContestLeaderboard([]);
       } finally {
         setModalLoading(false);
       }
     };
     fetchLeaderboard();
-  }, []);
+  }, [selectedContest.id]);
 
   const handleEditorialClick = () => {
     if (isActiveContest) {
@@ -59,7 +60,10 @@ export default function LeaderboardModal({
     }
 
     navigate(
-      `/contest-editorial?id=${selectedContest.id}&title=${selectedContest.title}`
+      `/contest-editorial?${new URLSearchParams({
+        id: String(selectedContest.id),
+        title: selectedContest.title,
+      })}`
     );
   };
 
@@ -172,7 +176,7 @@ export default function LeaderboardModal({
                     </div>
                     <div className="text-right flex-shrink-0 ml-4">
                       <p className="font-bold text-lg text-gray-900 dark:text-gray-50">
-                        {((entry.score / entry.total_questions) * 100).toFixed(
+                        {safePercent(entry.score, entry.total_questions).toFixed(
                           2
                         )}
                         %

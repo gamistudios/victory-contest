@@ -1,4 +1,4 @@
-import { Contest, LeaderboardEntry } from "../types";
+import { Contest, ContestSubmission, LeaderboardEntry } from "../types";
 import api from "./api";
 
 export const getAllContests = async (): Promise<Contest[]> => {
@@ -33,7 +33,7 @@ export const isUserRegistered = async (
 export const registerForContest = async (
   contestId: string,
   studentId: string
-): Promise<any> => {
+): Promise<unknown> => {
   const res = await api.post(`/contest-registration/`, {
     contest_id: contestId,
     student_id: studentId,
@@ -41,20 +41,24 @@ export const registerForContest = async (
   return res.data;
 };
 
-export const submitContestResult = async (submission: any): Promise<any> => {
+export const submitContestResult = async (
+  submission: ContestSubmission
+): Promise<unknown> => {
   const res = await api.post(`/submission/`, submission);
   return res.data;
 };
 export const getEditorial = async (
   student_id: string,
   contest_id: string
-): Promise<any> => {
+): Promise<unknown> => {
   const res = await api.get(
     `/submission/editorial/${student_id}?contest_id=${contest_id}`
   );
   return res.data.editorial;
 };
-export async function getContestRegistration(contest_id: string): Promise<any> {
+export async function getContestRegistration(
+  contest_id: string
+): Promise<unknown[]> {
   return api
     .get(`/contest-registration/contest/${contest_id}`)
     .then((res) => res.data.registerations);

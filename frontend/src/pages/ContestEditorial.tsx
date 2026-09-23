@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft,
   BookOpen,
   CheckCircle,
   XCircle,
@@ -137,9 +136,11 @@ const ContestEditorial: React.FC = () => {
     text: string;
     gradient: string;
   }
-  showBackButton(() => {
-    navigate(-1);
-  });
+  useEffect(() => {
+    showBackButton(() => {
+      navigate(-1);
+    });
+  }, [showBackButton, navigate]);
 
   const getAnswerStatus = (question: EditorialQuestion): AnswerStatus => {
     if (question.user_answer === -1 || question.user_answer == null) {

@@ -34,7 +34,7 @@ export function AdTrigger() {
     }
     showAd();
     sessionStorage.setItem("adShown", `${adShownInSession + 1}`);
-  }, [location.pathname, showAd]);
+  }, [currentPath, showAd]);
 
   return null;
 }

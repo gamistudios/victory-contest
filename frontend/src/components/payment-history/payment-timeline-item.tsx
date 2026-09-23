@@ -1,7 +1,13 @@
 import { Badge } from "../ui/badge";
 import { PaymentRequest, PaymentStatus } from "../../types/index"; // Updated import
-import { CheckCircle, Clock, XCircle, Ban, Eye, X } from "lucide-react";
+import { CheckCircle, Clock, XCircle, Ban, Eye } from "lucide-react";
 import { Button } from "../ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 
 import { useState } from "react";
 
@@ -30,9 +36,6 @@ const statusMap: Record<
 export function PaymentTimelineItem({ request }: { request: PaymentRequest }) {
   const { variant, icon } = statusMap[request.status];
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const handleContentClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  };
 
   return (
     <li className="mb-8 ms-6">
@@ -93,43 +96,26 @@ export function PaymentTimelineItem({ request }: { request: PaymentRequest }) {
         ID: {request.id}
       </div>
 
-      {isModalOpen && (
-        <div
-          onClick={() => setIsModalOpen(false)}
-          className="fixed inset-0 z-100 flex items-center justify-center bg-black bg-opacity-70 backdrop-blur-sm"
-        >
-          {/* The Modal Content */}
-          <div
-            onClick={handleContentClick}
-            className="relative w-11/12 max-w-lg p-4 bg-white rounded-lg shadow-xl dark:bg-gray-800"
-          >
-            {/* Close Button */}
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-2 right-2 p-1 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"
-              aria-label="Close modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white">
               Bill Receipt
-            </h3>
+            </DialogTitle>
+          </DialogHeader>
 
-            {/* Image Display */}
-            <div className="mt-2">
-              <img
-                src={
-                  request.billScreenshotUrl ||
-                  "https://placehold.co/600x800/png"
-                }
-                alt={"bill"}
-                className="w-full h-auto rounded-lg border"
-              />
-            </div>
+          <div className="mt-2">
+            <img
+              src={
+                request.billScreenshotUrl ||
+                "https://placehold.co/600x800/png"
+              }
+              alt={"Payment receipt"}
+              className="w-full h-auto rounded-lg border"
+            />
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </li>
   );
 }

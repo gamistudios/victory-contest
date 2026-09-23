@@ -4,7 +4,6 @@ import {
   BarChart3,
   CheckCircle,
   ChevronRight,
-  Crown,
   Lock,
   Play,
   PlayCircle,
@@ -64,6 +63,7 @@ export default function ContestCard({ contest }: { contest: Contest }) {
   const { user: userInfo } = useAuth();
 
   const { hapticFeedback, user } = useTelegram();
+  const userId = user?.id;
   const [isRegistered, setIsRegistered] = useState<boolean>(false);
   const [checkingRegistration, setCheckingRegistration] =
     useState<boolean>(true);
@@ -73,15 +73,15 @@ export default function ContestCard({ contest }: { contest: Contest }) {
   useEffect(() => {
     let ignore = false;
     const checkRegistration = async () => {
-      if (user && contest.id) {
+      if (userId && contest.id) {
         setCheckingRegistration(true);
         try {
           const registered = await isUserRegistered(
             contest.id,
-            user.id.toString()
+            userId.toString()
           );
           if (!ignore) setIsRegistered(registered);
-        } catch (e) {
+        } catch {
           if (!ignore) setIsRegistered(false);
         } finally {
           if (!ignore) setCheckingRegistration(false);
@@ -95,7 +95,7 @@ export default function ContestCard({ contest }: { contest: Contest }) {
     return () => {
       ignore = true;
     };
-  }, [contest.id, user?.id]);
+  }, [contest.id, userId]);
 
   const handleContestClick = () => {
     hapticFeedback("impact", "light");

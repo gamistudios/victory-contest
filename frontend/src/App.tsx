@@ -16,6 +16,7 @@ import { UserPaymentHistoryPage } from "./pages/UserPaymentHistoryPage";
 import { AuthProvider } from "./context/AuthContext";
 import ArticlesPage from "./pages/Articles";
 import { ArticleView } from "./components/article/ArticleView";
+import NotFound from "./components/not-found";
 // import ScreenshotProtection from "./components/ScreenProtection";
 
 import { useEffect } from "react";
@@ -64,6 +65,10 @@ function App() {
             />
             <Route path="article" element={<ArticlesPage />} />
             <Route path="article/:id" element={<ArticleView />} />
+            <Route
+              path="*"
+              element={<NotFound text="The page you are looking for does not exist." />}
+            />
           </Route>
         </Routes>
       </AuthProvider>

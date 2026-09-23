@@ -184,8 +184,7 @@ export const useScreenshotProtection = () => {
         "mediaDevices" in navigator &&
         "getDisplayMedia" in navigator.mediaDevices
       ) {
-        const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
-        navigator.mediaDevices.getDisplayMedia = function (...args) {
+        navigator.mediaDevices.getDisplayMedia = function () {
           createOverlay("Screen recording is not allowed");
           if (hapticFeedback) {
             hapticFeedback("notification", "error");

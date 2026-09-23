@@ -13,6 +13,7 @@ import {
   safeFormatDistanceToNow,
   safeParseDate,
   safeQuestionsLength,
+  sameGrade,
 } from "../lib/utils";
 import { ArticleListForHome } from "../components/article/ArticleList";
 import { useAuth } from "../context/AuthContext";
@@ -31,8 +32,11 @@ const Home: React.FC = () => {
 
   const [showPreviousModal, setShowPreviousModal] = useState(false);
   const navigate = useNavigate();
-  hideBackButton();
   useEffect(() => {
+    hideBackButton();
+  }, [hideBackButton]);
+  useEffect(() => {
+    let cancelled = false;
     const fetchContests = async () => {
       setLoading(true);
       setContestError(null);
@@ -52,20 +56,27 @@ const Home: React.FC = () => {
             } else {
               previous.push(contest);
             }
-          } catch (error) {
+          } catch {
             previous.push(contest);
           }
         });
-        setContests(active);
-        setPreviousContests(previous);
+        if (!cancelled) {
+          setContests(active);
+          setPreviousContests(previous);
+        }
       } catch (e) {
         // handle error
-        setContestError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) {
+          setContestError(e instanceof Error ? e.message : String(e));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchContests();
+    return () => {
+      cancelled = true;
+    };
   }, [triggerLoading]);
 
   const handleShowStandings = async (contest: Contest) => {
@@ -76,7 +87,7 @@ const Home: React.FC = () => {
 
   const filteredContest = React.useMemo(() => {
     if (loading) return [];
-    return contests.filter((con) => con.grade === userInfo?.grade);
+    return contests.filter((con) => sameGrade(con.grade, userInfo?.grade));
   }, [loading, contests, userInfo]);
 
   return (
@@ -120,7 +131,7 @@ const Home: React.FC = () => {
             })}
           </div>
         )}
-        {filteredContest.length === 0 && contestError == null && (
+        {!loading && filteredContest.length === 0 && contestError == null && (
           <NoContests type="active" />
         )}
       </div>
@@ -141,7 +152,7 @@ const Home: React.FC = () => {
           />
         ) : (
           <div className="space-y-3">
-            {previousContests
+            {[...previousContests]
               .sort((a, b) => {
                 try {
                   const aTime = safeParseDate(
@@ -194,7 +205,10 @@ const Home: React.FC = () => {
                       />
                     ) : (
                       <Link
-                        to={`/contest-editorial?id=${contest.id}&title=${contest.title}`}
+                        to={`/contest-editorial?${new URLSearchParams({
+                          id: String(contest.id),
+                          title: contest.title,
+                        })}`}
                         className={`flex rounded-full cursor-pointer items-center justify-center w-10 h-10 text-sm hover:text-[#00AB55] hover:bg-[#00AB5514] text-[#00AB55] font-bold`}
                       >
                         <svg
@@ -217,11 +231,11 @@ const Home: React.FC = () => {
                         </svg>
                       </Link>
                     )}
-                    <Link
+                    <button
+                      type="button"
                       onClick={() => {
                         handleShowStandings(contest);
                       }}
-                      to=""
                       className={`flex rounded-full cursor-pointer items-center justify-center w-10 h-10 text-sm hover:text-[#00AB55] hover:bg-[#00AB5514] text-[#00AB55] font-bold`}
                     >
                       <svg
@@ -249,7 +263,7 @@ const Home: React.FC = () => {
                           ></path>
                         </g>
                       </svg>
-                    </Link>
+                    </button>
                   </div>
                 </div>
               ))}

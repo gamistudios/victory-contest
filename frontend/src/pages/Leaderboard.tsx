@@ -5,6 +5,7 @@ import { Trophy, Medal, Award, Clock, Target } from "lucide-react";
 import api from "../services/api";
 import { LeaderboardSkeleton } from "../components/LeaderboardSkeleton";
 import NotFound from "../components/not-found";
+import { safePercent } from "../lib/utils";
 
 const avatarColors = [
   "bg-red-500",
@@ -96,7 +97,7 @@ const CrownIcon: React.FC<{ color: string; className?: string }> = ({
 
 const podiumConfig = {
   1: {
-    crownColor: "violet-100",
+    crownColor: "#EDE9FE",
     sizeClass: "w-28 h-28",
     elevationClass: "-mt-8 z-10",
     crownSize: "w-10 h-10",
@@ -155,29 +156,38 @@ const Leaderboard: React.FC = () => {
   >("today");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchLeaderboard = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await api.get(
-          `/submission/leaderboard?timeFrame=${timeFrame}`
-        );
-        if (res.data && res.data.leaderboard) {
-          setLeaderboard(res.data.leaderboard);
-        } else {
-          setError("Invalid leaderboard data format");
-        }
-      } catch (err) {
-        setError("Failed to fetch leaderboard data");
-        console.error("Error fetching leaderboard:", err);
-      } finally {
-        setLoading(false);
-      }
+  const isMountedRef = React.useRef(true);
+  React.useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
     };
+  }, []);
 
+  const fetchLeaderboard = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get(
+        `/submission/leaderboard?timeFrame=${timeFrame}`
+      );
+      if (!isMountedRef.current) return;
+      if (res.data && res.data.leaderboard) {
+        setLeaderboard(res.data.leaderboard);
+      } else {
+        setError("Invalid leaderboard data format");
+      }
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      setError("Failed to fetch leaderboard data");
+      console.error("Error fetching leaderboard:", err);
+    } finally {
+      if (isMountedRef.current) setLoading(false);
+    }
+  }, [timeFrame]);
+
+  useEffect(() => {
     fetchLeaderboard();
-  }, [timeFrame, user?.id]);
+  }, [fetchLeaderboard]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -209,7 +219,7 @@ const Leaderboard: React.FC = () => {
       <div className="flex flex-col items-center justify-center h-64 text-red-500">
         <div className="text-lg mb-2">{error}</div>
         <button
-          onClick={() => window.location.reload()}
+          onClick={fetchLeaderboard}
           className="px-4 py-2 bg-blue-500 text-white rounded-lg"
         >
           Retry
@@ -280,7 +290,7 @@ const Leaderboard: React.FC = () => {
             </h2>
             <div className="space-y-2">
               {leaderboard.length === 0 ? (
-                <NotFound text="No standing found" />
+                <NotFound text="No standings found" />
               ) : (
                 leaderboard.map((entry) => {
                   const isCurrentUser =
@@ -325,9 +335,10 @@ const Leaderboard: React.FC = () => {
                               <Target className="w-4 h-4 mr-1" />
                               <span className="font-bold text-gray-600 dark:text-gray-300">
                                 {Math.round(
-                                  (entry.correct_answers /
-                                    entry.total_questions) *
-                                    100
+                                  safePercent(
+                                    entry.correct_answers,
+                                    entry.total_questions
+                                  )
                                 )}
                                 %
                               </span>
@@ -377,10 +388,11 @@ const Leaderboard: React.FC = () => {
             <div className="text-center">
               <div className="text-lg font-bold text-green-600 dark:text-green-400">
                 {Math.round(
-                  (currentUserEntry.correct_answers /
-                    currentUserEntry.total_questions) *
-                    100
-                ) || 0}
+                  safePercent(
+                    currentUserEntry.correct_answers,
+                    currentUserEntry.total_questions
+                  )
+                )}
                 %
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">

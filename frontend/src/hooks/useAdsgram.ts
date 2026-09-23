@@ -21,7 +21,7 @@ export function useAdsgram({
   useEffect(() => {
     AdControllerRef.current = window.Adsgram?.init({
       blockId,
-      debug: true,
+      debug: import.meta.env.DEV,
       debugBannerType: "FullscreenMedia",
     });
   }, [blockId]);

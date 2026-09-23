@@ -20,7 +20,7 @@ const ContestComponent: React.FC = () => {
   const [answers, setAnswers] = useState<ContestAnswer[]>([]);
   const [timeLeft, setTimeLeft] = useState(0); // Will be set after contest is loaded
   const [loading, setLoading] = useState(true);
-  const [error, _] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   const [contestEnded, setContestEnded] = useState(false);
   const [searchParams] = useSearchParams();
@@ -50,6 +50,9 @@ const ContestComponent: React.FC = () => {
     ) {
       handleContestEnd();
     }
+    // handleContestEnd is recreated every render; adding it as a dependency
+    // would tear down and restart the 1-second countdown timer each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft, contestEnded]);
 
   useEffect(() => {
@@ -57,6 +60,7 @@ const ContestComponent: React.FC = () => {
       // setLoading(false);
       return;
     }
+    let cancelled = false;
 
     const fetchAndSetupContest = async () => {
       try {
@@ -64,6 +68,7 @@ const ContestComponent: React.FC = () => {
         await api.get(`/contest-registration/isActive/${conId}/${user?.id}`);
 
         const contestData = await getContestById(conId);
+        if (cancelled) return;
         setContest(contestData);
 
         let endTime: number;
@@ -85,8 +90,8 @@ const ContestComponent: React.FC = () => {
 
         const now = Date.now();
         const diffInSeconds = Math.floor((endTime - now) / 1000);
-        setTimeLeft(diffInSeconds > 0 ? diffInSeconds : 0);
-      } catch (err: any) {
+        if (!cancelled) setTimeLeft(diffInSeconds > 0 ? diffInSeconds : 0);
+      } catch (err) {
         let apiError: string;
         if (axios.isAxiosError(err)) {
           apiError =
@@ -96,7 +101,7 @@ const ContestComponent: React.FC = () => {
                 err.response?.data?.message ||
                 err.response?.data?.detail) || err.message;
         } else {
-          apiError = err?.message || "An unexpected error occurred.";
+          apiError = (err as Error)?.message || "An unexpected error occurred.";
         }
 
         toast.error(apiError, {
@@ -110,12 +115,15 @@ const ContestComponent: React.FC = () => {
         // Optional: navigate away on critical error
         navigate("/");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchAndSetupContest();
-  }, [user]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user, conId, navigate]);
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -227,7 +235,7 @@ const ContestComponent: React.FC = () => {
   };
 
   const handleContestEnd = async () => {
-    let updatedAnswers = [...answers];
+    const updatedAnswers = [...answers];
     if (selectedAnswer !== null) {
       const currentQuestion = questions[currentQuestionIndex];
       const isCorrect = selectedAnswer === Number(currentQuestion.answer);
@@ -322,7 +330,7 @@ const ContestComponent: React.FC = () => {
       }, 10000);
 
       setContestEnded(true);
-    } catch (e) {
+    } catch {
       // Optionally handle error
       toast.error("Submission failed!", {
         description: "Failed to submit your contest answers. Please try again.",

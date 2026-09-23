@@ -12,8 +12,3 @@ export async function markNotificationAsRead(notificationId: string) {
   });
   return res.data;
 }
-
-export async function deleteNotification(notificationId: string) {
-  const res = await api.delete(`/notification/${notificationId}`);
-  return res.data;
-}

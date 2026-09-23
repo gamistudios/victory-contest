@@ -11,7 +11,7 @@ export async function getUserProfile(user_id: string) {
   return res.data.student;
 }
 
-export async function studentRegister(values: any) {
+export async function studentRegister(values: Record<string, unknown>) {
   const res = await api.post("/student/", values);
   return res.data.student;
 }
@@ -26,21 +26,16 @@ export async function updateUserInfo(user: AuthStudent) {
 }
 
 export async function updateStudentDefaultScoreRange(studentId: string, scoreRange: string) {
-  console.log('Updating student default score range:', { studentId, scoreRange });
-  
   // First get the current student data
   const currentStudent = await getStudentById(studentId);
-  console.log('Current student data:', currentStudent);
-  
+
   // Update the student with the new defaultScoreRange
   const updatedStudent = {
     ...currentStudent,
     defaultScoreRange: scoreRange
   };
-  console.log('Updated student data:', updatedStudent);
-  
+
   // Use the existing update endpoint
   const res = await api.put(`/student/${studentId}`, updatedStudent);
-  console.log('Update response:', res.data);
   return res.data;
 }

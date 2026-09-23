@@ -30,7 +30,7 @@ const Registration: React.FC = () => {
     experience: "",
     terms: false,
   });
-  const [loading, _] = useState(false);
+  const [loading] = useState(false);
   const [registering, setRegistering] = useState<boolean>(false);
   const [contestInfo, setContestInfo] = useState<ContestInfo | null>(null);
 
@@ -57,9 +57,9 @@ const Registration: React.FC = () => {
         );
         setContestInfo({
           ...location.state.contestData,
-          participants: registerations,
+          participants: registerations.length,
         });
-      } catch (error) {
+      } catch {
         toast.error("Failed to fetch contest details", {
           icon: <AlertCircle className="w-5 h-5" />,
           duration: 3000,
@@ -72,7 +72,7 @@ const Registration: React.FC = () => {
       }
     };
     fetchContestInfo();
-  }, [location]);
+  }, [location, navigate]);
 
   const availableSubjects = [
     "Mathematics",
@@ -137,9 +137,17 @@ const Registration: React.FC = () => {
       });
       return;
     }
+    if (!contestInfo?.id) {
+      toast.warning("Contest not found. Please try again.", {
+        icon: <AlertCircle className="w-5 h-5" />,
+        duration: 3000,
+        position: "top-right",
+      });
+      return;
+    }
     setRegistering(true);
     try {
-      await registerForContest(contestInfo?.id!, user!.id.toString());
+      await registerForContest(contestInfo.id, user.id.toString());
       hapticFeedback("notification", "success");
       toast.success("Registration successful!", {
         icon: <CheckCircle className="w-5 h-5" />,
@@ -150,7 +158,7 @@ const Registration: React.FC = () => {
         },
       });
       navigate("/");
-    } catch (err) {
+    } catch {
       // Optionally show error
       toast.error("Registration failed. Please try again.", {
         icon: <AlertCircle className="w-5 h-5" />,
@@ -418,7 +426,7 @@ const Registration: React.FC = () => {
             ? "Next"
             : registering
             ? "Registering"
-            : "Complete Registeration"}
+            : "Complete Registration"}
         </Button>
       </div>
     </div>

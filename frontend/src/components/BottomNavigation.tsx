@@ -1,12 +1,11 @@
 import React from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { BarChart3 } from "lucide-react";
 import HomeIcon from "../assets/home-09-stroke-rounded.svg?react";
 import AwardIcon from "../assets/award-04-stroke-rounded.svg?react";
 import AccountIcon from "../assets/account-setting-02-stroke-rounded (1).svg?react";
 const BottomNavigation: React.FC = () => {
   const location = useLocation();
-  const navigate = useNavigate();
 
   const navItems = [
     {
@@ -40,16 +39,20 @@ const BottomNavigation: React.FC = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border-t border-gray-200 dark:border-gray-700 px-2 py-2 z-50">
+    <nav
+      aria-label="Main navigation"
+      className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border-t border-gray-200 dark:border-gray-700 px-2 py-2 z-50"
+    >
       <div className="flex justify-around items-center">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
 
           return (
-            <div
+            <Link
               key={item.path}
-              onClick={() => navigate(item.path)}
+              to={item.path}
+              aria-current={isActive ? "page" : undefined}
               className="flex flex-col items-center"
             >
               <div
@@ -82,11 +85,11 @@ const BottomNavigation: React.FC = () => {
               {isActive && (
                 <div className="absolute -top-1 w-1 h-1 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
               )}
-            </div>
+            </Link>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 };
 

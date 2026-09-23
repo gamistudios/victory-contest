@@ -44,7 +44,7 @@ export function UserPaymentHistoryPage() {
         setError(null);
         const data = await fetchUserPaymentRequests(user?.id.toString());
         setRequests(data);
-      } catch (err) {
+      } catch {
         setError("Failed to load payment history. Please try again later.");
       } finally {
         setIsLoading(false);

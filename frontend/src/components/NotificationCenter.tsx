@@ -39,15 +39,17 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   const markAllAsRead = async () => {
     try {
-      interface NotificationMap {
-        [id: string]: { id: string; is_deleted: boolean };
-      }
-
-      const uns: NotificationMap = {};
-      const unreadNotifications = notifications.filter((n) => !n.is_read);
-      unreadNotifications.forEach((element) => {
-        uns[element.id] = { id: element.id, is_deleted: false };
-      });
+      const existing = user?.read_notifications ?? {};
+      const updatedReads = { ...existing };
+      notifications
+        .filter((n) => !n.is_read)
+        .forEach((element) => {
+          updatedReads[element.id] = {
+            ...updatedReads[element.id],
+            id: element.id,
+            is_deleted: updatedReads[element.id]?.is_deleted ?? false,
+          };
+        });
       setNotifications((prev) =>
         prev.map((notif) => ({ ...notif, is_read: true }))
       );
@@ -55,10 +57,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
         if (!prev) return prev;
         return {
           ...prev,
-          read_notifications: uns,
+          read_notifications: updatedReads,
         };
       });
-      await updateUserInfo({ ...user!, read_notifications: uns });
+      await updateUserInfo({ ...user!, read_notifications: updatedReads });
 
       hapticFeedback("impact", "light");
     } catch (error) {
@@ -69,20 +71,20 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const deleteNotificationHandler = async (id: string) => {
     try {
       setNotifications((prev) => prev.filter((notif) => notif.id !== id));
-      let resultedReads = user?.read_notifications[id];
-      if (!resultedReads) {
-        resultedReads = { id: id, is_deleted: true };
-      }
-      resultedReads.is_deleted = true;
+      const prevEntry = user?.read_notifications?.[id];
+      const updatedReads = {
+        ...user?.read_notifications,
+        [id]: { ...prevEntry, id, is_deleted: true },
+      };
+      setUser((prev) =>
+        prev ? { ...prev, read_notifications: updatedReads } : prev
+      );
       await updateUserInfo({
         ...user!,
-        read_notifications: {
-          ...user?.read_notifications,
-          [id]: resultedReads,
-        },
+        read_notifications: updatedReads,
       });
       hapticFeedback("impact", "medium");
-    } catch (error) {
+    } catch {
       toast.error("Unable to delete the notification", {
         style: {
           backgroundColor: "red",
@@ -166,6 +168,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
               )}
               <button
                 onClick={onClose}
+                aria-label="Close notifications"
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500" />
@@ -199,7 +202,9 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       if (notification.type === "feedback_question") {
                         try {
                           await markAsRead(notification.id);
-                        } catch {}
+                        } catch {
+                          console.warn("Failed to mark notification as read");
+                        }
                         onClose();
                         navigate("/feedback");
                       }
@@ -264,17 +269,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         </div>
 
                         <div className="flex items-center space-x-2 mt-2">
-                          {!notification.is_read && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                markAsRead(notification.id.toString());
-                              }}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                              Mark as read
-                            </button>
-                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

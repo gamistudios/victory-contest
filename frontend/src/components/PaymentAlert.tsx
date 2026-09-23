@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { PaymentRequest } from "../types";
 import { fetchUserPaymentRequests } from "../services/paymentServices";
 import { useTelegram } from "../hooks/useTelegram";
-import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
-import { AlertTriangle, PopcornIcon, X } from "lucide-react";
+import { Alert, AlertDescription } from "../components/ui/alert";
+import { AlertTriangle, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function PaymentAlert({
@@ -14,7 +14,7 @@ export default function PaymentAlert({
   const { user: tgUser } = useTelegram();
   const navigate = useNavigate();
 
-  const [payments, setpayments] = useState<PaymentRequest[] | null>(null);
+  const [payments, setPayments] = useState<PaymentRequest[] | null>(null);
   const [isVisible, setIsVisible] = useState(true); // Internal state for dismissal
 
   useEffect(() => {
@@ -22,8 +22,10 @@ export default function PaymentAlert({
     const fetchUserPayments = async () => {
       try {
         const payments = await fetchUserPaymentRequests(tgUser?.id.toString());
-        setpayments(payments);
-      } catch (err) {}
+        setPayments(payments);
+      } catch (err) {
+        console.warn("Failed to fetch user payment requests:", err);
+      }
     };
     fetchUserPayments();
   }, [tgUser]);
@@ -33,14 +35,11 @@ export default function PaymentAlert({
   if (payments != null) {
     const THREE_DAYS_IN_MS = 3 * 24 * 60 * 60 * 1000;
 
-    for (let index = 0; index < payments.length; index++) {
-      const payment = payments[index];
-      if (payment.status != "Approved") {
-        continue;
-      }
-      const timeDiff = new Date(payment.expirationDate!).getTime() - Date.now();
-      if (timeDiff > THREE_DAYS_IN_MS) break;
-      if (timeDiff <= THREE_DAYS_IN_MS && timeDiff > 0) {
+    for (const payment of payments) {
+      if (payment.status !== "Approved" || !payment.expirationDate) continue;
+      const timeDiff = new Date(payment.expirationDate).getTime() - Date.now();
+      if (Number.isNaN(timeDiff)) continue;
+      if (timeDiff > 0 && timeDiff <= THREE_DAYS_IN_MS) {
         isAboutToExpire = true;
         break;
       }
