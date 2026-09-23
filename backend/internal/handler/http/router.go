@@ -34,6 +34,7 @@ type Server struct {
 	articleHandler             *ArticleHandler
 	imageHandler               *ImageHandler
 	contestStatisticsHandler   *ContestStatisticsHandler
+	jwtSecret                  string
 }
 
 func NewServer() *Server {
@@ -119,6 +120,7 @@ func NewServer() *Server {
 		articleHandler:             NewArticleHandler(articleUsecase),
 		imageHandler:               NewImageHandler(imgRepo),
 		contestStatisticsHandler:   NewContestStatisticsHandler(contestStatisticsUsecase),
+		jwtSecret:                  jwtSecret,
 	}
 	return server
 }
@@ -205,27 +207,32 @@ func (s *Server) NewRouter() *gin.Engine {
 	r := gin.Default()
 	r.Use(corsMiddleware(corsAllowedOrigins()))
 
+	// adminAuth guards every non-login admin surface (issue #6). Handlers
+	// take it as an optional RegisterRoutes argument so route-level tests
+	// can register handlers without the gate.
+	adminAuthMw := adminAuth([]byte(s.jwtSecret))
+
 	api := r.Group("/api")
-	s.contestHandler.RegisterRoutes(api.Group("/contest"))
-	s.studentHandler.RegisterRoutes(api.Group("/student"))
-	s.questionHandler.RegisterRoutes(api.Group("/question"))
-	s.submissionHandler.RegisterRoutes(api.Group("/submission"))
-	s.adminHandler.RegisterRoutes(api.Group("/admin"))
-	s.notificationHandler.RegisterRoutes(api.Group("/notification"))
-	s.achievementHandler.RegisterRoutes(api.Group("/achievement"))
-	s.bankHandler.RegisterRoutes(api.Group("/banks"))
-	s.contestRegistrationHandler.RegisterRoutes(api.Group("/contest-registration"))
-	s.feedbackQuestionHandler.RegisterRoutes(api.Group("/feedback-question"))
-	s.pollOptionHandler.RegisterRoutes(api.Group("/poll-option"))
-	s.feedbackResponseHandler.RegisterRoutes(api.Group("/feedback-response"))
-	s.paymentHandler.RegisterRoutes(api.Group("/payment"))
+	s.contestHandler.RegisterRoutes(api.Group("/contest"), adminAuthMw)
+	s.studentHandler.RegisterRoutes(api.Group("/student"), adminAuthMw)
+	s.questionHandler.RegisterRoutes(api.Group("/question"), adminAuthMw)
+	s.submissionHandler.RegisterRoutes(api.Group("/submission"), adminAuthMw)
+	s.adminHandler.RegisterRoutes(api.Group("/admin"), adminAuthMw)
+	s.notificationHandler.RegisterRoutes(api.Group("/notification"), adminAuthMw)
+	s.achievementHandler.RegisterRoutes(api.Group("/achievement"), adminAuthMw)
+	s.bankHandler.RegisterRoutes(api.Group("/banks"), adminAuthMw)
+	s.contestRegistrationHandler.RegisterRoutes(api.Group("/contest-registration"), adminAuthMw)
+	s.feedbackQuestionHandler.RegisterRoutes(api.Group("/feedback-question"), adminAuthMw)
+	s.pollOptionHandler.RegisterRoutes(api.Group("/poll-option"), adminAuthMw)
+	s.feedbackResponseHandler.RegisterRoutes(api.Group("/feedback-response"), adminAuthMw)
+	s.paymentHandler.RegisterRoutes(api.Group("/payment"), adminAuthMw)
 	s.aiHandler.RegisterRoutes(api.Group("/ai"))
 	s.telegramHandler.RegisterRoutes(api.Group("/telegram"))
-	s.pageViewHandler.RegisterRoutes(api.Group("/pageview"))
-	s.articleHandler.Register(api)
+	s.pageViewHandler.RegisterRoutes(api.Group("/pageview"), adminAuthMw)
+	s.articleHandler.Register(api, adminAuthMw)
 	// Image routes
-	s.imageHandler.RegisterRoutes(api.Group("/images"))
-	s.contestStatisticsHandler.RegisterRoutes(api.Group("/statistics"))
+	s.imageHandler.RegisterRoutes(api.Group("/images"), adminAuthMw)
+	s.contestStatisticsHandler.RegisterRoutes(api.Group("/statistics"), adminAuthMw)
 
 	return r
 }

@@ -21,14 +21,18 @@ func NewQuestionHandler(u usecase.QuestionUsecase, imgRepo *repository.ImageRepo
 	return &QuestionHandler{usecase: u, imageRepo: imgRepo}
 }
 
-func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/add", h.AddQuestion)
-	rg.POST("/multiple-add", h.AddMultipleQuestions)
-	rg.POST("/multiple-delete", h.DeleteMultipleQuestions)
-	rg.PATCH("/:id", h.UpdateQuestion)
-	rg.DELETE("/delete/:id", h.DeleteQuestion)
-	rg.GET("/", h.GetAllQuestions)
-	rg.GET("/:id", h.GetQuestionByID)
+func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Question rows carry the correct answers — the student app never reads
+	// /question directly (exam content arrives hydrated on the contest), so
+	// the whole surface is admin-only.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/add", h.AddQuestion)
+	auth.POST("/multiple-add", h.AddMultipleQuestions)
+	auth.POST("/multiple-delete", h.DeleteMultipleQuestions)
+	auth.PATCH("/:id", h.UpdateQuestion)
+	auth.DELETE("/delete/:id", h.DeleteQuestion)
+	auth.GET("/", h.GetAllQuestions)
+	auth.GET("/:id", h.GetQuestionByID)
 }
 
 func (h *QuestionHandler) AddQuestion(c *gin.Context) {

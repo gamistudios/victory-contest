@@ -17,9 +17,12 @@ func NewPageViewHandler(u usecase.PageViewUsecase) *PageViewHandler {
 	return &PageViewHandler{usecase: u}
 }
 
-func (h *PageViewHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/track", h.TrackPageView)
-	rg.GET("/stats", h.GetPageViewStats)
+func (h *PageViewHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Analytics ingestion and reporting are admin/ops surfaces; the mini-app
+	// never calls these routes.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/track", h.TrackPageView)
+	auth.GET("/stats", h.GetPageViewStats)
 }
 
 func (h *PageViewHandler) TrackPageView(c *gin.Context) {

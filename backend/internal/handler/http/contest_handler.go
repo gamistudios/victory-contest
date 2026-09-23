@@ -24,14 +24,17 @@ func NewContestHandler(u usecase.ContestUsecase, notificationService usecase.Not
 	}
 }
 
-func (h *ContestHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/add", h.AddContest)
-	rg.PATCH("/:id", h.UpdateContest)
+func (h *ContestHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Students may browse contests; every mutation (and the announce blast)
+	// is admin-only.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/add", h.AddContest)
+	auth.PATCH("/:id", h.UpdateContest)
+	auth.DELETE("/delete/:id", h.DeleteContest)
+	auth.POST("/clone/:id", h.CloneContest)
+	auth.POST("/announce/:id", h.AnnounceContest)
 	rg.GET("/", h.GetAllContests)
 	rg.GET("/:id", h.GetContestByID)
-	rg.DELETE("/delete/:id", h.DeleteContest)
-	rg.POST("/clone/:id", h.CloneContest)
-	rg.POST("/announce/:id", h.AnnounceContest)
 }
 
 func (h *ContestHandler) AddContest(c *gin.Context) {

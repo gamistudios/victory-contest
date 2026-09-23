@@ -16,13 +16,16 @@ func NewBankHandler(u usecase.BankUsecase) *BankHandler {
 	return &BankHandler{usecase: u}
 }
 
-func (h *BankHandler) RegisterRoutes(rg *gin.RouterGroup) {
+func (h *BankHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// The payment page only lists active banks; editing bank data and seeing
+	// deactivated rows is admin-only.
+	auth := rg.Group("", adminAuth...)
+	auth.GET("/all", h.GetAllBanks)
+	auth.GET("/:id", h.GetBankByID)
+	auth.POST("/", h.AddBank)
+	auth.PUT("/:id", h.UpdateBank)
+	auth.DELETE("/:id", h.DeleteBank)
 	rg.GET("/", h.GetActiveBanks)
-	rg.GET("/all", h.GetAllBanks)
-	rg.GET("/:id", h.GetBankByID)
-	rg.POST("/", h.AddBank)
-	rg.PUT("/:id", h.UpdateBank)
-	rg.DELETE("/:id", h.DeleteBank)
 }
 
 // bankInput mirrors domain.Bank with is_active as a pointer so an omitted

@@ -17,10 +17,13 @@ func NewContestRegistrationHandler(u usecase.ContestRegistrationUsecase) *Contes
 	return &ContestRegistrationHandler{usecase: u}
 }
 
-func (h *ContestRegistrationHandler) RegisterRoutes(rg *gin.RouterGroup) {
+func (h *ContestRegistrationHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Joining and checking one's own registration are student flows;
+	// rewriting or removing registrations is admin-only.
+	auth := rg.Group("", adminAuth...)
+	auth.PUT("/:id", h.UpdateContestRegistration)
+	auth.DELETE("/:id", h.DeleteContestRegistration)
 	rg.POST("/", h.AddContestRegistration)
-	rg.PUT("/:id", h.UpdateContestRegistration)
-	rg.DELETE("/:id", h.DeleteContestRegistration)
 	rg.GET("/check/:student_id/:contest_id", h.IsStudentRegisteredForContest)
 	rg.GET("/isActive/:contest_id/:student_id", h.CheckStudentActiveInContest)
 	rg.GET("/contest/:contest_id", h.GetNumberOfRegisterationForContest)

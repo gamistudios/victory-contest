@@ -20,19 +20,22 @@ func NewStudentHandler(u usecase.StudentUsecase, notificationService usecase.Not
 	return &StudentHandler{usecase: u, notificationService: notificationService}
 }
 
-func (h *StudentHandler) RegisterRoutes(rg *gin.RouterGroup) {
+func (h *StudentHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Registration, self-profile read/update and public rank boards stay
+	// open for the mini-app; rosters, paid lists and admin analytics do not.
+	auth := rg.Group("", adminAuth...)
+	auth.DELETE("/:id", h.DeleteStudent)
+	auth.GET("/", h.GetStudents)
+	auth.GET("/paid", h.GetPaidStudents)
+	auth.GET("/quickstat/:id", h.GetQuickStat)
+	auth.GET("/profile-admin/:student_id", h.GetUserStatForAdmin)
 	rg.POST("/", h.AddStudent)
 	rg.PUT("/:id", h.UpdateStudent)
-	rg.DELETE("/:id", h.DeleteStudent)
-	rg.GET("/", h.GetStudents)
-	rg.GET("/paid", h.GetPaidStudents)
-	rg.GET("/quickstat/:id", h.GetQuickStat)
 	rg.GET("/rank", h.GetStudentRankings)
 	rg.GET("/rank/:contest_id", h.GetStudentRankingsByContest)
 	rg.GET("/:id", h.GetStudentByID)
 	rg.GET("/grades-and-schools", h.GetGradesAndSchools)
 	rg.GET("/profile/:id", h.GetUserProfile)
-	rg.GET("/profile-admin/:student_id", h.GetUserStatForAdmin)
 }
 
 func (h *StudentHandler) AddStudent(c *gin.Context) {

@@ -17,15 +17,18 @@ func NewSubmissionHandler(u usecase.SubmissionUsecase) *SubmissionHandler {
 	return &SubmissionHandler{usecase: u}
 }
 
-func (h *SubmissionHandler) RegisterRoutes(rg *gin.RouterGroup) {
+func (h *SubmissionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Submitting answers and reading one's own rank/editorial/statistics are
+	// student flows; cross-student rosters and deletion are admin-only.
+	auth := rg.Group("", adminAuth...)
+	auth.GET("/", h.GetAllSubmissions)
+	auth.GET("/contest/:contest_id", h.GetSubmissionsByContest)
+	auth.GET("/student/:student_id", h.GetSubmissionsByStudent)
+	auth.GET("/:id", h.GetSubmissionByID)
+	auth.DELETE("/:id", h.DeleteSubmission)
 	rg.POST("/", h.AddSubmission)
-	rg.GET("/", h.GetAllSubmissions)
-	rg.GET("/contest/:contest_id", h.GetSubmissionsByContest)
-	rg.GET("/student/:student_id", h.GetSubmissionsByStudent)
 	rg.GET("/leaderboard", h.GetLeaderboardByTimeFrame)
 	rg.GET("/rank/:conId", h.GetRankForContest)
-	rg.GET("/:id", h.GetSubmissionByID)
-	rg.DELETE("/:id", h.DeleteSubmission)
 	rg.GET("/editorial/:student_id", h.GetStudentEditorial)
 	rg.GET("/statistics-profile/:student_id", h.GetStudentProfileStatistics)
 	rg.GET("/statistics/:student_id", h.GetStudentStatisctis)

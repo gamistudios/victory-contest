@@ -16,12 +16,15 @@ func NewAchievementHandler(u usecase.AchievementUsecase) *AchievementHandler {
 	return &AchievementHandler{usecase: u}
 }
 
-func (h *AchievementHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/", h.AddAchievement)
-	rg.PUT("/:id", h.UpdateAchievement)
-	rg.DELETE("/:id", h.DeleteAchievement)
-	rg.GET("/", h.GetAllAchievements)
-	rg.GET("/:id", h.GetAchievementByID)
+func (h *AchievementHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// The mini-app shows a student's own badges; the rest of the surface is
+	// admin management.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/", h.AddAchievement)
+	auth.PUT("/:id", h.UpdateAchievement)
+	auth.DELETE("/:id", h.DeleteAchievement)
+	auth.GET("/", h.GetAllAchievements)
+	auth.GET("/:id", h.GetAchievementByID)
 	rg.GET("/student/:student_id", h.GetAchievementsByStudent)
 }
 

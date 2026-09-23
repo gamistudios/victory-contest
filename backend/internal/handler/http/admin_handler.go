@@ -23,15 +23,17 @@ func NewAdminHandler(u usecase.AdminUsecase, jwtSecret string) *AdminHandler {
 	return &AdminHandler{usecase: u, jwtSecret: []byte(jwtSecret)}
 }
 
-func (h *AdminHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/register", h.AddAdmin)
-	rg.PUT("/:id", h.UpdateAdmin)
-	rg.DELETE("/:id", h.DeleteAdmin)
-	rg.GET("/:id", h.GetAdminByID)
-	rg.GET("/me", h.GetMe)
-	rg.GET("/", h.GetAllAdmins)
+func (h *AdminHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Everything except login requires a valid admin cookie.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/register", h.AddAdmin)
+	auth.PUT("/:id", h.UpdateAdmin)
+	auth.DELETE("/:id", h.DeleteAdmin)
+	auth.GET("/:id", h.GetAdminByID)
+	auth.GET("/me", h.GetMe)
+	auth.GET("/", h.GetAllAdmins)
+	auth.GET("/dashboard", h.GetDashboardStats)
 	rg.POST("/login", h.SignIn)
-	rg.GET("/dashboard", h.GetDashboardStats)
 }
 func (h *AdminHandler) GetMe(c *gin.Context) {
 	tokenString, err := c.Cookie("token")

@@ -16,10 +16,13 @@ func NewImageHandler(repo *repository.ImageRepository) *ImageHandler {
     return &ImageHandler{repo: repo}
 }
 
-func (h *ImageHandler) RegisterRoutes(rg *gin.RouterGroup) {
-    rg.POST("/upload", h.Upload)
-    rg.GET("/list", h.List)
-    rg.DELETE("/delete", h.Delete)
+func (h *ImageHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Cloudinary upload/list/delete are admin content tooling; students only
+	// ever read the resulting image URLs.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/upload", h.Upload)
+	auth.GET("/list", h.List)
+	auth.DELETE("/delete", h.Delete)
 }
 
 func (h *ImageHandler) Upload(c *gin.Context) {

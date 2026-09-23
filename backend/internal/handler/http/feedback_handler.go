@@ -22,14 +22,17 @@ func NewFeedbackQuestionHandler(u usecase.FeedbackQuestionUsecase, notificationS
 	}
 }
 
-func (h *FeedbackQuestionHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/", h.AddFeedbackQuestion)
-	rg.PUT("/:id", h.UpdateFeedbackQuestion)
-	rg.DELETE("/:id", h.DeleteFeedbackQuestion)
-	rg.GET("/", h.GetAllFeedbackQuestions)
+func (h *FeedbackQuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// The survey form only needs the active questions; authoring and
+	// inventory reads are admin-only.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/", h.AddFeedbackQuestion)
+	auth.PUT("/:id", h.UpdateFeedbackQuestion)
+	auth.DELETE("/:id", h.DeleteFeedbackQuestion)
+	auth.GET("/", h.GetAllFeedbackQuestions)
+	auth.GET("/:id", h.GetFeedbackQuestionByID)
+	auth.GET("/admin/:admin_id", h.GetFeedbackQuestionsByAdmin)
 	rg.GET("/active", h.GetActiveFeedbackQuestions)
-	rg.GET("/:id", h.GetFeedbackQuestionByID)
-	rg.GET("/admin/:admin_id", h.GetFeedbackQuestionsByAdmin)
 }
 
 func (h *FeedbackQuestionHandler) AddFeedbackQuestion(c *gin.Context) {
@@ -131,13 +134,15 @@ func NewPollOptionHandler(u usecase.PollOptionUsecase) *PollOptionHandler {
 	return &PollOptionHandler{usecase: u}
 }
 
-func (h *PollOptionHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/", h.AddPollOption)
-	rg.PUT("/:id", h.UpdatePollOption)
-	rg.DELETE("/:id", h.DeletePollOption)
+func (h *PollOptionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Students need the option list to render the poll; managing options is admin-only.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/", h.AddPollOption)
+	auth.PUT("/:id", h.UpdatePollOption)
+	auth.DELETE("/:id", h.DeletePollOption)
+	auth.GET("/:id", h.GetPollOptionByID)
+	auth.GET("/score/:score", h.GetPollOptionByScore)
 	rg.GET("/", h.GetAllPollOptions)
-	rg.GET("/:id", h.GetPollOptionByID)
-	rg.GET("/score/:score", h.GetPollOptionByScore)
 }
 
 func (h *PollOptionHandler) AddPollOption(c *gin.Context) {
@@ -224,17 +229,22 @@ func NewFeedbackResponseHandler(u usecase.FeedbackResponseUsecase, notificationS
 	return &FeedbackResponseHandler{usecase: u, notificationService: notificationService}
 }
 
-func (h *FeedbackResponseHandler) RegisterRoutes(rg *gin.RouterGroup) {
+func (h *FeedbackResponseHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Answering the survey is public; reading other students' responses,
+	// analytics and contact deletion are admin-only.
+	// Feedback.tsx shows a student their own past responses, so
+	// /student/:id stays public; other reads are admin-only.
+	auth := rg.Group("", adminAuth...)
+	auth.PUT("/:id", h.UpdateFeedbackResponse)
+	auth.DELETE("/:id", h.DeleteFeedbackResponse)
+	auth.DELETE("/response-only/:id", h.DeleteFeedbackResponseOnly)
+	auth.GET("/", h.GetAllFeedbackResponses)
+	auth.GET("/question/:question_id", h.GetFeedbackResponsesByQuestion)
+	auth.GET("/analytics", h.GetFeedbackAnalytics)
+	auth.DELETE("/contact/:phone_number", h.DeleteContactByPhoneNumber)
+	auth.GET("/:id", h.GetFeedbackResponseByID)
 	rg.POST("/", h.AddFeedbackResponse)
-	rg.PUT("/:id", h.UpdateFeedbackResponse)
-	rg.DELETE("/:id", h.DeleteFeedbackResponse)
-	rg.DELETE("/response-only/:id", h.DeleteFeedbackResponseOnly)
-	rg.GET("/", h.GetAllFeedbackResponses)
 	rg.GET("/student/:student_id", h.GetFeedbackResponsesByStudent)
-	rg.GET("/question/:question_id", h.GetFeedbackResponsesByQuestion)
-	rg.GET("/analytics", h.GetFeedbackAnalytics)
-	rg.DELETE("/contact/:phone_number", h.DeleteContactByPhoneNumber)
-	rg.GET("/:id", h.GetFeedbackResponseByID)
 }
 
 func (h *FeedbackResponseHandler) AddFeedbackResponse(c *gin.Context) {

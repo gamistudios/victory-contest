@@ -18,19 +18,22 @@ func NewArticleHandler(uc *usecase.ArticleUsecase) *ArticleHandler {
     return &ArticleHandler{uc: uc}
 }
 
-func (h *ArticleHandler) Register(rg *gin.RouterGroup) {
-    rg.GET("/articles", h.List)
+func (h *ArticleHandler) Register(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+    // Readers browse published articles, comment and update view/like stats;
+    // authoring, draft inventory and moderation are admin-only.
+    auth := rg.Group("", adminAuth...)
+    auth.GET("/articles", h.List)
+    auth.GET("/articles/status/:status", h.ListByStatus)
+    auth.POST("/articles", h.Create)
+    auth.PUT("/articles/:id", h.Update)
+    auth.PUT("/articles/:id/comments/:commentId", h.UpdateComment)
+    auth.DELETE("/articles/:id", h.Delete)
+    auth.DELETE("/articles/:id/comments/:commentId", h.DeleteComment)
+    auth.PATCH("/articles/:id/status", h.ToggleStatus)
     rg.GET("/articles/published", h.ListPublished)
-    rg.GET("/articles/status/:status", h.ListByStatus)
     rg.GET("/articles/:id", h.GetByID)
     rg.GET("/articles/:id/comments", h.ListComments)
-    rg.POST("/articles", h.Create)
     rg.POST("/articles/:id/comments", h.CreateComment)
-    rg.PUT("/articles/:id", h.Update)
-    rg.PUT("/articles/:id/comments/:commentId", h.UpdateComment)
-    rg.DELETE("/articles/:id", h.Delete)
-    rg.DELETE("/articles/:id/comments/:commentId", h.DeleteComment)
-    rg.PATCH("/articles/:id/status", h.ToggleStatus)
     rg.PATCH("/articles/:id/stats", h.UpdateStats)
 }
 

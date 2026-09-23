@@ -20,13 +20,17 @@ func NewPaymentHandler(paymentUsecase usecase.PaymentUsecase, imgRepo repository
 	return &PaymentHandler{usecase: paymentUsecase, imgRepo: imgRepo}
 }
 
-func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/", h.GetAllPayments)
-	rg.POST("/update", h.UpdatePaymentStatus)
+func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Students create payments and check their own history; approving,
+	// rejecting, deleting and cross-user listing are admin-only (issue #7:
+	// the approve endpoint used to be public).
+	auth := rg.Group("", adminAuth...)
+	auth.GET("/", h.GetAllPayments)
+	auth.POST("/update", h.UpdatePaymentStatus)
+	auth.DELETE("/:id", h.DeletePayment)
+	auth.GET("/getexpired", h.GetExpiredPayments)
+	auth.GET("/withstatus", h.GetPaymentsWithStatus)
 	rg.POST("/", h.CreatePayment)
-	rg.DELETE("/:id", h.DeletePayment)
-	rg.GET("/getexpired", h.GetExpiredPayments)
-	rg.GET("/withstatus", h.GetPaymentsWithStatus)
 	rg.GET("/:user_id", h.GetByUserId)
 }
 

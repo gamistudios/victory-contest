@@ -18,10 +18,13 @@ func NewContestStatisticsHandler(u usecase.ContestStatisticsUsecase) *ContestSta
 	return &ContestStatisticsHandler{usecase: u}
 }
 
-func (h *ContestStatisticsHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/contest/:contest_id/statistics", h.GetContestStatistics)
-	rg.GET("/contest/:contest_id/statistics/summary", h.GetContestSummary)
-	rg.GET("/contest/:contest_id/statistics/students", h.GetStudentPerformances)
+func (h *ContestStatisticsHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// Contest-wide analytics (including per-student performance) are
+	// admin-only; the student app uses the per-student /submission stats.
+	auth := rg.Group("", adminAuth...)
+	auth.GET("/contest/:contest_id/statistics", h.GetContestStatistics)
+	auth.GET("/contest/:contest_id/statistics/summary", h.GetContestSummary)
+	auth.GET("/contest/:contest_id/statistics/students", h.GetStudentPerformances)
 }
 
 // GetContestStatistics handles GET /contest/:contest_id/statistics

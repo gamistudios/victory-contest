@@ -17,17 +17,20 @@ func NewNotificationHandler(u usecase.NotificationUsecase) *NotificationHandler 
 	return &NotificationHandler{usecase: u}
 }
 
-func (h *NotificationHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/", h.AddNotification)
-	rg.PUT("/:id", h.UpdateNotification)
-	rg.DELETE("/:id", h.DeleteNotification)
+func (h *NotificationHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
+	// A recipient reading/marking their own inbox is a student flow;
+	// composing, broadcasting and listing everyone's notifications is not.
+	auth := rg.Group("", adminAuth...)
+	auth.POST("/", h.AddNotification)
+	auth.PUT("/:id", h.UpdateNotification)
+	auth.DELETE("/:id", h.DeleteNotification)
+	auth.GET("/", h.GetAllNotifications)
+	auth.GET("/:id", h.GetNotificationByID)
+	auth.GET("/admin/:admin_email", h.GetNotificationsByAdminEmail)
+	auth.POST("/contest-announce", h.ContestAnnounce)
 	rg.PATCH("/:id", h.MarkAsRead)
 	rg.PATCH("/:id/read", h.MarkAsRead)
-	rg.GET("/", h.GetAllNotifications)
-	rg.GET("/:id", h.GetNotificationByID)
 	rg.GET("/recipient/:recipient_id", h.GetNotificationsByRecipient)
-	rg.GET("/admin/:admin_email", h.GetNotificationsByAdminEmail)
-	rg.POST("/contest-announce", h.ContestAnnounce)
 }
 
 func (h *NotificationHandler) AddNotification(c *gin.Context) {

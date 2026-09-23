@@ -4,7 +4,7 @@ The API server for the Victory Contest student-contest platform (Telegram Mini A
 
 > ✅ **Build status (verified 2026-09-23):** `go build ./...` and `go vet ./...` are green after fixing the `CommentRepository` brace in `interfaces.go:150-152` and the `log.Printf` format bug in `article_usecase.go:101`. The server boots on `:8080` against the real AWS account and `GET /api/contest/` returns live data. Remaining hygiene: all files use CRLF line endings, so `gofmt -l .` flags every file (run `gofmt -w` in one dedicated commit if desired).
 >
-> 🔒 **Security progress (2026-09-23):** issues #2–#5 and #21 fixed — bot token and JWT secret moved to env (`TELEGRAM_BOT_TOKEN`, `JWT_SECRET`), admin passwords bcrypt-hashed and no longer leaked in responses, `SignIn` actually verifies passwords (with legacy-plaintext upgrade path). ⚠️ Ops follow-ups: get a fresh bot token from @BotFather (the committed one is already revoked by Telegram), and #6 (auth middleware) is still open.
+> 🔒 **Security progress (2026-09-23):** issues #2–#5 and #21 fixed — bot token and JWT secret moved to env (`TELEGRAM_BOT_TOKEN`, `JWT_SECRET`), admin passwords bcrypt-hashed and no longer leaked in responses, `SignIn` actually verifies passwords (with legacy-plaintext upgrade path). **#6 (admin surface) and #7 (payment approval) fixed** — JWT-cookie `adminAuth` middleware gates every admin/mutating route (see §5 for the 🔒 map; ⚠️ the external admin panel must send the session cookie). ⚠️ Ops follow-ups: get a fresh bot token from @BotFather (the committed one is already revoked by Telegram), student-side `initData` auth and #9 (webhook secret + rate limits) remain open.
 >
 > 🏦 **Banks (2026-09-23):** new `banks` table + `/api/banks` CRUD (see §5) — the frontend payment page now renders admin-managed banks instead of hardcoded lists. Verified end-to-end on the local dynalite stack.
 
@@ -101,58 +101,58 @@ Verified end-to-end on the local stack (2026-09-23): student register/list/profi
 
 ## 5. API route map
 
-Mounted under `/api/...` (`router.go:137-156`). **No route uses auth middleware** — the only protected endpoint in the entire system is `GET /api/admin/me`, which reads a JWT cookie inside the handler (`admin_handler.go:34-51`). Everything else is fully public.
+Mounted under `/api/...` (`router.go`). Since 2026-09-23 the admin surface is protected by `adminAuth` (`auth.go`): a gin middleware that verifies the `token` JWT cookie (HS256-only, signature + expiry + non-empty subject) exactly like `GET /api/admin/me`, and stores the email in the request context. Every mutating route plus every cross-user/admin-analytics read is gated (marked 🔒 below); the student mini-app's endpoints stay public because students have no session yet (Telegram `initData` validation remains open — roadmap). `RegisterRoutes(rg, adminAuth ...)` takes the middleware variadically so handler tests can register ungated. ⚠️ **Deployment:** the external admin panel must send the login cookie (`withCredentials` / same-site) or every admin call now 401s.
 
-### `/api/contest` (`contest_handler.go:27-35`)
-`POST /add` · `PATCH /:id` · `GET /` · `GET /:id` · `DELETE /delete/:id` · `POST /clone/:id` · `POST /announce/:id`
+### `/api/contest` (`contest_handler.go`)
+🔒 `POST /add` · 🔒 `PATCH /:id` · `GET /` · `GET /:id` · 🔒 `DELETE /delete/:id` · 🔒 `POST /clone/:id` · 🔒 `POST /announce/:id`
 
-### `/api/student` (`student_handler.go:22-35`)
-`POST /` register · `PUT /:id` · `DELETE /:id` · `GET /` (**full student PII list**) · `GET /paid` (broken, #20) · `GET /quickstat/:id` (TODO stub) · `GET /rank` and `GET /rank/:contest_id` (**return nil, nil — stubs**) · `GET /:id` · `GET /grades-and-schools` · `GET /profile/:id` · `GET /profile-admin/:student_id`
+### `/api/student` (`student_handler.go`)
+`POST /` register · `PUT /:id` · 🔒 `DELETE /:id` · 🔒 `GET /` (**full student PII list — now admin-only**) · 🔒 `GET /paid` (broken, #20) · 🔒 `GET /quickstat/:id` (TODO stub) · `GET /rank` and `GET /rank/:contest_id` (**return nil, nil — stubs**) · `GET /:id` · `GET /grades-and-schools` · `GET /profile/:id` · 🔒 `GET /profile-admin/:student_id`
 
-### `/api/question` (`question_handler.go:24-31`)
-`POST /add` (multipart → Cloudinary) · `POST /multiple-add` · `POST /multiple-delete` (`{"ids":[...]}`, chunked BatchWriteItem, per-id failures reported — added 2026-09-23 for client issue #4) · `PATCH /:id` (JSON *or* multipart) · `DELETE /delete/:id` · `GET /` (**returns correct answers**) · `GET /:id`
+### `/api/question` (`question_handler.go`)
+🔒 entire surface since 2026-09-23 (the mini-app never reads `/question`; exam content arrives hydrated on the contest): `POST /add` (multipart → Cloudinary) · `POST /multiple-add` · `POST /multiple-delete` (`{"ids":[...]}`, chunked BatchWriteItem, per-id failures reported — added 2026-09-23 for client issue #4) · `PATCH /:id` (JSON *or* multipart) · `DELETE /delete/:id` · `GET /` (**returns correct answers — answer exposure to students still open, #11**) · `GET /:id`
 
-### `/api/submission` (`submission_handler.go:19-30`)
-`POST /` (**client-computed score**) · `GET /` · `GET /contest/:contest_id` · `GET /student/:student_id` · `GET /leaderboard?timeFrame=today|week|month|all` · `GET /rank/:conId` · `DELETE /:id` (404 on missing row; added 2026-09-23) · `GET /:id` · `GET /editorial/:student_id?contest_id=` (`{editorial, participated, message}` — human-readable reason when the contest was deleted or has no questions; 400 when `contest_id` is missing; added 2026-09-23 for the 2nd-round client report) · `GET /statistics-profile/:student_id` · `GET /statistics/:student_id`
+### `/api/submission` (`submission_handler.go`)
+`POST /` (**client-computed score**) · 🔒 `GET /` · 🔒 `GET /contest/:contest_id` · 🔒 `GET /student/:student_id` · `GET /leaderboard?timeFrame=today|week|month|all` · `GET /rank/:conId` · 🔒 `DELETE /:id` (404 on missing row; added 2026-09-23) · 🔒 `GET /:id` · `GET /editorial/:student_id?contest_id=` (`{editorial, participated, message}` — human-readable reason when the contest was deleted or has no questions; 400 when `contest_id` is missing; added 2026-09-23 for the 2nd-round client report) · `GET /statistics-profile/:student_id` · `GET /statistics/:student_id`
 
-### `/api/admin` (`admin_handler.go:24-33`)
-`POST /register` (**public admin creation**) · `PUT /:id` · `DELETE /:id` · `GET /:id` (looks up by *email*, #22) · `GET /me` (JWT cookie — the only guarded route) · `GET /` (**leaks plaintext passwords**) · `POST /login` (sets `token` cookie, SameSite=None; **no password check**, #4) · `GET /dashboard`
+### `/api/admin` (`admin_handler.go`)
+🔒 `POST /register` · 🔒 `PUT /:id` · 🔒 `DELETE /:id` · 🔒 `GET /:id` (looks up by *email*, #22) · 🔒 `GET /me` (was the only guarded route; now middleware-gated like the rest) · 🔒 `GET /` (password leak already fixed, #5) · `POST /login` (sets `token` cookie, SameSite=None; bcrypt password check since #4 fix) · 🔒 `GET /dashboard`
 
-### `/api/notification` (`notification_handler.go:19-29`)
-`POST /` · `PUT /:id` · `DELETE /:id` · `PATCH /:id/read` · `GET /` (dead — #29) · `GET /:id` · `GET /recipient/:recipient_id` (newest-first since 2026-09-23; the GSI returned oldest-first and `sent_at` mixes `Z`/`+03:00` offsets, so ordering parses the timestamps) · `GET /admin/:admin_email` · `POST /contest-announce`
+### `/api/notification` (`notification_handler.go`)
+🔒 `POST /` · 🔒 `PUT /:id` · 🔒 `DELETE /:id` · `PATCH /:id` · `PATCH /:id/read` · 🔒 `GET /` (dead — #29) · 🔒 `GET /:id` · `GET /recipient/:recipient_id` (newest-first since 2026-09-23; the GSI returned oldest-first and `sent_at` mixes `Z`/`+03:00` offsets, so ordering parses the timestamps) · 🔒 `GET /admin/:admin_email` · 🔒 `POST /contest-announce`
 
-### `/api/achievement` (`achievement_handler.go:19-26`)
-Full CRUD — but nothing ever calls `AddAchievement`; the live badge system is `Student.Badge` in `submission_usecase.go:544-646`. This is **dead feature code**.
+### `/api/achievement` (`achievement_handler.go`)
+🔒 Full CRUD except `GET /student/:student_id` — but nothing ever calls `AddAchievement`; the live badge system is `Student.Badge` in `submission_usecase.go:544-646`. This is **dead feature code**.
 
-### `/api/contest-registration` (`contest_registration_handler.go:19-26`)
-`POST /` · `PUT /:id` · `DELETE /:id` · `GET /check/:student_id/:contest_id` · `GET /isActive/:contest_id/:student_id` (check-then-set, racy #32) · `GET /contest/:contest_id` (count)
+### `/api/contest-registration` (`contest_registration_handler.go`)
+`POST /` · 🔒 `PUT /:id` · 🔒 `DELETE /:id` · `GET /check/:student_id/:contest_id` · `GET /isActive/:contest_id/:student_id` (check-then-set, racy #32) · `GET /contest/:contest_id` (count)
 
-### `/api/feedback-question`, `/api/poll-option`, `/api/feedback-response` (`feedback_handler.go:26-34, 135-142, 228-240`)
-Questions: CRUD + `GET /active` + `GET /admin/:admin_id`. Poll options: CRUD + `GET /score/:score`. Responses: CRUD + `GET /student/:id`, `/question/:id`, `/analytics?range=&admin_id=`, `DELETE /contact/:phone`, `DELETE /response-only/:id`, `GET /:id` (404 for unknown ids; the `/test` debug route was removed 2026-09-23).
+### `/api/feedback-question`, `/api/poll-option`, `/api/feedback-response` (`feedback_handler.go`)
+Questions: 🔒 CRUD + `GET /active` (public) + 🔒 `GET /admin/:admin_id`. Poll options: 🔒 CRUD + 🔒 `GET /score/:score`; `GET /` public (the poll renders from it). Responses: `POST /` and `GET /student/:id` public (the survey form reads its own history); 🔒 `/question/:id`, 🔒 `/analytics?range=&admin_id=`, 🔒 `DELETE /contact/:phone`, 🔒 `DELETE /response-only/:id`, 🔒 `GET /:id` (404 for unknown ids; the `/test` debug route was removed 2026-09-23).
 
-### `/api/payment` (`payment_handler.go:22-29`)
-`GET /` (fixed, #19) · `POST /update` (**public approve/reject**) · `POST /` (multipart; verified working end-to-end; does not accept `amount` yet) · `DELETE /:id` (404 on missing row; added 2026-09-23) · `GET /getexpired` · `GET /withstatus?status=` · `GET /:user_id`
+### `/api/payment` (`payment_handler.go`)
+🔒 `GET /` (fixed, #19) · 🔒 `POST /update` (approve/reject — was public, #7) · `POST /` (multipart; verified working end-to-end; does not accept `amount` yet) · 🔒 `DELETE /:id` (404 on missing row; added 2026-09-23) · 🔒 `GET /getexpired` · 🔒 `GET /withstatus?status=` · `GET /:user_id`
 
 ### `/api/banks` (`bank_handler.go`)
-`GET /` (active banks, ordered by `display_order`) · `GET /all` (incl. inactive, admin) · `GET /:id` · `POST /` · `PUT /:id` (omitted `is_active` preserves stored flag) · `DELETE /:id` — admin-managed payment bank list; replaces the values previously hardcoded in the frontend. Table `banks` (partition `id`), provisioned by `cmd/setup-tables`. Write routes inherit the open auth gap (#6).
+`GET /` (active banks, ordered by `display_order`) · 🔒 `GET /all` (incl. inactive, admin) · 🔒 `GET /:id` · 🔒 `POST /` · 🔒 `PUT /:id` (omitted `is_active` preserves stored flag) · 🔒 `DELETE /:id` — admin-managed payment bank list; replaces the values previously hardcoded in the frontend. Table `banks` (partition `id`), provisioned by `cmd/setup-tables`. Write routes gated by #6 fix 2026-09-23.
 
 ### `/api/ai` (`ai_handler.go:18-22`)
-`POST /practice` · `POST /getRecommendation` — no auth, no rate limit.
+`POST /practice` · `POST /getRecommendation` — no auth, no rate limit (student-facing feature; rate limiting is #9 work).
 
 ### `/api/telegram` (`telegram_handler.go:17-19`)
-`POST /webhook` — **no secret-token verification** (#9), panics on non-message updates (#17).
+`POST /webhook` — **no secret-token verification** (#9), panics on non-message updates (#17). `POST /invoice-link` · `POST /prepared-inline-message` — used by the public payment page.
 
-### `/api/pageview` (`pageview_handler.go:20-23`)
-`POST /track` · `GET /stats?days=30`
+### `/api/pageview` (`pageview_handler.go`)
+🔒 `POST /track` · 🔒 `GET /stats?days=30` — ops/analytics surface, gated 2026-09-23.
 
-### `/api/articles*` (`article_handler.go:20-32`)
-`GET /articles` · `GET /articles/published?number=` · `GET /articles/status/:status` · `GET /articles/:id` · `GET|POST /articles/:id/comments` · `PUT|DELETE /articles/:id/comments/:commentId` (added 2026-09-23; delete decrements the comment counter; author check waits on auth middleware) · `POST /articles` · `PUT|DELETE /articles/:id` · `PATCH /articles/:id/status` · `PATCH /articles/:id/stats` — all public.
+### `/api/articles*` (`article_handler.go`)
+🔒 `GET /articles` (incl. drafts) · `GET /articles/published?number=` · 🔒 `GET /articles/status/:status` · `GET /articles/:id` · `GET|POST /articles/:id/comments` · 🔒 `PUT|DELETE /articles/:id/comments/:commentId` (added 2026-09-23; delete decrements the comment counter; author check waits on student auth) · 🔒 `POST /articles` · 🔒 `PUT|DELETE /articles/:id` · 🔒 `PATCH /articles/:id/status` · `PATCH /articles/:id/stats` (public — the reader view/like counter).
 
-### `/api/images` (`image_handler.go:19-23`)
-`POST /upload` · `GET /list?folder=&max=` · `DELETE /delete?id=` — folder param ignored (# image repo), unauthenticated delete.
+### `/api/images` (`image_handler.go`)
+🔒 `POST /upload` · 🔒 `GET /list?folder=&max=` · 🔒 `DELETE /delete?id=` — folder param ignored (# image repo); delete was unauthenticated until the #6 fix.
 
-### `/api/statistics` (`contest_statistics_handler.go:21-25`)
-`GET /contest/:contest_id/statistics` · `.../statistics/summary` · `.../statistics/students?page=&page_size=`
+### `/api/statistics` (`contest_statistics_handler.go`)
+🔒 `GET /contest/:contest_id/statistics` · 🔒 `.../statistics/summary` · 🔒 `.../statistics/students?page=&page_size=`
 
 ## 6. Business flows
 
@@ -197,8 +197,8 @@ Feedback: admin questions + score-range poll options (require contact info above
 3. ~~**Hardcoded JWT secret**~~ **FIXED 2026-09-23** — `JWT_SECRET` env var, injected into `AdminHandler`; a random secret was generated locally. All issued tokens must be re-minted (logins invalidated).
 4. ~~**Password auth bypass**~~ **FIXED 2026-09-23** — `admin_usecase.SignIn` now verifies the password (bcrypt, with transparent upgrade of legacy plaintext records on successful login). Smoke-tested 200/401.
 5. ~~**Plaintext passwords stored & leaked**~~ **FIXED 2026-09-23 (storage & leak parts)** — `AddAdmin`/`UpdateAdmin` hash with bcrypt; `domain.Admin.Password` is `json:"-"` so responses no longer leak it (`GET /api/admin/` verified). ⚠️ Remaining: `POST /api/admin/register` is still unauthenticated (see #6), and legacy rows keep their plaintext password until that admin logs in once.
-6. **Entire API unauthenticated** — CORS is the only global middleware (`router.go:110`); all admin/CRUD/delete routes are public, including `GET /api/student/` (full PII: phone, name, Telegram IDs) and image delete.
-7. **Payments self-approvable** — `payment_handler.go:59,85`: `status` comes straight from the client form.
+6. ~~**Entire API unauthenticated**~~ **ADMIN SURFACE FIXED 2026-09-23** — `adminAuth` (JWT cookie, `auth.go`) now guards every mutating route and every cross-user/admin-analytics read (see 🔒 in §5); verified with curl (28 gated routes 401 without a cookie, 200 with) and browser E2E (exam flow unaffected). ⚠️ Student routes are still identity-less: anyone may `POST /submission` or `PUT /student/:id` claiming any `telegram_id` — Telegram `initData` HMAC validation (roadmap #4) is the remaining half.
+7. ~~**Payments self-approvable**~~ **FIXED 2026-09-23 (approval path)** — `POST /api/payment/update` (approve/reject) is now behind `adminAuth`, and creation already forces `status=pending` server-side; students can submit but no longer approve. ⚠️ Remaining trust gap: `POST /api/payment/` is identity-less (anyone can submit a screenshot for any `user_id`) until student auth lands.
 8. ~~**Premium bypass**~~ **FIXED 2026-09-23** — one shared enrichment rule for both getters: `IsPremium` only from **Approved** payments unexpired in UTC (was: any unexpired payment via `GetStudentByTelegramID`, mixed `time.Local`/UTC); a payment-lookup failure is now logged and treated as "no payments" instead of failing the student lookup, which is what made `DELETE /api/student/:id` 500 (client issue #1). Regression tests in `student_usecase_test.go`.
 9. **Telegram webhook unverified** — `telegram_handler.go:21-33`: no `X-Telegram-Bot-Api-Secret-Token` check; spoofable.
 10. ~~**CORS + credentials over-permissive**~~ **FIXED 2026-09-23** — `gin-contrib/cors` replaced by a hand-rolled middleware: `CORS_ALLOWED_ORIGINS` (comma-separated exact origins) is required in production; with it unset only `localhost`/`127.0.0.1` (any port) are allowed, and `*.devtunnels.ms` is **never** allowed. Allowed origin is echoed (never `*`) with `Vary: Origin`; 19-case table test in `router_test.go`. ⚠️ Ops: set `CORS_ALLOWED_ORIGINS=https://victory-contest.vercel.app,https://victory-admin-page.vercel.app` in prod env before deploy.
