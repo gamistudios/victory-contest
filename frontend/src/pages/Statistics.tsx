@@ -32,8 +32,6 @@ import {
   TrendingUp,
   AlertTriangle,
   CheckCircle,
-  ArrowUp,
-  ArrowDown,
   Lightbulb,
   BookOpen,
   Award,
@@ -305,10 +303,6 @@ const Statistics: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-2">
             <BarChart3 className="w-8 h-8 text-blue-500" />
-            <div className="flex items-center text-green-500">
-              <ArrowUp size={16} />
-              <span className="text-sm font-medium">+12%</span>
-            </div>
           </div>
           <div className="text-2xl font-bold text-gray-800 dark:text-white">
             {stats.total_contests}
@@ -321,10 +315,6 @@ const Statistics: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-2">
             <Target className="w-8 h-8 text-green-500" />
-            <div className="flex items-center text-green-500">
-              <ArrowUp size={16} />
-              <span className="text-sm font-medium">+5%</span>
-            </div>
           </div>
           <div className="text-2xl font-bold text-gray-800 dark:text-white">
             {stats.accuracy}%
@@ -337,10 +327,6 @@ const Statistics: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-2">
             <TimeIcon className="w-8 h-8 text-purple-500" />
-            <div className="flex items-center text-red-500">
-              <ArrowDown size={16} />
-              <span className="text-sm font-medium">-3s</span>
-            </div>
           </div>
           <div className="text-2xl font-bold text-gray-800 dark:text-white">
             {stats.average_time}s
@@ -353,10 +339,6 @@ const Statistics: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-2">
             <TrendingUp className="w-8 h-8 text-orange-500" />
-            <div className="flex items-center text-green-500">
-              <ArrowUp size={16} />
-              <span className="text-sm font-medium">+28</span>
-            </div>
           </div>
           <div className="text-2xl font-bold text-gray-800 dark:text-white">
             {stats.correct_answers}

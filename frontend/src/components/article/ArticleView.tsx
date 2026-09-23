@@ -230,7 +230,7 @@ export function ArticleView() {
           },
         },
         description: article.excerpt,
-        thumbnail_url: article.thumbnail || "https://picsum.photos/200/300",
+        thumbnail_url: article.thumbnail || undefined,
       };
 
       try {
@@ -253,6 +253,8 @@ export function ArticleView() {
   };
   const isMountedRef = useRef(true);
   useEffect(() => {
+    // re-arm: StrictMode dev double-mount runs the cleanup once already
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
@@ -442,16 +444,27 @@ export function ArticleView() {
           </div>
         )}
 
-        {/* Thumbnail */}
-        {article?.thumbnail && (
-          <div className="mb-6">
-            <img
-              src={article?.thumbnail}
-              alt={article?.title}
-              className="w-full rounded-lg object-cover"
-            />
-          </div>
-        )}
+        {/* Thumbnail, with a local offline placeholder when missing */}
+        {article &&
+          (article.thumbnail ? (
+            <div className="mb-6">
+              <img
+                src={article.thumbnail}
+                alt={article.title}
+                className="w-full rounded-lg object-cover"
+              />
+            </div>
+          ) : (
+            <div
+              className="mb-6 flex h-48 w-full items-center justify-center rounded-lg bg-gradient-to-br from-blue-100 via-gray-100 to-purple-100"
+              role="img"
+              aria-label={article.title}
+            >
+              <span className="text-5xl font-bold text-gray-400">
+                {article.title?.charAt(0).toUpperCase() || ""}
+              </span>
+            </div>
+          ))}
 
         {/* Content */}
         <div

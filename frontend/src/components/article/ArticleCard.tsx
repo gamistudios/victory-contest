@@ -27,14 +27,24 @@ export function ArticleCard({ article, onClick }: ArticleCardProps) {
     >
       {isNew && <NewBadge className="absolute top-[-10px] left-[-10px]" />}
       <div className="flex gap-3">
-        {/* Thumbnail */}
-        {article.thumbnail && (
+        {/* Thumbnail, with a local offline placeholder when missing */}
+        {article.thumbnail ? (
           <div className="flex-shrink-0">
             <img
               src={article.thumbnail}
               alt={article.title}
               className="w-16 h-16 rounded-lg object-cover"
             />
+          </div>
+        ) : (
+          <div
+            className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-100 via-gray-100 to-purple-100"
+            role="img"
+            aria-label={article.title}
+          >
+            <span className="text-2xl font-bold text-gray-400">
+              {article.title?.charAt(0).toUpperCase() || ""}
+            </span>
           </div>
         )}
 

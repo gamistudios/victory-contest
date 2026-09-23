@@ -8,7 +8,7 @@ export const badges: Achievement[] = [
     type: "first",
     rarity: "common",
     earned: false,
-    earnedDate: "2024-01-10",
+    earnedDate: "",
     progress: "",
   },
   {
@@ -38,7 +38,7 @@ export const badges: Achievement[] = [
     type: "streak",
     rarity: "rare",
     earned: false,
-    earnedDate: "2024-01-20",
+    earnedDate: "",
     progress: "",
   },
   {

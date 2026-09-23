@@ -49,7 +49,9 @@ const formSchema = z.object({
     .min(3, { message: "School name must be at least 3 characters." }),
   paid: z.boolean().default(false),
   city: z.string().min(2, { message: "City must be at least 2 characters." }),
-  region: z.string({ error: "Please select a region." }),
+  region: z
+    .string({ error: "Please select a region." })
+    .min(1, { message: "Please select a region." }),
   gender: z.string({ error: "Please select a gender" }),
   imgurl: z
     .string()
@@ -80,8 +82,8 @@ export default function RegistrationForm() {
       grade: "",
       school: "",
       paid: false,
-      city: "Adama",
-      region: "Oromia",
+      city: "",
+      region: "",
       imgurl: "",
       isSuspended: false,
       phoneNumber: "",

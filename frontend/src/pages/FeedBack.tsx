@@ -1236,6 +1236,7 @@ export function FeedbackPage() {
                       comment: e.target.value,
                     }))
                   }
+                  maxLength={500}
                   rows={4}
                   className="border-purple-200 focus:border-purple-400 focus:ring-purple-400 resize-none"
                 />

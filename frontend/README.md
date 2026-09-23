@@ -2,7 +2,7 @@
 
 The Telegram Mini App client for Victory Contest ("Ayahuna / Victory Contest") — a timed quiz/coding-contest platform for Ethiopian students. Runs inside Telegram (`window.Telegram.WebApp`), identifies users by `initDataUnsafe.user.id`, and talks to the Go backend in `../backend` via axios. Deploys to Vercel.
 
-> **Status (2026-09-23):** the issue catalog in §9 has been worked through — all security-correctness fixes that could be done client-side are merged, ESLint reports **0 errors / 0 warnings** and `tsc -b && vite build` is green. Remaining items need product/ backend decisions (S2, S3, S4, B6, B20) and are listed open in §9/§10.
+> **Status (2026-09-23):** the issue catalog in §9 has been worked through — all security-correctness fixes that could be done client-side are merged, B20 (hardcoded values) is closed, ESLint reports **0 errors / 0 warnings** and `tsc -b && vite build` is green. Dev builds run in a plain browser by default via `devTelegramMock` (no Telegram required; opt out with `VITE_MOCK_TELEGRAM=false`). Remaining items need product/backend decisions (S2, S3, S4, B6) and are listed open in §9/§10.
 
 ## Contents
 
@@ -109,16 +109,16 @@ Endpoints per service:
 1. **Home** — active-contest card, contest cards filtered `con.grade === userInfo?.grade` (grade format now consistent end-to-end), countdown, welcome carousel, editorial links.
 2. **Contest** — the exam screen: question dots + dropdown nav, timer, submit; **score still computed client-side** and `time_taken: 60` still hardcoded (⚠️ S3, needs server-side scoring decision); the dead error-state block was removed.
 3. **Leaderboard** — podium, list, "you" panel; divide-by-zero percentages guarded; retry refetches instead of `location.reload()`.
-4. **Statistics** — recharts line/area/radar, stat cards; **fabricated trend deltas "+12%/+5%/−3s/+28" still hardcoded** (⚠️ B20); premium-gated AI recommendation panel; the 75-line commented mock block is deleted.
-5. **Profile** — edit student form (grade/school/phone/timezone), badge grid from static `lib/data.ts` (fake `earnedDate`s remain — B20), PUT `/student/:id`.
+4. **Statistics** — recharts line/area/radar, stat cards; the fabricated trend deltas "+12%/+5%/−3s/+28" were removed (B20 ✅); premium-gated AI recommendation panel; the 75-line commented mock block is deleted.
+5. **Profile** — edit student form (grade/school/phone/timezone), badge grid from static `lib/data.ts` (fake `earnedDate`s removed; date row renders only for a real date — B20 ✅), PUT `/student/:id`.
 6. **ContestStudentRegistration** — contest info + register; the form's grade/subjects/experience are now actually sent; participants rendered as a real count (was an array assigned to a `number` field); guarded against missing `contestInfo.id`.
 7. **ContestEditorial** — post-contest review via `?contest_id`; answer index convention conflict remains (⚠️ B6).
 8. **AIPractice** — full practice UI (timer, settings) still **unreachable**: `return <ComingSoon/>` (product decision pending).
 9. **Articles** — wrapper over `ArticleList` + `ArticleFilters`; `ArticleView` renders article HTML **sanitized with DOMPurify**; view/like/bookmark flows use array-shaped CloudStorage keys with stable callbacks.
-10. **StudentRegisteration** *(sic)* — RHF+zod signup (photo URL, name, phone, grade "1".."13", defaults city "Adama"/region "Oromia" — ⚠️ B20), then client-side `navigate("/")` instead of a full-page reload.
+10. **StudentRegisteration** *(sic)* — RHF+zod signup (photo URL, name, phone, grade "1".."13"; city/region now default empty and region is validation-required — B20 ✅), then client-side `navigate("/")` instead of a full-page reload.
 11. **Payment** — bank-transfer screenshot upload (10MB validated client-side); the bank dropdown **and** the "Bank Transfer Details" drawer are fetched live from `/api/banks` (admin-managed; loading/error+retry states, "Other" free-text entry kept); the `"112pay"` debug user-id fallback is gone — submitting without `user.id` is blocked with a toast. Telegram Stars `openInvoice` path still submits `status:"Approved"` from the client (⚠️ S4).
 12. **UserPaymentHistoryPage** — timeline via `PaymentTimelineItem` (orphan `payment-timeline.tsx` deleted).
-13. **FeedBack** — multi-section survey persisted to CloudStorage + `updateUserInfo`; the ~140-line `if (false && …)` block is deleted; confirmations use Telegram `showConfirm` (with `window.confirm` only as non-Telegram fallback); the `"/500"` counter without `maxLength` remains (⚠️ B20).
+13. **FeedBack** — multi-section survey persisted to CloudStorage + `updateUserInfo`; the ~140-line `if (false && …)` block is deleted; confirmations use Telegram `showConfirm` (with `window.confirm` only as non-Telegram fallback); the comment textarea now enforces `maxLength={500}` matching its "/500" counter (B20 ✅).
 
 ## 6. Key hooks & mechanics
 
@@ -136,7 +136,7 @@ Endpoints per service:
 `src/types/index.ts`: `TelegramWebApp`/`TelegramUser`, `Question`, `ContestAnswer`, `ContestSubmission`, `Student`/`AuthUser`, `Contest`, `LeaderboardEntry`, `UserStats` (snake_case: `total_contests`, `average_accuracy`…), `PaymentRequest` + `PaymentStatus`, `ContestInfo`, `Notification`, `ReadNotificationRecord`.
 - ✅ `Achievement` duplicate declarations merged into one (with `id` **and** `progress`); empty `interface UserStat {}` deleted; `any` fields (`setParams`, `reply_markup`) are `unknown` — neither is consumed.
 - ⚠️ Still two competing stats models/two endpoints for one concept: `UserStats` (snake_case, `/submission/statistics/:id`, Statistics page) vs `user.user_stats` (camelCase, `/submission/statistics-profile/:id`, Profile). Unifying needs a backend decision.
-- `lib/data.ts`: static badge catalog with fake `earnedDate`s even on `earned:false` badges — surfaced in Profile (B20).
+- `lib/data.ts`: static badge catalog (fake `earnedDate`s removed — Profile now shows no date unless a real one exists).
 - Whole-tree typing: zero `any` in `src/` (enforced by lint config + verified by grep).
 
 ## 8. Running
@@ -149,7 +149,7 @@ npm run lint       # eslint . — must stay clean (0/0)
 npm run build      # tsc -b && vite build
 ```
 
-`vercel.json` provides SPA fallback rewrites. The only env var the app itself consumes is `VITE_API_BASE_URL` (`services/api.ts`); `frontend/.env.local` (git-ignored) additionally holds `VITE_MOCK_TELEGRAM=true`, which gates `src/lib/devTelegramMock.ts` (dev-only `window.Telegram` stub so pages can be browser-tested outside Telegram; never active in production builds). ⚠️ The Stars-payment flow additionally requires the backend to expose `/api/telegram/*` proxies (deploy pending).
+`vercel.json` provides SPA fallback rewrites. The only env var the app itself consumes is `VITE_API_BASE_URL` (`services/api.ts`). In `import.meta.env.DEV` the app additionally installs `src/lib/devTelegramMock.ts` by default — a fake `window.Telegram.WebApp` (user id 999001) so the whole app runs in a plain browser without Telegram; set `VITE_MOCK_TELEGRAM=false` in `frontend/.env.local` to opt out (e.g. when testing inside a real client). Never active in production builds. ⚠️ The Stars-payment flow additionally requires the backend to expose `/api/telegram/*` proxies (deploy pending).
 
 ## 9. Issue catalog — status
 
@@ -189,7 +189,7 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 ### UX / hygiene
 - **B14. Invalid classes/constants** — ✅ fixed (`--success`/`--warning` vars defined, `pt-30`/`z-100` corrected, hex-as-class fixed).
 - **B19. A11y** — ✅ mostly fixed (BottomNavigation semantics, button labels, SelectItem keys, receipt modal focus handling; inline toast styles cleaned).
-- **B20. Hardcoded values** — 🟡 partially fixed. Fixed: bank list + transfer account numbers now served by `/api/banks` CRUD (admin-configurable, e2e-verified locally), `"112pay"` fallback removed, `debug:true` Adsgram (now `import.meta.env.DEV`), missing 10MB upload check (now validated), `"shuluqa"` name fallback (removed). Still open, needs content/ops decisions: `picsum.photos` thumbnail fallback (`ArticleView.tsx`), "Adama"/"Oromia" registration defaults, fake `earnedDate`s in `lib/data.ts`, ".../500" counter without `maxLength` (`FeedBack.tsx`), fabricated "+12%" trend deltas (`Statistics.tsx`).
+- **B20. Hardcoded values** — ✅ fixed. Bank list + transfer account numbers served by `/api/banks` CRUD (admin-configurable, e2e-verified); `"112pay"` fallback removed; `debug:true` Adsgram (now `import.meta.env.DEV`); missing 10MB upload check (now validated); `"shuluqa"` name fallback removed; `picsum.photos` thumbnail fallback replaced by a deterministic gradient + first-letter placeholder (ArticleView/ArticleCard, share payload sends `thumbnail_url` only when a real thumbnail exists); "Adama"/"Oromia" registration defaults removed with region made required; fake `earnedDate`s in `lib/data.ts` emptied and Profile renders dates only when real; FeedBack textarea `maxLength={500}`; fabricated "+12%/+5%/−3s/+28" trend chips deleted from Statistics. Remaining hardcoded copy (carousel slides in `lib/data.ts`, contact number) is content, not correctness.
 - **B21. Typos & leftovers** — ✅ fixed (user-facing strings corrected, `"use client"` removed, Telegram `showConfirm` replaces `window.confirm/alert`, unencoded URLs fixed, zod max/message mismatch fixed). File/route renames (`StudentRegisteration`, `FeedBack`, `WelcomeCarousell`, `newBadge.tsx`) deferred — they churn routes/history for cosmetic gain. 🟡 heavy `console.log` in FeedBack/services reduced, some remain.
 
 ## 10. Remaining recommendations
@@ -201,7 +201,7 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 
 **P1 — Correctness**
 4. Unify answer-index conventions across AIPractice / Contest / ContestEditorial — requires a migration plan for existing submissions. (B6)
-5. Replace hardcoded operational content with config: bank list + account labels, thumbnails, registration defaults, feedback counter limit, real trend deltas from the stats endpoint. (B20)
+5. ~~Replace hardcoded operational content with config~~ — done (B20 ✅); what remains is product copy (carousel slides, contact number).
 6. Make `updateStudentDefaultScoreRange` race-safe server-side (conditional update). (B12 remainder)
 
 **P2 — Decisions to make (currently parked)**

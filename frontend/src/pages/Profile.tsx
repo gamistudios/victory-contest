@@ -89,6 +89,13 @@ const achievementStyles: Record<string, AchievementStyle> = {
   },
 };
 
+const formatEarnedDate = (earnedDate?: string): string | null => {
+  if (!earnedDate) return null;
+  const date = new Date(earnedDate);
+  if (isNaN(date.getTime())) return null;
+  return date.toLocaleDateString();
+};
+
 const getRarityBadge = (rarity: "common" | "rare" | "epic" | "legendary") => {
   const colors = {
     common: "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200",
@@ -624,21 +631,12 @@ const Profile = () => {
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                         {achievement.description}
                       </p>
-                      <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                        <Calendar className="w-3 h-3 mr-1" />
-                        Earned{" "}
-                        {(() => {
-                          try {
-                            if (!achievement.earnedDate) return "Unknown date";
-                            const date = new Date(achievement.earnedDate);
-                            if (isNaN(date.getTime())) return "Invalid date";
-                            return date.toLocaleDateString();
-                          } catch (error) {
-                            console.warn("Error formatting earnedDate:", error);
-                            return "Unknown date";
-                          }
-                        })()}
-                      </div>
+                      {formatEarnedDate(achievement.earnedDate) && (
+                        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          Earned {formatEarnedDate(achievement.earnedDate)}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
