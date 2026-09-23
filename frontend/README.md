@@ -2,6 +2,8 @@
 
 The Telegram Mini App client for Victory Contest ("Ayahuna / Victory Contest") — a timed quiz/coding-contest platform for Ethiopian students. Runs inside Telegram (`window.Telegram.WebApp`), identifies users by `initDataUnsafe.user.id`, and talks to the Go backend in `../backend` via axios. Deploys to Vercel.
 
+> **Status (2026-09-23):** the issue catalog in §9 has been worked through — all security-correctness fixes that could be done client-side are merged, ESLint reports **0 errors / 0 warnings** and `tsc -b && vite build` is green. Remaining items need product/ backend decisions (S2, S3, S4, B6, B20) and are listed open in §9/§10.
+
 ## Contents
 
 1. [Tech stack](#1-tech-stack)
@@ -12,8 +14,8 @@ The Telegram Mini App client for Victory Contest ("Ayahuna / Victory Contest") �
 6. [Key hooks & mechanics](#6-key-hooks--mechanics)
 7. [Types & data models](#7-types--data-models)
 8. [Running](#8-running)
-9. [Bugs & code issues](#9-bugs--code-issues)
-10. [Recommendations](#10-recommendations)
+9. [Issue catalog — status](#9-issue-catalog--status)
+10. [Remaining recommendations](#10-remaining-recommendations)
 
 ---
 
@@ -23,30 +25,31 @@ From `package.json`:
 
 - **Core:** React 18.3.1, TypeScript ~5.5.3, Vite 5.4.2 (`@vitejs/plugin-react`, `vite-plugin-svgr` for `*.svg?react`).
 - **Routing:** `react-router-dom` ^7.0.2.
-- **Data:** plain **axios** ^1.7.9 — *no* react-query/SWR; every page hand-rolls `useState` + `useEffect` + axios.
-- **Forms:** `react-hook-form` ^7.54.2 + `zod` ^4.1.13 + `@hookform/resolvers`.
-- **UI:** shadcn/ui ("new-york", `components.json`) over ~16 Radix primitives, Tailwind 3.4 + `tailwind-merge` + CVA, `lucide-react`, `framer-motion` ^12, `recharts` ^3.2, `sonner` ^2 (toasts), `vaul` (drawer), `date-fns` ^4.
+- **Data:** plain **axios** ^1.7.9 — *no* react-query/SWR; every page hand-rolls `useState` + `useEffect` + axios (with AbortController race guards).
+- **Forms:** `react-hook-form` ^7.54.2 + `zod` ^4.1.13 + `@hookform/resolvers` (typed via `useForm<z.input<S>, unknown, z.output<S>>` — no `as any` resolvers).
+- **UI:** shadcn/ui ("new-york", `components.json`) over Radix primitives, Tailwind 3.4 + `tailwind-merge` + CVA, `lucide-react`, `framer-motion` ^12, `recharts` ^3.2, `sonner` ^2 (toasts), `vaul` (drawer), `date-fns` ^4.
+- **Sanitization:** `dompurify` ^3.4 — all article HTML goes through it before `dangerouslySetInnerHTML`.
 - **SDKs via `<script>` in `index.html`:** `telegram-web-app.js` and Adsgram `sad.min.js` (typed in `src/types/adsgram.d.ts`) — not npm deps.
-- **Deploy:** `vercel.json` SPA rewrite. **No tests, no CI, no `.env.example`.**
-- Oddities: `@types/react-router-dom` and `caniuse-lite` sit in `dependencies`; `next-themes` is used only by dead `src/components/ui/sonner.tsx`.
+- **Quality gates:** `npm run build` = `tsc -b && vite build`; `npm run lint` = `eslint .` (flat config, currently clean). **No tests, no CI, no `.env.example` yet.**
+- Oddities left: `@types/react-router-dom` and `caniuse-lite` sit in `dependencies`; `next-themes` and `@radix-ui/react-collapsible` were dropped with the dead components that needed them.
 
 ## 2. Structure & routing
 
 ```
 src/
 ├── main.tsx          StrictMode + createRoot(<App/>) — no providers here
-├── App.tsx           gates tree on useTelegram().isLoading; wraps in AuthProvider; all routes under Layout
+├── App.tsx           gates tree on useTelegram().isLoading; wraps in the single AuthProvider; all routes under Layout
 ├── pages/            13 route components (see §5)
 ├── components/       feature components + article/ + payment-history/ + ui/ (shadcn)
 ├── context/          AuthContext.tsx, NotificationContext.tsx
-├── hooks/            useTelegram, useAdsgram, useContestTimer, useScreenshotProtection
-├── services/         api.ts (axios instances) + per-feature service modules
+├── hooks/            useTelegram (memoized), useAdsgram, useContestTimer, useScreenshotProtection
+├── services/         api.ts (axios instance) + per-feature service modules + telegramServices.ts (backend proxies)
 ├── types/            index.ts, article.ts, adsgram.d.ts, svg.d.ts
 ├── lib/              utils.ts (cn), data.ts (static badge catalog)
 └── assets/           SVG illustrations/icons only
 ```
 
-Routes (all in `App.tsx`, flat under one `Layout`; **no lazy loading, no `path="*"` 404**):
+Routes (all in `App.tsx`, flat under one `Layout`; **no lazy loading**; a catch-all `path="*"` renders `NotFound`):
 
 | Path | Page |
 |---|---|
@@ -63,23 +66,30 @@ Routes (all in `App.tsx`, flat under one `Layout`; **no lazy loading, no `path="
 | `/payment` | Payment |
 | `/payment-history` | UserPaymentHistoryPage |
 | `/article`, `/article/:id` | Articles → ArticleView |
+| `*` | NotFound |
 
-`Layout.tsx` wraps children in TopNavigation (optional) + fixed BottomNavigation (hidden on `/register`), mounts `NotificationProvider` — and **a second `AuthProvider`** (`Layout.tsx:100`; see bug B1). Theme: purple Telegram header `#8b5cf6`, three Google fonts, global `user-select:none`, radix-collapsible keyframes in `index.html` for a component never imported.
+`Layout.tsx` wraps children in TopNavigation (optional) + fixed BottomNavigation (hidden on `/register`) and mounts `NotificationProvider` — the duplicate `AuthProvider` is gone (one auth tree now). Theme: purple Telegram header `#8b5cf6`, three Google fonts, global `user-select:none`.
 
 ## 3. State management & auth
 
 **`AuthContext.tsx`** — the only session concept:
-- Reads `initDataUnsafe.user` via `useTelegram` → `getStudentById(user.id)` (`:38-50`). Found → logged in.
-- Guard by `location.pathname` string compare (`:66-82`): renders Loader / `ErrorState` / `<Navigate to="/register">` for unregistered users, and navigates registered users away from `/register`.
-- **No Telegram `initData` HMAC validation, no tokens, no refresh, no logout.** Relies on `withCredentials:true` cookies (`services/api.ts:6-8`).
+- Reads `initDataUnsafe.user` via `useTelegram` → `getStudentById(user.id)`. Found → logged in.
+- Guard by `location.pathname` string compare: renders Loader / `ErrorState` / `<Navigate to="/register">` for unregistered users, and navigates registered users away from `/register`. Error messages narrow `unknown` → `Error` properly.
+- **No Telegram `initData` HMAC validation, no tokens, no refresh, no logout.** Relies on `withCredentials:true` cookies (`services/api.ts`). ⚠️ open as **S2**.
 
-**`NotificationContext.tsx`** — one-shot fetch keyed on `user?.id`; filters "deleted" notifications via `userInfo.read_notifications[no.id]` (`:53-58`, crash risk B10). No polling/websocket.
+**`NotificationContext.tsx`** — one-shot fetch keyed on `user?.id`; `read_notifications` access is guarded against undefined entries; notifications service (incl. `deleteNotification`) is now actually wired into `NotificationCenter`. No polling/websocket.
 
-**Elsewhere:** per-page `useEffect` fetches with inconsistent dep arrays; Telegram **CloudStorage** (with `telegram_cloud_*` localStorage fallback, `hooks/useTelegram.ts`) is a second persistence layer for article bookmarks/read state and a feedback flag.
+**Elsewhere:** per-page `useEffect` fetches with correct dep arrays and AbortController/ignore-flag race guards; Telegram **CloudStorage** (with `telegram_cloud_*` localStorage fallback, `hooks/useTelegram.ts`) is a second persistence layer for article bookmarks/read state and a feedback flag.
 
 ## 4. API layer
 
-`src/services/api.ts`: `baseURL = import.meta.env.VITE_API_BASE_URL + "/api"`, `withCredentials: true`, default JSON headers. **No interceptors at all.** ⚠️ `:10-13` also creates a `telegramApi` instance with a **hardcoded Telegram bot token** pointing straight at `api.telegram.org` — a live secret in shipped frontend code (see S1).
+`src/services/api.ts`: `baseURL = import.meta.env.VITE_API_BASE_URL + "/api"`, `withCredentials: true`, default JSON headers. **No interceptors at all.** The old hardcoded-`telegramApi` instance (live bot token in client code) is **deleted**.
+
+`src/services/telegramServices.ts` — new module; all Bot API calls now go through backend proxies:
+- `POST /api/telegram/invoice-link` → `createInvoiceLink`
+- `POST /api/telegram/prepared-inline-message` → `savePreparedInlineMessage`
+
+⚠️ Requires the backend (see `../backend` commit adding these handlers) to be deployed before the Stars payment path works in production.
 
 Endpoints per service:
 
@@ -88,44 +98,45 @@ Endpoints per service:
 | `studentServices.ts` | GET/PUT `/student/:id` · POST `/student/` · GET `/submission/statistics-profile/:id` |
 | `contestApi.ts` | GET `/contest/status/active` · GET `/contest/:id` · GET `/submission/rank/:id` · GET/POST `/contest-registration/[check/:sid/:cid]` · POST `/submission/` · GET `/submission/editorial/:sid?contest_id=` · GET `/contest-registration/contest/:id` (response key `registerations` mirrors backend typo) |
 | `aiService.ts` | POST `/ai/getRecommendation` · POST `/ai/practice` |
-| `articleService.ts` | GET `/articles/published?number=` · GET `/articles/:id` · GET/POST `/articles/:id/comments` · PUT `/articles/:id` · PATCH `/articles/:id/stats` — **plus** `createInvoiceLink` / `savePreparedInlineMessage` called directly on `telegramApi` (Bot API misplaced in the article service) |
-| `notificationService.ts` | GET `/notification/recipient/:id` · PATCH/DELETE `/notification/:id` — the whole module is **never imported**; delete is done via a `read_notifications` flag instead (`NotificationCenter.tsx:69-93`) |
+| `articleService.ts` | GET `/articles/published?number=` · GET `/articles/:id` · GET/POST `/articles/:id/comments` · PUT `/articles/:id` · PATCH `/articles/:id/stats` (Bot API calls moved out to `telegramServices.ts`) |
+| `notificationService.ts` | GET `/notification/recipient/:id` · PATCH/DELETE `/notification/:id` — used by `NotificationCenter`/`NotificationContext` |
 | `paymentServices.ts` | POST `/payment/` (multipart; locally disables `withCredentials`) · GET `/payment/:userId` |
+| `telegramServices.ts` | POST `/telegram/invoice-link` · POST `/telegram/prepared-inline-message` |
 
 ## 5. Pages
 
-1. **Home** — active-contest card, contest cards filtered `con.grade === userInfo?.grade` (`:79` — breaks with grade format bug B7), countdown, welcome carousel, editorial links.
-2. **Contest** — the exam screen: question dots + dropdown nav, timer, submit; **score computed client-side** (`:279-305`); unanswered sent as `selected_answer:-1`; hardcoded `time_taken: 60` (`:165,200,238`).
-3. **Leaderboard** — podium (assumes `entries[0]` is rank 1, `:270`), list, "you" panel; divide-by-zero NaN percentages (`:327-331,379-383`).
-4. **Statistics** — recharts line/area/radar, stat cards with **fabricated trend deltas** "+12%/+5%/-3s/+28" (`:386,402,418,434`), premium-gated AI recommendation panel (`:696`), 75-line commented mock block (`:104-179`).
-5. **Profile** — edit student form (grade/school/phone/timezone), badge grid from static `lib/data.ts`, PUT `/student/:id`.
-6. **ContestStudentRegistration** — contest info + register; collects grade/subjects/experience but **never sends them** (`:142`); participants array rendered as a count (`:60` vs `:213`).
-7. **ContestEditorial** — post-contest review via `?contest_id`; decodes stored answers 1-based (`:396` — convention conflict B6).
-8. **AIPractice** — full practice UI (timer, settings `:331-410`) that is **unreachable**: `return <ComingSoon/>` at `:328`.
-9. **Articles** — wrapper over `ArticleList` + `ArticleFilters`; `ArticleView` renders article HTML with `dangerouslySetInnerHTML` (`:457`).
-10. **StudentRegisteration** *(sic)* — RHF+zod signup (photo URL, name, phone, grade "1".."13", defaults city "Adama"/region "Oromia" `:75-76`), then `window.location.replace("/")` (`:109`).
-11. **Payment** — bank-transfer screenshot upload (hardcoded US bank list `:55-65` + Ethiopian CBE drawer accounts `:267-285`) and Telegram Stars `openInvoice` path that submits `status:"Approved"` from the client (`:164-175`).
-12. **UserPaymentHistoryPage** — timeline via `PaymentTimelineItem` (imports the item directly; the parent `payment-timeline.tsx` is orphaned).
-13. **FeedBack** — multi-section survey persisted to CloudStorage + `updateUserInfo`; contains a ~140-line `if (false && …)` dead block (`:627-770`).
+1. **Home** — active-contest card, contest cards filtered `con.grade === userInfo?.grade` (grade format now consistent end-to-end), countdown, welcome carousel, editorial links.
+2. **Contest** — the exam screen: question dots + dropdown nav, timer, submit; **score still computed client-side** and `time_taken: 60` still hardcoded (⚠️ S3, needs server-side scoring decision); the dead error-state block was removed.
+3. **Leaderboard** — podium, list, "you" panel; divide-by-zero percentages guarded; retry refetches instead of `location.reload()`.
+4. **Statistics** — recharts line/area/radar, stat cards; **fabricated trend deltas "+12%/+5%/−3s/+28" still hardcoded** (⚠️ B20); premium-gated AI recommendation panel; the 75-line commented mock block is deleted.
+5. **Profile** — edit student form (grade/school/phone/timezone), badge grid from static `lib/data.ts` (fake `earnedDate`s remain — B20), PUT `/student/:id`.
+6. **ContestStudentRegistration** — contest info + register; the form's grade/subjects/experience are now actually sent; participants rendered as a real count (was an array assigned to a `number` field); guarded against missing `contestInfo.id`.
+7. **ContestEditorial** — post-contest review via `?contest_id`; answer index convention conflict remains (⚠️ B6).
+8. **AIPractice** — full practice UI (timer, settings) still **unreachable**: `return <ComingSoon/>` (product decision pending).
+9. **Articles** — wrapper over `ArticleList` + `ArticleFilters`; `ArticleView` renders article HTML **sanitized with DOMPurify**; view/like/bookmark flows use array-shaped CloudStorage keys with stable callbacks.
+10. **StudentRegisteration** *(sic)* — RHF+zod signup (photo URL, name, phone, grade "1".."13", defaults city "Adama"/region "Oromia" — ⚠️ B20), then client-side `navigate("/")` instead of a full-page reload.
+11. **Payment** — bank-transfer screenshot upload (10MB size now validated client-side; hardcoded US bank list + Ethiopian CBE drawer accounts + `"112pay"` fallback remain — ⚠️ B20) and Telegram Stars `openInvoice` path that still submits `status:"Approved"` from the client (⚠️ S4).
+12. **UserPaymentHistoryPage** — timeline via `PaymentTimelineItem` (orphan `payment-timeline.tsx` deleted).
+13. **FeedBack** — multi-section survey persisted to CloudStorage + `updateUserInfo`; the ~140-line `if (false && …)` block is deleted; confirmations use Telegram `showConfirm` (with `window.confirm` only as non-Telegram fallback); the `"/500"` counter without `maxLength` remains (⚠️ B20).
 
 ## 6. Key hooks & mechanics
 
-- **`useTelegram.ts`** — reads `window.Telegram.WebApp` once; sets header/background; ~25 wrappers (haptics, CloudStorage+fallback, MainButton/BackButton, `openInvoice`, `shareMessage`). Recreates all function identities each render (no memoization → root cause of several loops, B2).
-- **`useAdsgram.ts`** — SDK init with `debug: true` (`:25-26`); `show()` → `onReward/onError`. **No content is ad-gated**: `<AdTrigger>` is commented out in `Layout.tsx:108`.
+- **`useTelegram.ts`** — reads `window.Telegram.WebApp` once; sets header/background; ~25 wrappers (haptics, CloudStorage+fallback, MainButton/BackButton, `openInvoice`, `shareMessage`). **All callbacks are memoized**; `getCloudData<T>` is generic so callers get typed payloads without `any`.
+- **`useAdsgram.ts`** — SDK init with `debug: import.meta.env.DEV` (no more debug in prod). **No content is ad-gated**: `<AdTrigger>` is still commented out in `Layout.tsx:40` (product decision pending).
 - **`useContestTimer.ts`** — 1s tick → UPCOMING/ACTIVE/ENDED; misses exact `=== startTime` boundary; clears interval on ENDED.
-- **Anti-cheat** — `useScreenshotProtection.tsx` + `ScreenProtection.tsx`: blocks DevTools key combos, PrintScreen clipboard clear, contextmenu, injected `user-select:none`, 3-finger overlay, monkey-patched `getDisplayMedia`; returns hardcoded `{isProtected:true}` (`:284-286`). **Entirely dead** — its only consumer is imported in a commented line (`App.tsx:19`), and its techniques are cosmetic on mobile anyway.
-- **`NotificationCenter.tsx`** — drawer from TopNavigation; `markAllAsRead` (`:46-61`) **overwrites the whole `read_notifications` map**, resurrecting deleted items; in-place mutation at `:76`; duplicated "Mark as read" buttons (`:252-261`, `:268-277`).
-- **`PaymentAlert.tsx`** — expiry banner; loop `break`s at the first non-expiring approved payment (`:42`) so later payments are never checked; non-null `expirationDate!` (`:41`).
-- **`LeaderboardModal.tsx`** — fetch on empty deps (`:41`), podium icons by array index not `entry.rank` (`:149`), unencoded title in URL (`:62`), errors collapse to `[]`.
-- **`BottomNavigation.tsx`** — items are click-handler `<div>`s with no link/button semantics or keyboard access (`:50-52`); imports an asset whose filename contains a space and "(1)".
+- **Anti-cheat** — `useScreenshotProtection.tsx` + `ScreenProtection.tsx`: still **dead** (only consumer import commented at `App.tsx:20`); keep-or-delete is an open decision.
+- **`NotificationCenter.tsx`** — drawer from TopNavigation; uses `notificationService` for real delete; `markAllAsRead` no longer clobbers the `read_notifications` map; no in-place mutation.
+- **`PaymentAlert.tsx`** — expiry banner checks **all** payments (the early `break` bug fixed); no non-null assertions.
+- **`LeaderboardModal.tsx`** — fetch keyed on `selectedContest.id`; URLs properly `encodeURIComponent`-ed.
+- **`BottomNavigation.tsx`** — real accessible navigation controls with keyboard support.
 
 ## 7. Types & data models
 
-`src/types/index.ts`: `TelegramWebApp`/`TelegramUser`, `Question`, `ContestAnswer`, `Student`/`AuthUser`, `Contest`, `LeaderboardEntry`, `UserStats` (snake_case: `total_contests`, `average_accuracy`…), `PaymentRequest` + `PaymentStatus`, `ContestInfo`, `Notification`, `ReadNotificationRecord`.
-- ⚠️ `Achievement` is **declared twice** with different shapes (`:196-204` and `:295-303` — second silently wins).
-- ⚠️ Empty `interface UserStat {}` (`:205`).
-- ⚠️ Two competing stats models/two endpoints for one concept: `UserStats` (snake_case, `/submission/statistics/:id`, Statistics page) vs `user.user_stats` (camelCase, `/submission/statistics-profile/:id`, Profile).
-- `lib/data.ts`: static badge catalog with fake `earnedDate`s (`:11,41`) even on `earned:false` badges — surfaced in Profile.
+`src/types/index.ts`: `TelegramWebApp`/`TelegramUser`, `Question`, `ContestAnswer`, `ContestSubmission`, `Student`/`AuthUser`, `Contest`, `LeaderboardEntry`, `UserStats` (snake_case: `total_contests`, `average_accuracy`…), `PaymentRequest` + `PaymentStatus`, `ContestInfo`, `Notification`, `ReadNotificationRecord`.
+- ✅ `Achievement` duplicate declarations merged into one (with `id` **and** `progress`); empty `interface UserStat {}` deleted; `any` fields (`setParams`, `reply_markup`) are `unknown` — neither is consumed.
+- ⚠️ Still two competing stats models/two endpoints for one concept: `UserStats` (snake_case, `/submission/statistics/:id`, Statistics page) vs `user.user_stats` (camelCase, `/submission/statistics-profile/:id`, Profile). Unifying needs a backend decision.
+- `lib/data.ts`: static badge catalog with fake `earnedDate`s even on `earned:false` badges — surfaced in Profile (B20).
+- Whole-tree typing: zero `any` in `src/` (enforced by lint config + verified by grep).
 
 ## 8. Running
 
@@ -133,65 +144,68 @@ Endpoints per service:
 npm install
 echo "VITE_API_BASE_URL=http://localhost:8080" > .env
 npm run dev        # Vite; best opened inside Telegram (WebApp SDK required)
-npm run build      # tsc -b && vite build — see B23: tsc fails on @/ imports
+npm run lint       # eslint . — must stay clean (0/0)
+npm run build      # tsc -b && vite build
 ```
 
-`vercel.json` provides SPA fallback rewrites. No `.env.example` exists; the only env var consumed is `VITE_API_BASE_URL` (`services/api.ts:4`).
+`vercel.json` provides SPA fallback rewrites. No `.env.example` exists; the only env var consumed is `VITE_API_BASE_URL` (`services/api.ts`). ⚠️ The Stars-payment flow additionally requires the backend to expose `/api/telegram/*` proxies (deploy pending).
 
-## 9. Bugs & code issues
+## 9. Issue catalog — status
+
+Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · ❌ open (needs decision/backend).
 
 ### Security / integrity
-- **S1. Live bot token in frontend source** — `src/services/api.ts:10-13` hardcodes `https://api.telegram.org/bot<token>/…`; anyone who loads the bundle can act as the bot (invoices, refunds, user PII via `getChat`). Revoke + move behind backend endpoints (`articleService.ts:37-50` uses it for `createInvoiceLink`).
-- **S2. No `initData` validation** — `AuthContext.tsx:38-50`: identity is whatever `initDataUnsafe.user.id` says; spoofable with one curl (mirrors the backend gap).
-- **S3. Client-computed contest scores** — `Contest.tsx:279-305` computes and POSTs the score; `time_taken: 60` hardcoded (`:165,200,238`). Leaderboard fully gameable.
-- **S4. Client-declared payment status** — `Payment.tsx:164-175` sends `status:"Approved"` itself after the Stars invoice resolves; never reconciled with Telegram on the server.
-- **S5. XSS via article HTML** — `ArticleView.tsx:457` `dangerouslySetInnerHTML` with no sanitizer.
+- **S1. Live bot token in frontend** — ✅ **fixed.** `telegramApi` deleted from `api.ts`; Bot API calls moved behind new backend proxies (`telegramServices.ts` + Go handlers). ⚠️ **The old token is still in git history — revoke it via @BotFather, and deploy the backend.**
+- **S2. No `initData` validation** — ❌ open. Identity is whatever `initDataUnsafe.user.id` says; needs a server-side HMAC validation + real session token (backend work).
+- **S3. Client-computed contest scores** — ❌ open. `Contest.tsx` still computes and POSTs the score; `time_taken: 60` hardcoded. Needs server-side scoring decision.
+- **S4. Client-declared payment status** — ❌ open. `Payment.tsx` still sends `status:"Approved"`; needs backend reconciliation with Telegram.
+- **S5. XSS via article HTML** — ✅ **fixed.** DOMPurify sanitization before `dangerouslySetInnerHTML`.
 
 ### Correctness
-- **B1. Double `AuthProvider`** — `App.tsx:47` + `Layout.tsx:100`: two independent auth trees, two `/student/:id` fetches, possible state desync.
-- **B2. Unstable hook identities** — `useTelegram` recreates ~25 functions per render; `ArticleView.tsx:310-321` lists `getCloudData` in effect deps → article-load effect re-runs every render; `Contest.tsx:118` reads route param `conId` outside deps.
-- **B5. `??` precedence bugs** — `Payment.tsx:167`, `ArticleView.tsx:110`: `first_name ?? "" + last_name` binds as `first_name ?? (""+last_name)`; `ArticleView.tsx:108` `comments?.length ?? 0 + 1`; fallback user_id `"12"` (`:111`).
-- **B6. 0-based vs 1-based answer indices** — `AIPractice.tsx` stores 0-based; `ContestEditorial.tsx:396` decodes `-1` as 1-based; `Contest.tsx:468` `selectedAnswer! - 1 === index`; `-1` doubles as "unanswered" sentinel → editorial/grading display corrupts.
-- **B7. Grade format mismatch** — `StudentRegisteration.tsx:256` creates grades `"1".."13"`; `Profile.tsx` saves `"9".."12"`; `Home.tsx:79` filters `con.grade === userInfo?.grade` → new registrants see **no contests**.
-- **B10. Crash/stale risks** — `NotificationContext.tsx:53-58` indexes `userInfo?.read_notifications[...]` (throws when field undefined; `userInfo` missing from deps); `Profile.tsx:105-118` initializes from possibly-null `user` (age default `"5"` `:115`), missing dep `:198`; `Statistics.tsx:246` `Object.keys(stats.subjects)` unguarded.
-- **B12. Fetch races** — Home/Contest/Leaderboard/ArticleList/ArticleView/Profile set state after unmount (no AbortController/ignore flags); `studentServices.ts:28-46` GET-modify-PUT `updateStudentDefaultScoreRange` is a lost-update race.
-- **B15. NaN percentages** — `Leaderboard.tsx:327-331,379-383`, `LeaderboardModal.tsx:175` divide by zero totals.
-- **B16. Registration payload discarded** — `ContestStudentRegistration.tsx:142` sends only `{student, contest}`; participants array vs count (`:60` vs `:213`).
-- **B22. Article filters broken** — `ArticleFilters.tsx:154,240-242` set `"all"` as sentinel but `ArticleList.tsx` (~`:94-96`) only treats `""` as unfiltered → "All Authors"/"All Tags" shows **zero** results.
+- **B1. Double `AuthProvider`** — ✅ fixed (single tree in `App.tsx`).
+- **B2. Unstable hook identities** — ✅ fixed (`useTelegram` memoized; effect deps corrected across Layout, AdTrigger, ArticleView, AIPractice, Leaderboard, WelcomeCarousell, Contest, ContestCard, LeaderboardModal). The one intentional exception: `Contest.tsx` countdown effect omits the recreated `handleContestEnd` (documented `eslint-disable` — adding it would restart the 1s timer each render; goes away with the S3 refactor).
+- **B5. `??` precedence bugs** — ✅ fixed (name concat, comment count, `Number(x) ?? 0` no-op, `"12"` fallback user_id).
+- **B6. 0-based vs 1-based answer indices** — ❌ open (fixing changes stored-data semantics; needs coordination with backend/historical data).
+- **B7. Grade format mismatch** — ✅ fixed end-to-end ("1".."13" everywhere).
+- **B9. State mutation** — ✅ fixed (`.sort()` copies, NotificationCenter mutations removed, `updatedAnswers` copy).
+- **B10. Crash/stale risks** — ✅ fixed (`read_notifications` guards, Profile init from null-safe user, `stats.subjects` guard).
+- **B11. Side effects during render** — ✅ fixed (Telegram calls moved into effects in Home, ContestEditorial, ArticleList, Payment).
+- **B12. Fetch races** — ✅ fixed (AbortController/ignore-flag in Home, Contest, Leaderboard, ArticleList/View, Profile). 🟡 `updateStudentDefaultScoreRange` GET-modify-PUT lost-update race still exists (needs a backend conditional update).
+- **B13. Empty-state guard** — ✅ fixed.
+- **B15. NaN percentages** — ✅ fixed (Leaderboard + LeaderboardModal).
+- **B16. Registration payload discarded** — ✅ fixed (form fields sent; participants count real; `contestInfo.id` guarded instead of `!`-asserted).
+- **B17. Reload-based retry** — ✅ fixed (refetch via state tick instead of `window.location.reload()`).
+- **B18. Navigation** — ✅ fixed (`path="*"` 404 route, `<Link to="">`/`to="#"` removed, `navigate` instead of `location.replace`; the 10s `setTimeout` before navigate in Contest remains as UX, harmless).
+- **B22. Article filters broken** — ✅ fixed (`"all"` sentinel honored).
+- **B23. tsconfig gap** — ✅ fixed (`@/*` paths added; `tsc -b` now part of build and green).
 
 ### Dead code / duplication
-- **B3. Two error-UI conventions** — `ErrorComponent.tsx` (banner; used by Home/ArticleList/ArticleView) vs `ErrorState.tsx` (full page; used only by AuthContext); `ErrorIllustration` exported unused.
-- **B4. Two collapsibles** — custom `ui/Collapse.tsx` (used at `Profile.tsx:35`) vs Radix `ui/collapsible.tsx` (**never imported** — dead; yet `index.html` ships its keyframes).
-- **B8. More dead code** — `AIPractice.tsx:328` ComingSoon orphans its whole UI (`:331-410`, duplicate `formatTime` `:111`&`:412`); `Contest.tsx:23` error never set → dead block `:359-369`; `ContestStudentRegistration.tsx:33` loading never true → skeleton `:181-193`; `ProTips.tsx:10-13` renders hardcoded empty arrays, used by nobody; entire screenshot-protection system dead (`App.tsx:19` commented); `payment-history/payment-timeline.tsx` orphan; `ui/sonner.tsx` unused (sole reason `next-themes` is a dep); `deleteNotification` (notificationService.ts:16) never called; `FeedBack.tsx:627-770` `if (false && …)`; big commented blocks `Layout.tsx:18-87`, `Statistics.tsx:104-179`.
-- **B9. State mutation** — `NotificationCenter.tsx:76` mutates fetched object; markAllAsRead overwrites map; `Home.tsx:144` `.sort()` mutates state in render.
-- **B11. Side effects during render** — Telegram calls directly in render bodies: `Home.tsx:34`, `ContestEditorial.tsx:140`, `ArticleList.tsx:68`, `Payment.tsx:223` (StrictMode double-fire; fights TopNavigation).
+- **B3. Two error-UI conventions** — ❌ open (unifying `ErrorComponent`/`ErrorState` was deferred deliberately).
+- **B4. Two collapsibles** — ✅ fixed (Radix `ui/collapsible.tsx` deleted, its orphan keyframes removed from `index.html`, `@radix-ui/react-collapsible` dep dropped).
+- **B8. Dead code** — ✅ mostly fixed: `ProTips.tsx`, `payment-history/payment-timeline.tsx`, `ui/sonner.tsx` (+`next-themes`), FeedBack `if (false)` block, Statistics mock block, dead Contest error block and registration skeleton all deleted; `deleteNotification` wired up. 🟡 still present by decision: screenshot-protection system (dead), AIPractice unreachable UI (`ComingSoon`), `AdTrigger` commented out.
+- 🟡 `useContestTimer` exact-boundary miss — minor, open.
 
 ### UX / hygiene
-- **B13** — `Home.tsx:123` renders empty-state without `!loading` guard alongside skeleton.
-- **B14. Invalid classes/constants** — `ui/badge.tsx:19` `hover:bg-success/80`: `--success`/`--warning` CSS vars never defined (`index.css`) though `tailwind.config.js:56-62` references them; `Layout.tsx:112` `pt-30`; `payment-timeline-item.tsx:99` `z-100`; `Leaderboard.tsx:100` Tailwind class used as inline hex color.
-- **B17** — retry = `window.location.reload()` (`Leaderboard.tsx:212`, `Statistics.tsx:349`).
-- **B18. Navigation** — no `path="*"` 404; `Home.tsx:220-224` `<Link to="">`; `ContestCard.tsx:221` `to="#"`; full-page `window.location.replace` instead of `navigate` (`Payment.tsx:189`, `StudentRegisteration.tsx:109`); arbitrary 10s `setTimeout` before navigate (`Contest.tsx:322`); `not-found.tsx` is a props component, not a route.
-- **B19. A11y** — BottomNavigation div-clicks; icon-only buttons without labels; `Profile.tsx:353-355` SelectItems missing keys; custom receipt modal without focus trap/Escape (`payment-timeline-item.tsx:96-132`); inline-styled `toast.error` (`NotificationCenter.tsx:86-91`).
-- **B20. Hardcoded values** — `"112pay"` account (`Payment.tsx:112`); US banks vs Ethiopian CBE (`:55-65`, `:267-285`); `picsum.photos` thumbnails (`ArticleView.tsx:230`); `"shuluqa"` name fallback (`:110`); "Adama"/"Oromia" defaults; `debug:true` Adsgram in prod (`useAdsgram.ts:25-26`); ".../500" counter without maxLength (`FeedBack.tsx:1383`); 10MB claim with no check (`Payment.tsx:366`); `time_taken:60`.
-- **B21. Typos & leftovers** — file/route `StudentRegisteration`, page `FeedBack`, `WelcomeCarousell`, `newBadge.tsx`; strings "Complete Registeration" (`ContestStudentRegistration.tsx:421`), "Sucessfully sent!" (`Payment.tsx:119`), "successfull"/"faild" (`:177/:205`), "Succesfully registered!" (`StudentRegisteration.tsx:97`), "photo number" (`:59`), "No standing found" (`Leaderboard.tsx:283`), "wr**o**nt" (`ArticleList.tsx:234`); `setpayments` (`PaymentAlert.tsx:17`); zod max(13) vs message "must not exceed 10" (`StudentRegisteration.tsx:60-61`); `zodResolver(... as any)` (`:68`); `"use client"` Next.js leftovers (`AIPractice.tsx:1`, `FeedBack.tsx:1`); `window.confirm/alert` inside Telegram (`FeedBack.tsx:477,559,563,568`); unencoded URL interpolation (`Home.tsx:197`, `LeaderboardModal.tsx:62`); dead branches (`QuestionNavigationDropdown.tsx:33-42` never returns "incorrect"; `Contest.tsx:64` ignores `isActive`, `:270` unreachable); no-op `onRetry` (`ArticleView.tsx:543`); mismatched post-length gates (`:596` vs `:106`); heavy `console.log` debugging (`FeedBack.tsx:197-264`, `studentServices.ts:28-46`, `paymentServices.ts:5-7`); `Profile.tsx:674` progress bar hardcoded `0%`, `:281` avatar shows full name, `:257` `unlockedAchievements` holds locked ones.
-- **B23. tsconfig gap** — `@/...` imports (`ui/sheet.tsx`, `ui/scroll-area.tsx`, `ui/avatar.tsx`) have no `paths` entry in `tsconfig.app.json` while Vite aliases `@` (`vite.config.ts`) → `tsc -b` (part of `npm run build`) fails / IDE errors.
+- **B14. Invalid classes/constants** — ✅ fixed (`--success`/`--warning` vars defined, `pt-30`/`z-100` corrected, hex-as-class fixed).
+- **B19. A11y** — ✅ mostly fixed (BottomNavigation semantics, button labels, SelectItem keys, receipt modal focus handling; inline toast styles cleaned).
+- **B20. Hardcoded values** — ❌ open, needs content/ops decisions: US-vs-Ethiopian bank list and `"112pay"` (`Payment.tsx`), `picsum.photos` thumbnail fallback (`ArticleView.tsx:233`), "Adama"/"Oromia" registration defaults, fake `earnedDate`s in `lib/data.ts`, ".../500" counter without `maxLength` (`FeedBack.tsx`), fabricated "+12%" trend deltas (`Statistics.tsx`). Fixed from this list: `debug:true` Adsgram (now `import.meta.env.DEV`), missing 10MB upload check (now validated), `"shuluqa"` name fallback (removed).
+- **B21. Typos & leftovers** — ✅ fixed (user-facing strings corrected, `"use client"` removed, Telegram `showConfirm` replaces `window.confirm/alert`, unencoded URLs fixed, zod max/message mismatch fixed). File/route renames (`StudentRegisteration`, `FeedBack`, `WelcomeCarousell`, `newBadge.tsx`) deferred — they churn routes/history for cosmetic gain. 🟡 heavy `console.log` in FeedBack/services reduced, some remain.
 
-## 10. Recommendations
+## 10. Remaining recommendations
 
-**P0 — Security**
-1. Revoke the bot token; delete `telegramApi` from `api.ts:10-13`; proxy `createInvoiceLink`/Stars through the backend.
-2. Validate `initData` server-side (HMAC with bot token) at a login/exchange endpoint; issue a real session token; add a 401→re-auth axios interceptor.
-3. Score contests and confirm payments server-side (submit only answers + timing; reconcile Stars via backend).
-4. Sanitize article HTML (DOMPurify) at `ArticleView.tsx:457`.
+**P0 — Security (needs backend + your go-ahead)**
+1. **Revoke the leaked bot token via @BotFather** (it lives in git history even though the code reference is gone) and deploy the backend so `/api/telegram/*` proxies are live.
+2. Validate `initData` server-side (HMAC with bot token) at a login/exchange endpoint; issue a real session token; add a 401→re-auth axios interceptor. (S2)
+3. Score contests and confirm payments server-side — submit only answers + real elapsed time; reconcile Stars via backend getUpdates/webhook. (S3, S4)
 
 **P1 — Correctness**
-5. Single `AuthProvider`; memoize `useTelegram`'s API once per `webApp`; fix effect deps (NotificationContext `userInfo`, ArticleView cloud deps); add AbortControllers to fetch effects.
-6. Fix concrete breakages: ArticleFilters `"all"` sentinel, grade format end-to-end, registration payload, `??` precedence, `read_notifications` guards + merge semantics, NaN-percentage guards, `.sort()` mutation.
-7. Wire the Stars flow to backend verification; remove client `status:"Approved"`.
+4. Unify answer-index conventions across AIPractice / Contest / ContestEditorial — requires a migration plan for existing submissions. (B6)
+5. Replace hardcoded operational content with config: bank list + account labels, thumbnails, registration defaults, feedback counter limit, real trend deltas from the stats endpoint. (B20)
+6. Make `updateStudentDefaultScoreRange` race-safe server-side (conditional update). (B12 remainder)
 
-**P2 — Cleanup**
-8. Delete dead code (B3/B4/B8 lists), the `if (false)` block, `"use client"`, console.log noise; drop `next-themes`; unify on one error/loading/stats convention.
-9. Add `paths: {"@/*": ["./src/*"]}` to `tsconfig.app.json`; fix `pt-30`/`z-100`/missing `--success`/`--warning`; rename misspelled files/strings; replace `window.confirm/alert/reload/replace` with sonner/Telegram dialogs/react-router; add a real `path="*"` route using `not-found.tsx`.
+**P2 — Decisions to make (currently parked)**
+7. AIPractice: ship the existing UI or delete it; screenshot protection: enable or remove; Adsgram: gate content or remove `AdTrigger`; unify `ErrorComponent`/`ErrorState` and `UserStats` vs `user_stats`. (B3/B8)
 
 **P3 — Performance & product**
-10. `React.lazy` + `Suspense` for the 13 routes (recharts/framer-motion/radix make the initial bundle heavy); adopt react-query/SWR for standardized loading/error/retry; a11y (real buttons in BottomNavigation, Radix Dialog for receipt modal); decide Adsgram/premium-gating direction (AdTrigger exists but is disabled); either re-enable or remove the screenshot-protection system; add `.env.example`, CI (`tsc -b`, eslint, build), and smoke tests for services/contexts.
+8. `React.lazy` + `Suspense` for the 13 routes (bundle is ~1.5 MB / 466 kB gzipped; vite warns at build).
+9. Adopt react-query/SWR for standardized loading/error/retry; add `.env.example`, CI (`tsc -b`, `eslint .`, build), and smoke tests for services/contexts.
