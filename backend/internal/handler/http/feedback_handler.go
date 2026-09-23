@@ -3,7 +3,6 @@ package http
 import (
 	"fmt"
 	"net/http"
-	"time"
 	"victor-contest-go/internal/domain"
 	"victor-contest-go/internal/usecase"
 
@@ -234,7 +233,6 @@ func (h *FeedbackResponseHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/student/:student_id", h.GetFeedbackResponsesByStudent)
 	rg.GET("/question/:question_id", h.GetFeedbackResponsesByQuestion)
 	rg.GET("/analytics", h.GetFeedbackAnalytics)
-	rg.GET("/test", h.TestEndpoint)
 	rg.DELETE("/contact/:phone_number", h.DeleteContactByPhoneNumber)
 	rg.GET("/:id", h.GetFeedbackResponseByID)
 }
@@ -307,6 +305,12 @@ func (h *FeedbackResponseHandler) GetFeedbackResponseByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if response == nil {
+		// Unknown ids (including the former /test debug path, which now falls
+		// through to this :id route) answer 404 instead of 200 with null.
+		c.JSON(http.StatusNotFound, gin.H{"error": "feedback response not found"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"response": response})
 }
 
@@ -359,10 +363,6 @@ func (h *FeedbackResponseHandler) GetFeedbackAnalytics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, analytics)
-}
-
-func (h *FeedbackResponseHandler) TestEndpoint(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Test endpoint working", "timestamp": time.Now().Unix()})
 }
 
 func (h *FeedbackResponseHandler) DeleteContactByPhoneNumber(c *gin.Context) {

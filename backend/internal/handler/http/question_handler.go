@@ -1,7 +1,7 @@
 package http
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -118,17 +118,14 @@ func (h *QuestionHandler) AddMultipleQuestions(c *gin.Context) {
 
 func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 	id := c.Param("id")
-	fmt.Printf("UpdateQuestion called with ID: %s\n", id)
 
 	var update domain.Question
 
 	// Check if the request is multipart/form-data (has files) or JSON
 	contentType := c.GetHeader("Content-Type")
-	fmt.Printf("Content-Type: %s\n", contentType)
 
 	if strings.Contains(contentType, "multipart/form-data") {
 		// Handle FormData request (with potential file uploads)
-		fmt.Println("Handling FormData request")
 		update.QuestionText = c.PostForm("question_text")
 		update.Explanation = c.PostForm("explanation")
 		update.Subject = c.PostForm("subject")
@@ -144,8 +141,6 @@ func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 			}
 			update.Answer = answer
 		}
-
-		fmt.Printf("FormData parsed: %+v\n", update)
 
 		// Handle file uploads if present
 		if fileHeader, err := c.FormFile("question_image"); err == nil && fileHeader != nil {
@@ -181,20 +176,15 @@ func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 		}
 	} else {
 		// Handle JSON request
-		fmt.Println("Handling JSON request")
 		if err := c.ShouldBindJSON(&update); err != nil {
-			fmt.Printf("JSON binding error: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		fmt.Printf("JSON parsed: %+v\n", update)
 	}
-
-	fmt.Printf("Final update struct: %+v\n", update)
 
 	err := h.usecase.UpdateQuestion(id, update)
 	if err != nil {
-		fmt.Printf("UpdateQuestion error: %v\n", err)
+		log.Printf("UpdateQuestion(id=%s) failed: %v", id, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

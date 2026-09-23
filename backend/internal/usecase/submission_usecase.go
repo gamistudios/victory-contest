@@ -227,7 +227,7 @@ func (u *submissionUsecase) GetStudentProfileStatistics(studId string) (*domain.
 			break
 		}
 	}
-	if rank == -1{
+	if rank == -1 {
 		rank = len(rankings) + 1
 	}
 	stats := domain.StudentProfilesStatisticsDto{
@@ -345,10 +345,6 @@ func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (stri
 	return id, nil
 }
 func (u *submissionUsecase) GetSubmissionByID(id string) (*domain.Submission, error) {
-	if id == "leaderboard" {
-		return nil, errors.New("unknown route")
-
-	}
 	return u.subRepo.GetSubmissionByID(id)
 }
 func (u *submissionUsecase) GetAllSubmissions() ([]domain.Submission, error) {

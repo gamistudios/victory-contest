@@ -13,14 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Helper function for min
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 type QuestionDynamoRepository struct {
 	db        *dynamodb.Client
 	tableName string

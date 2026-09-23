@@ -12,32 +12,36 @@ import (
 var ErrArticleNotFound = errors.New("article not found")
 
 type ArticleUsecase struct {
-    repo ArticleRepository
-    commentRepo CommentRepository
+	repo        ArticleRepository
+	commentRepo CommentRepository
 }
 
 func NewArticleUsecase(repo ArticleRepository, commentRepo CommentRepository) *ArticleUsecase {
-    return &ArticleUsecase{repo: repo, commentRepo: commentRepo}
+	return &ArticleUsecase{repo: repo, commentRepo: commentRepo}
 }
 
 func (u *ArticleUsecase) Create(input domain.Article) (string, error) {
-    if input.Status == "" { input.Status = domain.ArticleStatusDraft }
-    now := time.Now()
-    if input.CreatedAt.IsZero() { input.CreatedAt = now }
-    input.UpdatedAt = now
-    if input.Status == domain.ArticleStatusPublished {
-        input.PublishedAt = &now
-    } else {
-        input.PublishedAt = nil
-    }
+	if input.Status == "" {
+		input.Status = domain.ArticleStatusDraft
+	}
+	now := time.Now()
+	if input.CreatedAt.IsZero() {
+		input.CreatedAt = now
+	}
+	input.UpdatedAt = now
+	if input.Status == domain.ArticleStatusPublished {
+		input.PublishedAt = &now
+	} else {
+		input.PublishedAt = nil
+	}
 	input.ID = GenerateUniqueId()
-    input.CreatedAt = now
-    return u.repo.Create(input)
+	input.CreatedAt = now
+	return u.repo.Create(input)
 }
 
 func (u *ArticleUsecase) Update(id string, update domain.Article) error {
-    update.UpdatedAt = time.Now()
-	article,err := u.GetByID(id)
+	update.UpdatedAt = time.Now()
+	article, err := u.GetByID(id)
 	if err != nil {
 		return err
 	}
@@ -47,7 +51,7 @@ func (u *ArticleUsecase) Update(id string, update domain.Article) error {
 		update.ReadTime = article.ReadTime
 	}
 
-    return u.repo.Update(id, update)
+	return u.repo.Update(id, update)
 }
 
 func (u *ArticleUsecase) Delete(id string) error { return u.repo.Delete(id) }
@@ -58,7 +62,9 @@ func (u *ArticleUsecase) List() ([]domain.Article, error) { return u.repo.List()
 
 func (u *ArticleUsecase) ListPublished() ([]domain.Article, error) { return u.repo.ListPublished() }
 
-func (u *ArticleUsecase) GetByStatus(status domain.ArticleStatus) ([]domain.Article, error) { return u.repo.GetByStatus(status) }
+func (u *ArticleUsecase) GetByStatus(status domain.ArticleStatus) ([]domain.Article, error) {
+	return u.repo.GetByStatus(status)
+}
 
 func (uc *ArticleUsecase) ToggleStatus(id string, status domain.ArticleStatus) error {
 	article, err := uc.repo.GetByID(id)
@@ -114,11 +120,9 @@ func (uc *ArticleUsecase) CreateComment(comment domain.Comment) (string, error) 
 		log.Printf("failed to increment comment count: %v", err)
 		return id, err
 	}
-	return id,nil
+	return id, nil
 }
 
 func (uc *ArticleUsecase) ListCommentsByArticleID(articleID string) ([]domain.Comment, error) {
 	return uc.commentRepo.ListByArticleID(articleID)
 }
-
-

@@ -111,10 +111,6 @@ func (t *telegramUsecase) sendMessage(chatID int64, text string, photo string, k
 		log.Printf("Error sending photo: %v", err)
 	}
 
-	// _, err := t.bot.Send(photoMsg)
-	// if err != nil {
-	// 	return err
-	// }
 	return nil
 }
 

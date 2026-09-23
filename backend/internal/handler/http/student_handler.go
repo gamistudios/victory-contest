@@ -2,7 +2,7 @@ package http
 
 import (
 	"errors"
-	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"victor-contest-go/internal/domain"
@@ -178,26 +178,21 @@ func (h *StudentHandler) DeleteStudent(c *gin.Context) {
 	// If it's numeric, try to find by Telegram ID first
 	if _, err := strconv.Atoi(id); err == nil {
 		// It's numeric, try to find by Telegram ID
-		fmt.Printf("Looking up student by Telegram ID: %s\n", id)
 		student, err = h.usecase.GetStudentByTelegramID(id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check if student exists: " + err.Error()})
 			return
 		}
 		if student == nil {
-			fmt.Printf("Student not found by Telegram ID, trying by regular ID: %s\n", id)
 			// Try by regular ID as fallback
 			student, err = h.usecase.GetStudentByID(id)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check if student exists: " + err.Error()})
 				return
 			}
-		} else {
-			fmt.Printf("Found student by Telegram ID: %s, database ID: %s\n", id, student.ID)
 		}
 	} else {
 		// It's not numeric, try by regular ID
-		fmt.Printf("Looking up student by regular ID: %s\n", id)
 		student, err = h.usecase.GetStudentByID(id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check if student exists: " + err.Error()})
@@ -211,7 +206,7 @@ func (h *StudentHandler) DeleteStudent(c *gin.Context) {
 	}
 
 	// Delete the student using the actual database ID
-	fmt.Printf("Deleting student with database ID: %s\n", student.ID)
+	log.Printf("deleting student: database id=%s (lookup key=%s)", student.ID, id)
 	err = h.usecase.DeleteStudent(student.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete student: " + err.Error()})
