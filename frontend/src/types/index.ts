@@ -155,8 +155,10 @@ export interface InputMessageContent {
 export interface Question {
   id: string;
   question_text: string;
-  answer: string;
-  explanation: string;
+  // Stripped by the backend while a contest is live (README §9 #11): the
+  // exam UI must never depend on these while answering.
+  answer?: string | number;
+  explanation?: string;
   subject: string;
   grade: string;
   chapter: string;
@@ -168,15 +170,28 @@ export interface Question {
 export interface ContestAnswer {
   question: Question;
   selected_answer: number;
-  is_correct: boolean;
+  // Server-authoritative scoring means the client can no longer self-grade;
+  // is_correct is only present on legacy payloads/results.
+  is_correct?: boolean;
   time_taken: number;
 }
 export interface ContestSubmission {
-  student: { id: string; imgurl: string; name: string };
+  // Must match domain.StudentSub — the key is `student_id`, NOT `id`
+  // (sending `id` silently stored an empty student on every submission).
+  student: { student_id: string; imgurl: string; name: string };
   contest_id: string;
+  // Client estimate only — the server always recomputes the official score
+  // (README §9 #12) and returns it in the submission response.
   score: number;
   missed_questions: Array<{ id: string; selected_answer: number }>;
+  // Full answer sheet (every contest question, -1 = skipped). The server
+  // grades from this instead of trusting the client's missed list.
+  answers: Array<{ id: string; selected_answer: number }>;
   time_spend: string;
+}
+export interface SubmissionResult {
+  id?: string;
+  score?: number;
 }
 export interface Student {
   id: string; // or use telegram_id as pk if unique

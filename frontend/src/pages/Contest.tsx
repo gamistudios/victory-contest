@@ -23,6 +23,11 @@ const ContestComponent: React.FC = () => {
   const [error] = useState<string | null>(null);
 
   const [contestEnded, setContestEnded] = useState(false);
+  // Official server-granted score from the submission response (README §9
+  // #12). The client can no longer self-grade: live contests no longer
+  // expose correct answers (README §9 #11), so any client-computed number
+  // would be fabricated.
+  const [officialScore, setOfficialScore] = useState<number | null>(null);
   const [searchParams] = useSearchParams();
   const conId = useMemo(() => searchParams.get("con"), [searchParams]);
   const [contest, setContest] = useState({} as Contest);
@@ -139,6 +144,11 @@ const ContestComponent: React.FC = () => {
   };
 
   const handleAnswerSelect = (answerIndex: number) => {
+    // 1-based selection on the wire: the stored `question.answer` values come
+    // from the external admin panel using the same 1-based convention the
+    // previous client-side grading used (`selectedAnswer === Number(answer)`).
+    // The server compares them directly; unifying to 0-based needs a prod
+    // question migration first (README §9 B6 / task #19 stays open).
     setSelectedAnswer(answerIndex + 1);
     hapticFeedback("selection");
   };
@@ -168,12 +178,11 @@ const ContestComponent: React.FC = () => {
     }
 
     const currentQuestion = questions[currentQuestionIndex];
-    const isCorrect = selectedAnswer === Number(currentQuestion.answer);
-
+    // No client-side grading: correctness is decided by the server, and the
+    // answer field is intentionally absent while the contest is live.
     const newAnswer: ContestAnswer = {
       question: currentQuestion,
       selected_answer: selectedAnswer,
-      is_correct: isCorrect,
       time_taken: 60,
     };
 
@@ -203,12 +212,9 @@ const ContestComponent: React.FC = () => {
     // Save current answer if one is selected
     if (selectedAnswer !== null) {
       const currentQuestion = questions[currentQuestionIndex];
-      const isCorrect = selectedAnswer === Number(currentQuestion.answer);
-
       const newAnswer: ContestAnswer = {
         question: currentQuestion,
         selected_answer: selectedAnswer,
-        is_correct: isCorrect,
         time_taken: 60,
       };
 
@@ -242,11 +248,9 @@ const ContestComponent: React.FC = () => {
     const updatedAnswers = [...answers];
     if (selectedAnswer !== null) {
       const currentQuestion = questions[currentQuestionIndex];
-      const isCorrect = selectedAnswer === Number(currentQuestion.answer);
       const newAnswer: ContestAnswer = {
         question: currentQuestion,
         selected_answer: selectedAnswer,
-        is_correct: isCorrect,
         time_taken: 60, // Or your actual timer value
       };
 
@@ -267,12 +271,12 @@ const ContestComponent: React.FC = () => {
 
     // 2. Iterate through ALL contest questions
     questions.forEach((question) => {
-      // 3. If a question was not answered, add it to our submission list
+      // 3. If a question was not answered, record it as skipped (-1). The
+      // server grades the full sheet; the client never decides correctness.
       if (!answeredQuestionIds.has(question.id)) {
         const unansweredEntry: ContestAnswer = {
           question: question,
-          selected_answer: -1, // As requested for unanswered
-          is_correct: false, // Unanswered is always incorrect
+          selected_answer: -1, // Unanswered => skipped
           time_taken: 0, // No time was spent on it
         };
         updatedAnswers.push(unansweredEntry);
@@ -286,16 +290,17 @@ const ContestComponent: React.FC = () => {
       return;
     }
 
-    // The rest of your function now works correctly because `updatedAnswers`
-    // contains entries for ALL questions (answered and unanswered).
-    const correctAnswers = updatedAnswers.filter((a) => a.is_correct).length;
-    const score = correctAnswers;
-    const missed_questions = updatedAnswers
-      .filter((a) => !a.is_correct)
-      .map((a) => ({
-        id: a.question.id,
-        selected_answer: a.selected_answer,
-      }));
+    // The submission now carries the FULL answer sheet (`answers`): one
+    // entry per contest question with the chosen option (-1 = skipped).
+    // The server grades it against the stored correct answers and returns
+    // the official score (README §9 #12); the client-computed score/missed
+    // fields below are kept only for wire compatibility and are ignored —
+    // the client cannot grade anything since live reads no longer include
+    // answers (README §9 #11).
+    const answersSheet = updatedAnswers.map((a) => ({
+      id: a.question.id,
+      selected_answer: a.selected_answer,
+    }));
     const endTime = Date.now();
     let time_spend = "00:00:00";
     if (contest.start_time) {
@@ -306,18 +311,22 @@ const ContestComponent: React.FC = () => {
     }
     const submission = {
       student: {
-        id: user?.id?.toString() || "",
+        student_id: user?.id?.toString() || "",
         imgurl: user?.photo_url || "",
         name: user?.first_name || "",
       },
       contest_id: contest.id,
-      score,
-      missed_questions: missed_questions,
+      score: 0,
+      missed_questions: [],
+      answers: answersSheet,
       time_spend,
     };
     try {
       setSubmitting(true);
-      await submitContestResult(submission);
+      const result = await submitContestResult(submission);
+      setOfficialScore(
+        typeof result.score === "number" ? result.score : null
+      );
       toast.success("Submission successful!", {
         description: "Your contest answers have been submitted successfully.",
         icon: <CheckCircle className="w-6 h-6 text-green-500" />,
@@ -382,6 +391,14 @@ const ContestComponent: React.FC = () => {
 
   if (contestEnded) {
     const totalQuestions = questions.length;
+    // Instant truthful results (client issue #6): the number shown here is
+    // the OFFICIAL score the server granted, not a client-side estimate.
+    const scoreText =
+      officialScore === null ? "—" : `${officialScore}`;
+    const percent =
+      officialScore === null || totalQuestions === 0
+        ? "—"
+        : `${((officialScore / totalQuestions) * 100).toFixed(2)}%`;
 
     return (
       <div className="p-4 flex flex-col items-center justify-center min-h-screen">
@@ -395,10 +412,11 @@ const ContestComponent: React.FC = () => {
           </p>
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm">
             <div className="text-4xl font-bold text-blue-600 mb-2">
-              {((answers.length / totalQuestions) * 100).toFixed(2)}%
+              {percent}
             </div>
             <div className="text-gray-600 dark:text-gray-400">
-              {answers.length} out of {totalQuestions} solved
+              {scoreText} out of {totalQuestions} correct (graded by the
+              server)
             </div>
           </div>
           <p>You can see your standings</p>

@@ -1,4 +1,9 @@
-import { Contest, ContestSubmission, LeaderboardEntry } from "../types";
+import {
+  Contest,
+  ContestSubmission,
+  LeaderboardEntry,
+  SubmissionResult,
+} from "../types";
 import api from "./api";
 
 export const getAllContests = async (): Promise<Contest[]> => {
@@ -45,9 +50,11 @@ export const registerForContest = async (
 
 export const submitContestResult = async (
   submission: ContestSubmission
-): Promise<unknown> => {
+): Promise<SubmissionResult> => {
+  // The server grades the answer sheet and returns the OFFICIAL score
+  // (README §9 #12); that is what the results screen must show.
   const res = await api.post(`/submission/`, submission);
-  return res.data;
+  return res.data ?? {};
 };
 export interface EditorialResponse {
   editorial?: unknown[] | null;

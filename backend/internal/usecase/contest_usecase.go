@@ -2,8 +2,20 @@ package usecase
 
 import (
 	"fmt"
+	"time"
 	"victor-contest-go/internal/domain"
 )
+
+// ContestHasEnded reports whether a contest has provably finished: its
+// end_time is set, parseable (same layouts as the dashboard, issue #38) and
+// in the past. Anything else — unset, garbage or future — counts as LIVE, so
+// answer-bearing payloads stay hidden until the contest has verifiably ended.
+// Handlers use this to decide whether the student-facing views may include
+// correct answers/explanations (README §9 #11).
+func ContestHasEnded(endTime string) bool {
+	t, ok := parseContestTime(endTime)
+	return ok && t.Before(time.Now())
+}
 
 type ContestInput struct {
 	Title       string `json:"title"`

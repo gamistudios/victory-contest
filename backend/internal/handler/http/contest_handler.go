@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -226,7 +227,57 @@ func (h *ContestHandler) GetContestByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	// README §9 #11: this endpoint feeds the student exam page and the
+	// hydrated questions carry the correct answer/explanation from the
+	// question table. While the contest is live (end_time unset, garbage or
+	// in the future) we answer with an allowlisted view that omits those
+	// fields. Admins keep full access via the admin-gated /api/question
+	// routes; internal usecase callers (statistics, scoring, editorial) are
+	// untouched because only this HTTP response is sanitized.
+	if contest != nil {
+		c.JSON(http.StatusOK, gin.H{"contest": publicContestPayload(contest, usecase.ContestHasEnded(contest.EndTime))})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"contest": contest})
+}
+
+// publicContestPayload renders a contest for the student-facing GET
+// /api/contest/:id. When the contest has not ended, embedded questions are
+// projected through an allowlist so the correct answer/explanation can never
+// leak — stripping is fail-closed, not fail-open. When it has ended, the
+// hydrated struct is returned unchanged (results review needs the answers).
+func publicContestPayload(contest *domain.ContestTypeWithQuestionObj, ended bool) any {
+	if ended {
+		return contest
+	}
+	raw, err := json.Marshal(contest.Contest)
+	var out gin.H
+	if err == nil {
+		err = json.Unmarshal(raw, &out)
+	}
+	if err != nil {
+		// Fall back to a minimal safe payload; never leak by defaulting to
+		// the unstripped struct.
+		out = gin.H{"id": contest.ID, "title": contest.Title}
+	}
+	qs := make([]gin.H, 0, len(contest.Questions))
+	for _, q := range contest.Questions {
+		multipleChoice := q.MultipleChoice
+		if multipleChoice == nil {
+			multipleChoice = []string{}
+		}
+		qs = append(qs, gin.H{
+			"id":              q.ID,
+			"question_text":   q.QuestionText,
+			"question_image":  q.QuestionImg,
+			"subject":         q.Subject,
+			"grade":           q.Grade,
+			"chapter":         q.Chapter,
+			"multiple_choice": multipleChoice,
+		})
+	}
+	out["questions"] = qs
+	return out
 }
 
 func (h *ContestHandler) DeleteContest(c *gin.Context) {

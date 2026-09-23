@@ -13,7 +13,9 @@ import (
 )
 
 type SubmissionUsecase interface {
-	AddSubmission(submission domain.SubmissionDto) (string, error)
+	// AddSubmission grades the submission server-side and returns the
+	// persisted id together with the OFFICIAL score (never the client's).
+	AddSubmission(submission domain.SubmissionDto) (string, float64, error)
 	DeleteSubmission(id string) error
 	GetSubmissionByID(id string) (*domain.Submission, error)
 	GetAllSubmissions() ([]domain.Submission, error)
@@ -290,6 +292,18 @@ func (u *submissionUsecase) GetStudentEditorial(conId string, studId string) (*E
 			Message:      "This contest has no questions yet, so there is no editorial to show.",
 		}, nil
 	}
+	// README §9 #11: the editorial intentionally reveals correct answers —
+	// but only AFTER the contest has ended. A fast cheater who submits early
+	// must not be able to read the remaining answers off the editorial while
+	// the contest is still open, so while live we return no judged questions
+	// at all (the FE renders the message).
+	if !ContestHasEnded(contest.EndTime) {
+		return &EditorialResult{
+			Editorial:    []domain.Editorial{},
+			Participated: participated,
+			Message:      "The editorial unlocks once the contest has ended — correct answers cannot be shown while it is still live.",
+		}, nil
+	}
 
 	missedQuestionSet := make(map[string]domain.SubmissionMissedQuestionDto)
 	if submission != nil {
@@ -356,14 +370,144 @@ func NewSubmissionUsecase(repo SubmissionRepository, conUsecase ContestUsecase, 
 	return &submissionUsecase{subRepo: repo, conUsecase: conUsecase, questionRepo: questionRepo, studentRepo: studentRepo}
 }
 
-func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (string, error) {
+// Errors rejected by AddSubmission before anything is persisted. The handler
+// maps them to HTTP statuses (see submission_handler.go).
+var (
+	ErrContestNotFound       = errors.New("contest not found")
+	ErrContestHasNoQuestions = errors.New("contest has no questions to grade")
+	ErrNoStudentID           = errors.New("submission is missing student.student_id")
+)
+
+// gradeSubmission computes the official score and the authoritative missed
+// list from the contest's (hydrated) questions and the client payload. It is
+// the single source of truth for scoring — SubmissionDto.Score is ignored
+// (README §9 #12). Three payload shapes are recognised:
+//
+//   - Full answer sheet (dto.Answers non-empty): every contest question is
+//     judged against its stored correct answer; a question the client did not
+//     report counts as missed. This is the mode used now that live contests no
+//     longer expose answers, so the client cannot self-grade at all.
+//   - A missed list that covers EVERY distinct contest question id. An honest
+//     self-grading client can only produce this when the student got every
+//     question wrong — and a stale client whose answers were stripped marks
+//     everything missed. Both carry a selection per question, so the server
+//     grades it as an answer sheet; that never scores an honest submission
+//     below the truth.
+//   - Legacy partial missed list: membership is honoured (deduplicated, ids
+//     that do not belong to the contest are ignored) and score = total -
+//     missed, so older self-grading clients keep working unchanged.
+//
+// Duplicated ids never inflate/deflate the score: the first occurrence of a
+// question id wins in every map.
+func gradeSubmission(questions []domain.Question, dto domain.SubmissionDto) (float64, []domain.SubmissionMissedQuestionDto) {
+	missed := make([]domain.SubmissionMissedQuestionDto, 0)
+
+	// Distinct contest question ids (a contest may reference repeats).
+	distinct := make(map[string]struct{}, len(questions))
+	for _, q := range questions {
+		distinct[q.ID] = struct{}{}
+	}
+
+	missedSet := make(map[string]domain.SubmissionMissedQuestionDto, len(dto.MissedQuestions))
+	for _, m := range dto.MissedQuestions {
+		if _, dup := missedSet[m.ID]; !dup {
+			missedSet[m.ID] = m
+		}
+	}
+
+	// Decide whether we have per-question selections to grade directly.
+	var selections map[string]int
+	switch {
+	case len(dto.Answers) > 0:
+		selections = make(map[string]int, len(dto.Answers))
+		for _, a := range dto.Answers {
+			if _, dup := selections[a.ID]; !dup {
+				selections[a.ID] = a.SelectedAnswer
+			}
+		}
+	case coversAll(missedSet, distinct):
+		selections = make(map[string]int, len(missedSet))
+		for id, m := range missedSet {
+			selections[id] = m.SelectedAnswer
+		}
+	}
+
+	if selections != nil {
+		score := 0
+		for _, q := range questions {
+			sel, reported := selections[q.ID]
+			if reported && sel == q.Answer {
+				score++
+				continue
+			}
+			if !reported {
+				sel = -1 // never reported: treat as skipped
+			}
+			missed = append(missed, domain.SubmissionMissedQuestionDto{ID: q.ID, SelectedAnswer: sel})
+		}
+		return float64(score), missed
+	}
+
+	// Legacy partial missed list: score = total - missed.
+	score := 0
+	for _, q := range questions {
+		if m, isMissed := missedSet[q.ID]; isMissed {
+			missed = append(missed, m)
+		} else {
+			score++
+		}
+	}
+	return float64(score), missed
+}
+
+// coversAll reports whether the keys of selection include every distinct
+// contest question id.
+func coversAll(selection map[string]domain.SubmissionMissedQuestionDto, distinctQuestionIDs map[string]struct{}) bool {
+	if len(distinctQuestionIDs) == 0 {
+		return false
+	}
+	for id := range distinctQuestionIDs {
+		if _, ok := selection[id]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (string, float64, error) {
+	// A submission without a student id stores an empty GSI key and becomes
+	// invisible to every per-student query (stats, editorial, badges).
+	if strings.TrimSpace(submission.Student.ID) == "" {
+		return "", 0, ErrNoStudentID
+	}
+	// Server-authoritative scoring (README §9 #12): hydrate the contest's
+	// questions (with their stored correct answers) and grade the payload
+	// here. The client-reported Score is only ever logged on mismatch —
+	// honest students must not be punished for clock rounding.
+	contest, err := u.conUsecase.GetContestByID(submission.ContestID)
+	if err != nil {
+		return "", 0, err
+	}
+	if contest == nil {
+		return "", 0, ErrContestNotFound
+	}
+	if len(contest.Questions) == 0 {
+		return "", 0, ErrContestHasNoQuestions
+	}
+
+	officialScore, officialMissed := gradeSubmission(contest.Questions, submission)
+	if submission.Score != officialScore {
+		log.Printf("AddSubmission: client score %v ignored for contest=%s student=%s, official score is %v",
+			submission.Score, submission.ContestID, submission.Student.ID, officialScore)
+	}
+
 	encodedID := GenerateUniqueId()
 	final_submission := domain.Submission{
 		ID:              encodedID,
 		ContestID:       submission.ContestID,
 		Student:         submission.Student,
-		Score:           submission.Score,
-		MissedQuestions: submission.MissedQuestions,
+		Score:           officialScore,
+		MissedQuestions: officialMissed,
 		SubmissionTime:  time.Now().In(time.Local),
 		TimeSpend:       submission.TimeSpend,
 		StudentID:       submission.Student.ID,
@@ -371,18 +515,20 @@ func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (stri
 
 	id, err := u.subRepo.AddSubmission(final_submission)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	// Badge/profile writes must run ONLY after the submission insert succeeds.
 	// A previous `defer` here executed the read-modify-write even when the
 	// insert errored (README §9 #18). Errors are logged, not surfaced, so a
 	// badge-evaluation hiccup does not fail an already-persisted submission.
+	// final_submission already carries the OFFICIAL score and missed list, so
+	// badge thresholds are evaluated against the server-granted result.
 	if err := u.evaluateAndAwardBadges(final_submission); err != nil {
 		log.Printf("evaluateAndAwardBadges(student=%s): %v", final_submission.StudentID, err)
 	}
 
-	return id, nil
+	return id, officialScore, nil
 }
 func (u *submissionUsecase) GetSubmissionByID(id string) (*domain.Submission, error) {
 	return u.subRepo.GetSubmissionByID(id)

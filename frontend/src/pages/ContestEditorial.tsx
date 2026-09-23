@@ -451,6 +451,9 @@ const ContestEditorial: React.FC = () => {
                   {/* Options */}
                   <div className="space-y-2 mb-3">
                     {question.multiple_choice.map((option, optionIndex) => {
+                      // 1-based convention: stored answer values and the
+                      // submitted selected_answer/user_answer are 1-based
+                      // (matches Contest.tsx's `answerIndex + 1`).
                       const isCorrect =
                         optionIndex === Number(question.answer) - 1;
                       const isUserAnswer =

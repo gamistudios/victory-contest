@@ -41,12 +41,23 @@ func (h *SubmissionHandler) AddSubmission(c *gin.Context) {
 		return
 	}
 
-	id, err := h.usecase.AddSubmission(submission)
+	// The usecase grades server-side; `score` in the response is the OFFICIAL
+	// score, not what the client claimed (README §9 #12).
+	id, score, err := h.usecase.AddSubmission(submission)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		switch {
+		case errors.Is(err, usecase.ErrContestNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case errors.Is(err, usecase.ErrContestHasNoQuestions):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.Is(err, usecase.ErrNoStudentID):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"id": id})
+	c.JSON(http.StatusOK, gin.H{"id": id, "score": score})
 }
 
 func (h *SubmissionHandler) GetAllSubmissions(c *gin.Context) {

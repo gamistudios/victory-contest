@@ -62,7 +62,10 @@ export function installDevTelegramMock(): void {
     setBackgroundColor: noop,
     showPopup: noop,
     showAlert: noop,
-    showConfirm: noop,
+    // Auto-confirm so confirm-gated flows (e.g. contest submit) can be
+    // exercised in the browser; a noop here silently kills the callback.
+    showConfirm: (_msg: string, cb?: (ok: boolean) => void) =>
+      cb?.(window.confirm(_msg)),
     requestWriteAccess: noop,
     requestContact: noop,
     enableClosingConfirmation: noop,
