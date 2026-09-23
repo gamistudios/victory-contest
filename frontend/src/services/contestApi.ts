@@ -2,7 +2,9 @@ import { Contest, ContestSubmission, LeaderboardEntry } from "../types";
 import api from "./api";
 
 export const getAllContests = async (): Promise<Contest[]> => {
-  const res = await api.get(`/contest/status/active`);
+  // GET /api/contest/status/active never existed (404); Home splits
+  // active/previous client-side by end_time, so the full list is what it needs.
+  const res = await api.get(`/contest/`);
   return res.data.contests;
 };
 

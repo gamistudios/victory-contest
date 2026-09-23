@@ -106,7 +106,7 @@ Endpoints per service:
 
 ## 5. Pages
 
-1. **Home** — active-contest card, contest cards filtered `con.grade === userInfo?.grade` (grade format now consistent end-to-end), countdown, welcome carousel, editorial links.
+1. **Home** — active-contest card, contest cards filtered `con.grade === userInfo?.grade` (grade format now consistent end-to-end), countdown, welcome carousel, editorial links. Two bugs fixed 2026-09-23: the contest list fetched a nonexistent `/contest/status/active` (404 → "Something Went wrong" error card; now `GET /contest/`, Home already splits active/previous by `end_time`), and `ArticleListForHome`/`Leaderboard` never re-armed their `isMountedRef` on remount, so StrictMode's dev double-mount silently discarded every fetch result (articles rendered empty despite the API returning data).
 2. **Contest** — the exam screen: question dots + dropdown nav, timer, submit; **score still computed client-side** and `time_taken: 60` still hardcoded (⚠️ S3, needs server-side scoring decision); the dead error-state block was removed.
 3. **Leaderboard** — podium, list, "you" panel; divide-by-zero percentages guarded; retry refetches instead of `location.reload()`.
 4. **Statistics** — recharts line/area/radar, stat cards; the fabricated trend deltas "+12%/+5%/−3s/+28" were removed (B20 ✅); premium-gated AI recommendation panel; the 75-line commented mock block is deleted.

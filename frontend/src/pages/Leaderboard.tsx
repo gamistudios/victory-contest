@@ -158,6 +158,9 @@ const Leaderboard: React.FC = () => {
 
   const isMountedRef = React.useRef(true);
   React.useEffect(() => {
+    // Re-arm on mount: StrictMode's dev unmount/remount would otherwise
+    // leave the ref false on the live pass and every fetch result discarded.
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
