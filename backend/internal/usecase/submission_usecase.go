@@ -22,7 +22,7 @@ type SubmissionUsecase interface {
 	GetLeaderboardByTimeFrame(timeFrame string) ([]domain.LeaderboardEntry, error)
 	sortAndRank(aggregates map[string]*domain.LeaderboardEntry) []domain.LeaderboardEntry
 	GetRankingsForContest(contestId string) ([]domain.LeaderboardForContestEntry, error)
-	GetStudentEditorial(conId, studId string) ([]domain.Editorial, error)
+	GetStudentEditorial(conId, studId string) (*EditorialResult, error)
 	GetStudentProfileStatistics(studId string) (*domain.StudentProfilesStatisticsDto, error)
 	GetStudentStatistics(studId string) (*domain.UserStatistics, error)
 }
@@ -256,20 +256,41 @@ func (u *submissionUsecase) GetStudentProfileStatistics(studId string) (*domain.
 	return &stats, nil
 }
 
+// EditorialResult bundles the per-question walkthrough with the context the
+// client needs to show accurate messages instead of a bare "load failed".
+type EditorialResult struct {
+	Editorial    []domain.Editorial
+	Participated bool
+	Message      string
+}
+
 // GetStudentEditorial implements SubmissionUsecase.
-func (u *submissionUsecase) GetStudentEditorial(conId string, studId string) ([]domain.Editorial, error) {
+func (u *submissionUsecase) GetStudentEditorial(conId string, studId string) (*EditorialResult, error) {
 	submission, err := u.subRepo.GetSubmissionsByStudentAndContest(conId, studId)
 	if err != nil {
 		return nil, err
 	}
+	participated := submission != nil
 
 	contest, err := u.conUsecase.GetContestByID(conId)
 	if err != nil {
-		return nil, errors.New("no contest found with the submission")
+		return nil, err
 	}
 	if contest == nil {
-		return nil, fmt.Errorf("contest not found")
+		return &EditorialResult{
+			Editorial:    []domain.Editorial{},
+			Participated: participated,
+			Message:      "This contest no longer exists — it may have been removed by the organizers.",
+		}, nil
 	}
+	if len(contest.Questions) == 0 {
+		return &EditorialResult{
+			Editorial:    []domain.Editorial{},
+			Participated: participated,
+			Message:      "This contest has no questions yet, so there is no editorial to show.",
+		}, nil
+	}
+
 	missedQuestionSet := make(map[string]domain.SubmissionMissedQuestionDto)
 	if submission != nil {
 		for _, mQ := range submission.MissedQuestions {
@@ -277,7 +298,7 @@ func (u *submissionUsecase) GetStudentEditorial(conId string, studId string) ([]
 		}
 	}
 
-	var editorial []domain.Editorial
+	editorial := make([]domain.Editorial, 0, len(contest.Questions))
 	for _, q := range contest.Questions {
 		editorialQuestion := domain.Editorial{
 			Question: q,
@@ -300,7 +321,11 @@ func (u *submissionUsecase) GetStudentEditorial(conId string, studId string) ([]
 		editorial = append(editorial, editorialQuestion)
 
 	}
-	return editorial, nil
+	result := &EditorialResult{Editorial: editorial, Participated: participated}
+	if !participated {
+		result.Message = "You did not participate in this contest, so your answers appear as skipped; the correct answers are highlighted for learning."
+	}
+	return result, nil
 }
 
 // GetLeaderboardByTimeFrame implements SubmissionUsecase.

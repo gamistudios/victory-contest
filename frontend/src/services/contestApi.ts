@@ -49,14 +49,19 @@ export const submitContestResult = async (
   const res = await api.post(`/submission/`, submission);
   return res.data;
 };
+export interface EditorialResponse {
+  editorial?: unknown[] | null;
+  participated?: boolean;
+  message?: string;
+}
 export const getEditorial = async (
   student_id: string,
   contest_id: string
-): Promise<unknown> => {
+): Promise<EditorialResponse> => {
   const res = await api.get(
     `/submission/editorial/${student_id}?contest_id=${contest_id}`
   );
-  return res.data.editorial;
+  return res.data ?? {};
 };
 export async function getContestRegistration(
   contest_id: string

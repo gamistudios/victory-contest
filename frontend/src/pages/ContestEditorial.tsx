@@ -14,6 +14,7 @@ import {
   Timer,
 } from "lucide-react";
 import { getEditorial } from "../services/contestApi";
+import { isAxiosError } from "axios";
 import { useTelegram } from "../hooks/useTelegram";
 import { toast } from "sonner";
 
@@ -44,6 +45,8 @@ const ContestEditorial: React.FC = () => {
 
   const [questions, setQuestions] = useState<EditorialQuestion[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [infoMessage, setInfoMessage] = useState<string>("");
+  const [participated, setParticipated] = useState<boolean>(true);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(
     new Set()
   );
@@ -56,19 +59,39 @@ const ContestEditorial: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     const fetchEditorials = async () => {
-      if (!user || !contestId) return;
+      if (!user) return;
+      if (!contestId) {
+        if (isMounted) {
+          setInfoMessage(
+            "This editorial link is missing its contest id, so nothing could be loaded."
+          );
+          setLoading(false);
+        }
+        return;
+      }
       try {
         setLoading(true);
         const res = await getEditorial(user.id.toString(), contestId);
         if (isMounted) {
-          if (!Array.isArray(res)) {
-            throw new Error("Invalid editorial data.");
-          }
-          setQuestions(res);
+          const list = Array.isArray(res.editorial) ? res.editorial : [];
+          const hasParticipated = res.participated !== false;
+          setQuestions(list as EditorialQuestion[]);
+          setParticipated(hasParticipated);
+          setInfoMessage(
+            res.message ||
+              (list.length === 0
+                ? "No editorial content is available for this contest yet."
+                : "")
+          );
         }
       } catch (error) {
-        const message =
+        let message =
           error instanceof Error ? error.message : "Failed to fetch editorial.";
+        if (isAxiosError(error)) {
+          const serverMessage = (error.response?.data as { message?: string })
+            ?.message;
+          message = serverMessage || `Could not load the editorial (${error.message}).`;
+        }
         if (isMounted) {
           toast.error(message, {
             style: {
@@ -213,6 +236,31 @@ const ContestEditorial: React.FC = () => {
     );
   }
 
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-8 space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+            <BookOpen className="w-7 h-7 text-blue-600 dark:text-blue-300" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+            Editorial unavailable
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {infoMessage ||
+              "No editorial content is available for this contest yet."}
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium"
+          >
+            Go back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const stats = getPerformanceStats();
   const filteredQuestions = getFilteredQuestions();
 
@@ -344,6 +392,16 @@ const ContestEditorial: React.FC = () => {
             }
           )}
         </div>
+
+        {!participated && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 p-3">
+            <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-300 mt-0.5 shrink-0" />
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              {infoMessage ||
+                "You did not participate in this contest, so your answers appear as skipped; the correct answers are highlighted for learning."}
+            </p>
+          </div>
+        )}
 
         {/* Questions List */}
         <div className="space-y-4">

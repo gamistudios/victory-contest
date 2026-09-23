@@ -153,13 +153,17 @@ func (h *SubmissionHandler) GetRankForContest(c *gin.Context) {
 func (h *SubmissionHandler) GetStudentEditorial(c *gin.Context) {
 	studId, conId := c.Param("student_id"), c.Query("contest_id")
 	if conId == "" {
-		c.JSON(http.StatusNotFound, gin.H{"message": "please specify the contest Id"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "please specify the contest Id"})
 		return
 	}
-	editorial, err := h.usecase.GetStudentEditorial(conId, studId)
+	result, err := h.usecase.GetStudentEditorial(conId, studId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"editorial": editorial})
+	c.JSON(http.StatusOK, gin.H{
+		"editorial":    result.Editorial,
+		"participated": result.Participated,
+		"message":      result.Message,
+	})
 }
