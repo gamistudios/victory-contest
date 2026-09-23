@@ -16,6 +16,7 @@ type ContestRepository interface {
 type StudentRepository interface {
 	AddStudent(student domain.Student) error
 	UpdateStudent(student domain.Student) error
+	UpdateStudentIfExist(student domain.Student) error
 	DeleteStudent(id string) error
 	GetStudentByTelegramID(telegramID string) (*domain.Student, error)
 	VerifyStudentPaid(telegramID string) (bool, error)

@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 	"victor-contest-go/internal/domain"
+	usecase "victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -68,6 +70,31 @@ func (r *StudentDynamoRepository) UpdateStudent(student domain.Student) error {
 		Item:      item,
 	})
 	return err
+}
+
+// UpdateStudentIfExist writes the student only while the row still exists
+// (ConditionExpression attribute_exists(id)). It is the safe counterpart to the
+// read-modify-write in the badge flow: it refuses to resurrect a row a concurrent
+// delete removed. A ConditionalCheckFailedException is mapped to
+// usecase.ErrConditionalCheckFailed so the caller can re-read and retry once.
+func (r *StudentDynamoRepository) UpdateStudentIfExist(student domain.Student) error {
+	item, err := attributevalue.MarshalMap(student)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+		TableName:           &r.tableName,
+		Item:                item,
+		ConditionExpression: aws.String("attribute_exists(id)"),
+	})
+	if err != nil {
+		var ccf *types.ConditionalCheckFailedException
+		if errors.As(err, &ccf) {
+			return fmt.Errorf("%w: student %s", usecase.ErrConditionalCheckFailed, student.ID)
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *StudentDynamoRepository) GetStudentByID(id string) (*domain.Student, error) {

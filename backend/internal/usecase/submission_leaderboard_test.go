@@ -147,6 +147,57 @@ func TestGetRankingsForContest_TieBreakFasterWins(t *testing.T) {
 // must return each id exactly once and report "no change" when a repeat
 // submission earns only badges the student already holds (so the profile is not
 // rewritten and never grows duplicates).
+func TestMergeNewBadges_NoDuplicatesAcrossSubmissions(t *testing.T) {
+	earned := []string{"1", "2", "3", "6"}
+
+	// Submission #1 on a fresh student (nil badge list).
+	after1, changed1 := mergeNewBadges(nil, earned)
+	if !changed1 {
+		t.Fatal("expected first award to change the badge list")
+	}
+	if got, want := strings.Join(after1, ","), "1,2,3,6"; got != want {
+		t.Fatalf("first award = %q, want %q", got, want)
+	}
+
+	// Submission #2 earning the same badges must not append duplicates.
+	after2, changed2 := mergeNewBadges(after1, earned)
+	if changed2 {
+		t.Fatalf("expected no change on repeat award, got %+v", after2)
+	}
+	if got, want := strings.Join(after2, ","), "1,2,3,6"; got != want {
+		t.Fatalf("repeat award changed the list to %q, want %q", got, want)
+	}
+
+	// Mixed existing + new: only the genuinely-new id is appended, once.
+	after3, changed3 := mergeNewBadges(after2, []string{"3", "4"})
+	if !changed3 {
+		t.Fatal("expected new badge '4' to change the list")
+	}
+	if got, want := strings.Join(after3, ","), "1,2,3,6,4"; got != want {
+		t.Fatalf("merge result = %q, want %q", got, want)
+	}
+
+	// Duplicate ids within a single earned batch are collapsed.
+	after4, _ := mergeNewBadges(nil, []string{"5", "5", "5"})
+	if got, want := strings.Join(after4, ","), "5"; got != want {
+		t.Fatalf("in-batch dedupe = %q, want %q", got, want)
+	}
+
+	for _, b := range []struct {
+		name  string
+		badge []string
+	}{{"after1", after1}, {"after2", after2}, {"after3", after3}, {"after4", after4}} {
+		seen := map[string]bool{}
+		for _, id := range b.badge {
+			if seen[id] {
+				t.Fatalf("%s contains duplicate badge id %q: %+v", b.name, id, b.badge)
+			}
+			seen[id] = true
+		}
+	}
+}
+
+// #26: average time must divide by contest count, not question count.
 func TestGetStudentProfileStatistics_AvgTimePerContest(t *testing.T) {
 	// 2 contests, times 3600s + 1800s = 5400s total -> avg 2700s/contest.
 	// Questions total = (score+missed) sums to 30, so a question-based avg would be 180.

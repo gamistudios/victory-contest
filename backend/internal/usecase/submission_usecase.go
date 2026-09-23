@@ -3,6 +3,7 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"sort"
 	"strconv"
@@ -327,11 +328,18 @@ func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (stri
 		TimeSpend:       submission.TimeSpend,
 		StudentID:       submission.Student.ID,
 	}
-	defer u.evaluateAndAwardBadges(final_submission)
 
 	id, err := u.subRepo.AddSubmission(final_submission)
 	if err != nil {
 		return "", err
+	}
+
+	// Badge/profile writes must run ONLY after the submission insert succeeds.
+	// A previous `defer` here executed the read-modify-write even when the
+	// insert errored (README §9 #18). Errors are logged, not surfaced, so a
+	// badge-evaluation hiccup does not fail an already-persisted submission.
+	if err := u.evaluateAndAwardBadges(final_submission); err != nil {
+		log.Printf("evaluateAndAwardBadges(student=%s): %v", final_submission.StudentID, err)
 	}
 
 	return id, nil
@@ -546,40 +554,104 @@ func ParseTimeSpend(value string) int {
 	return h*3600 + m*60 + s
 }
 
-// evaluateAndAwardBadges determines which badges the student earns and persists them
+// ErrConditionalCheckFailed is returned by StudentRepository.UpdateStudentIfExist
+// when the conditional write guard fails because the student row was removed by a
+// concurrent operation between the read and the write.
+var ErrConditionalCheckFailed = errors.New("conditional check failed: student row missing")
+
+// evaluateAndAwardBadges determines which badges the student earns from the given
+// (already-persisted) submission and stores them without introducing duplicates.
+//
+// Concurrency: the read-modify-write is guarded by a conditional write (fails if
+// the student row vanished mid-flight). On a conditional-check failure we re-read
+// the student once and retry, merging against the fresh badge list instead of
+// clobbering a concurrent edit. This is intentionally kept simple — no full
+// transaction/versioning machinery (README §9 #18).
 func (u *submissionUsecase) evaluateAndAwardBadges(sub domain.Submission) error {
-	// Load student
-	student, err := u.studentRepo.GetStudentByID(sub.Student.ID)
+	earned, err := u.earnedBadgeIDs(sub)
 	if err != nil {
 		return err
 	}
-	if student == nil {
-		return nil
+
+	const maxAttempts = 2 // initial write + exactly one retry
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		student, err := u.studentRepo.GetStudentByID(sub.Student.ID)
+		if err != nil {
+			return err
+		}
+		if student == nil {
+			return nil
+		}
+
+		updated, changed := mergeNewBadges(student.Badge, earned)
+		if !changed {
+			return nil // nothing new — do not touch the profile
+		}
+		student.Badge = updated
+
+		err = u.studentRepo.UpdateStudentIfExist(*student)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if errors.Is(err, ErrConditionalCheckFailed) {
+			continue // re-read and merge once more
+		}
+		return err
 	}
-	if student.Badge == nil {
-		student.Badge = make([]string, 0)
+	return lastErr
+}
+
+// mergeNewBadges returns a copy of existing with any not-yet-held ids from earned
+// appended, plus whether anything changed. It is the guard that prevents the
+// duplicate-badge bug: previously `already` was populated but never consulted, so
+// every submission re-appended the same ids. Stored shape ([]string of ids) is
+// unchanged so the frontend Profile consumer keeps working.
+func mergeNewBadges(existing []string, earned []string) ([]string, bool) {
+	merged := make([]string, len(existing))
+	copy(merged, existing)
+
+	already := make(map[string]bool, len(existing)+len(earned))
+	for _, id := range existing {
+		already[id] = true
 	}
-	already := make(map[string]bool)
+
+	changed := false
+	for _, id := range earned {
+		if already[id] {
+			continue
+		}
+		already[id] = true
+		merged = append(merged, id)
+		changed = true
+	}
+	return merged, changed
+}
+
+// earnedBadgeIDs computes the badge ids the student qualifies for based on the
+// just-inserted submission and their history. It is independent of the badges the
+// student already holds (dedup happens in mergeNewBadges).
+func (u *submissionUsecase) earnedBadgeIDs(sub domain.Submission) ([]string, error) {
+	var earned []string
+	addBadge := func(id string) { earned = append(earned, id) }
+
 	// Fetch all submissions for student (post-insert)
 	subs, err := u.subRepo.GetSubmissionsByStudent(sub.Student.ID)
 	if err != nil {
-		return err
-	}
-	// Helper to add badge if not already present
-	addBadge := func(id string) {
-		
-		student.Badge = append(student.Badge, id)
-		already[id] = true
-		
+		return nil, err
 	}
 
+	// 1. First Steps: at least one submission
 	if len(subs) >= 1 {
 		addBadge("1")
 	}
+
 	// Compute per-submission stats for the newest submission
 	totalQuestions := int(sub.Score) + len(sub.MissedQuestions)
 	seconds := ParseTimeSpend(sub.TimeSpend)
 
+	// 2. Speed Demon: <=30s per 10 questions on the newest submission
 	if totalQuestions > 0 && seconds > 0 {
 		avgPer10 := float64(seconds) / float64(totalQuestions) * 10
 		if avgPer10 <= 30 {
@@ -591,6 +663,7 @@ func (u *submissionUsecase) evaluateAndAwardBadges(sub domain.Submission) error 
 	if totalQuestions > 0 && len(sub.MissedQuestions) == 0 {
 		addBadge("3")
 	}
+
 	// 4. Streak Master: 7-day streak (at least one submission each day for last 7 days)
 	dateHasSubmission := make(map[string]bool)
 	for _, s := range subs {
@@ -608,10 +681,11 @@ func (u *submissionUsecase) evaluateAndAwardBadges(sub domain.Submission) error 
 	if streak {
 		addBadge("4")
 	}
+
 	// 5. Math Wizard: 90%+ in 5 math contests
 	contests, err := u.conUsecase.GetAllContests()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	structuredContests := make(map[string]domain.Contest)
 	for _, c := range contests {
@@ -636,6 +710,7 @@ func (u *submissionUsecase) evaluateAndAwardBadges(sub domain.Submission) error 
 	if mathHighScoreCount >= 5 {
 		addBadge("5")
 	}
+
 	// 6. Champion: Reach top 10 in global leaderboard
 	leaderboard, err := u.GetLeaderboardByTimeFrame("all")
 	if err == nil {
@@ -647,6 +722,6 @@ func (u *submissionUsecase) evaluateAndAwardBadges(sub domain.Submission) error 
 			}
 		}
 	}
-	// Persist updated badges if any new added
-	return u.studentRepo.UpdateStudent(*student)
+
+	return earned, nil
 }
