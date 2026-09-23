@@ -174,3 +174,23 @@ func (r *ContestRegistrationDynamoRepository) GetRegistrationsByContest(contest_
 	}
 	return registerations, nil
 }
+
+// ListAll returns every contest registration row with a single table Scan
+// (issue #3): the admin dashboard used to issue one GetRegistrationsByContest
+// GSI query per contest (N+1). Same plain-Scan recipe as the other repos
+// (e.g. AchievementDynamoRepository.GetAllAchievements) — acceptable at the
+// current table size.
+func (r *ContestRegistrationDynamoRepository) ListAll() ([]domain.ContestRegistration, error) {
+	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+		TableName: &r.tableName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var registrations []domain.ContestRegistration
+	err = attributevalue.UnmarshalListOfMaps(out.Items, &registrations)
+	if err != nil {
+		return nil, err
+	}
+	return registrations, nil
+}

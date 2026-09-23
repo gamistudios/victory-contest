@@ -91,6 +91,9 @@ type ContestRegistrationRepository interface {
 	DeleteContestRegistration(id string) error
 	GetRegistrationsByContestAndStudent(contestID string, studentID string) (*domain.ContestRegistration, error)
 	GetRegistrationsByContest(contest_id string) ([]domain.ContestRegistration, error)
+	// ListAll returns every registration row (single table scan) so the
+	// admin dashboard no longer fans out one query per contest (issue #3).
+	ListAll() ([]domain.ContestRegistration, error)
 }
 
 type FeedbackQuestionRepository interface {

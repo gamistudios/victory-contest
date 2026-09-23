@@ -143,6 +143,7 @@ func TestOverviewRevenueAndRegistrationValues(t *testing.T) {
 type fakeDashboardRegistrationRepo struct {
 	ContestRegistrationRepository
 	byContest map[string][]domain.ContestRegistration
+	all       []domain.ContestRegistration
 	err       error
 }
 
@@ -153,6 +154,14 @@ func (f *fakeDashboardRegistrationRepo) GetRegistrationsByContest(contestID stri
 	return f.byContest[contestID], nil
 }
 
+// ListAll backs the dashboard's single-scan registration fetch (issue #3).
+func (f *fakeDashboardRegistrationRepo) ListAll() ([]domain.ContestRegistration, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.all, nil
+}
+
 type fakeDashboardContestRepo struct {
 	ContestRepository
 	contests []domain.Contest
@@ -161,15 +170,15 @@ type fakeDashboardContestRepo struct {
 func (f *fakeDashboardContestRepo) GetAllContests() ([]domain.Contest, error) { return f.contests, nil }
 
 func TestFetchRegistrationsCountsRealRegistrationsNotSubmissions(t *testing.T) {
-	regRepo := &fakeDashboardRegistrationRepo{byContest: map[string][]domain.ContestRegistration{
-		"c1": {{ID: "r1", ContestID: "c1", StudentID: "s1"}, {ID: "r2", ContestID: "c1", StudentID: "s2"}},
-		"c2": {{ID: "r3", ContestID: "c2", StudentID: "s1"}},
+	regRepo := &fakeDashboardRegistrationRepo{all: []domain.ContestRegistration{
+		{ID: "r1", ContestID: "c1", StudentID: "s1"},
+		{ID: "r2", ContestID: "c1", StudentID: "s2"},
+		{ID: "r3", ContestID: "c2", StudentID: "s1"},
 	}}
 	u := &adminUsecase{
-		contestRepo:             &fakeDashboardContestRepo{contests: []domain.Contest{{ID: "c1"}, {ID: "c2"}}},
 		contestRegistrationRepo: regRepo,
 	}
-	got, err := u.fetchRegistrations(u.contestRepo.(*fakeDashboardContestRepo).contests)
+	got, err := u.fetchRegistrations()
 	if err != nil {
 		t.Fatalf("fetchRegistrations returned error: %v", err)
 	}

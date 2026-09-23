@@ -20,10 +20,10 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 // contest start/end times (issue #38): RFC 3339 (with Z or numeric offset)
 // plus the legacy layouts — no-offset ISO, minute precision, and date only.
 var contestTimeLayouts = []string{
-	time.RFC3339,           // 2006-01-02T15:04:05Z07:00 (also covers ...Z)
-	"2006-01-02T15:04:05",  // no timezone
-	"2006-01-02T15:04",     // minute precision
-	"2006-01-02",           // date only
+	time.RFC3339,          // 2006-01-02T15:04:05Z07:00 (also covers ...Z)
+	"2006-01-02T15:04:05", // no timezone
+	"2006-01-02T15:04",    // minute precision
+	"2006-01-02",          // date only
 }
 
 // Canonical gender buckets (client issue #5). Every stored value maps to
@@ -212,9 +212,9 @@ func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, erro
 		return nil, err
 	}
 
-	// Real contest registrations (issue #37): the repository has no
-	// list-all method, so we fan out per contest via GetRegistrationsByContest.
-	registrations, err := u.fetchRegistrations(contests)
+	// Real contest registrations (issue #3): one table scan via ListAll
+	// instead of the old per-contest GSI fan-out (N+1).
+	registrations, err := u.fetchRegistrations()
 	if err != nil {
 		return nil, err
 	}
@@ -257,20 +257,15 @@ func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, erro
 	}, nil
 }
 
-// fetchRegistrations returns every contest registration row across all
-// contests. Both active and pending-approval (IsActive=false) rows count as
-// registrations. ContestRegistrationRepository has no list-all method, so this
-// is one query per contest (N+1) — noted as a follow-up for the repo layer.
-func (u *adminUsecase) fetchRegistrations(contests []domain.Contest) ([]domain.ContestRegistration, error) {
-	var all []domain.ContestRegistration
-	for _, contest := range contests {
-		regs, err := u.contestRegistrationRepo.GetRegistrationsByContest(contest.ID)
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, regs...)
-	}
-	return all, nil
+// fetchRegistrations returns every contest registration row with a single
+// ListAll scan of the registrations table (issue #3). Both active and
+// pending-approval (IsActive=false) rows count as registrations. The old
+// implementation issued one GetRegistrationsByContest query per contest
+// (N+1); results are equivalent for registrations of existing contests, and
+// orphan rows of deleted contests now count too — which is the truthful
+// registration count for the dashboard anyway.
+func (u *adminUsecase) fetchRegistrations() ([]domain.ContestRegistration, error) {
+	return u.contestRegistrationRepo.ListAll()
 }
 
 func (u *adminUsecase) calculateOverviewStats(students []domain.Student, contests []domain.Contest, registrations []domain.ContestRegistration, payments []domain.PaymentRequest) domain.OverviewStats {
@@ -577,9 +572,9 @@ func (u *adminUsecase) calculateContestStats(contests []domain.Contest, submissi
 		}
 	}
 	type scoreAgg struct {
-		count   int
-		sum     float64
-		scores  []float64
+		count  int
+		sum    float64
+		scores []float64
 	}
 	subjectScoresMap := make(map[string]*scoreAgg)
 	submissionStats := domain.SubmissionStats{Total: len(submissions)}
@@ -738,15 +733,61 @@ func (u *adminUsecase) calculateRevenue(payments []domain.PaymentRequest) float6
 	return totalRevenue
 }
 
+// dayWindow is one calendar-day bucket of the 30-day trend series: the half
+// interval (start, start+24h) compared with the same STRICT After/Before
+// checks the original O(30n) loops used (an instant exactly on local midnight
+// belongs to no window — preserved deliberately so results are identical).
+type dayWindow struct {
+	start time.Time
+	end   time.Time
+}
+
+// buildDayWindows returns the 30 consecutive day windows ending at "now",
+// constructed exactly like the original per-index loop did
+// (now.AddDate(0,0,-29+i) -> local midnight -> +24h).
+func buildDayWindows(now time.Time) []dayWindow {
+	windows := make([]dayWindow, 30)
+	for i := range 30 {
+		targetDate := now.AddDate(0, 0, -29+i)
+		startOfDay := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, targetDate.Location())
+		windows[i] = dayWindow{start: startOfDay, end: startOfDay.Add(24 * time.Hour)}
+	}
+	return windows
+}
+
+// bucketInstant adds 1 to every window containing t, using the identical
+// After(start)/Before(end) tests as the original nested loops. Window starts
+// are strictly increasing, so at most the two windows before the binary
+// search boundary can match (calendar days shorter than 12h do not exist in
+// practice); checking both keeps the result identical even across 23h/25h
+// DST days where adjacent windows overlap or gap.
+func bucketInstant(windows []dayWindow, counts []int, t time.Time) {
+	lo, hi := 0, len(windows)
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if windows[mid].start.Before(t) {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	for _, i := range [2]int{lo - 2, lo - 1} {
+		if i >= 0 && i < len(windows) && t.After(windows[i].start) && t.Before(windows[i].end) {
+			counts[i]++
+		}
+	}
+}
+
 func (u *adminUsecase) calculateUserTrendData(students []domain.Student) []int {
-	// Generate 30-day trend data for users (daily data)
+	// Single-pass trend bucketing (issue #3): the original algorithm scanned
+	// the whole student slice once per day (O(30n)); this walks it once into
+	// a day-index map. Results are identical for the same input.
 	now := time.Now()
 	trendData := make([]int, 30)
 
 	// Count students with valid CreatedAt timestamps
 	studentsWithTimestamps := 0
 	studentsWithoutTimestamps := 0
-
 	for _, student := range students {
 		if student.CreatedAt.IsZero() {
 			studentsWithoutTimestamps++
@@ -768,132 +809,99 @@ func (u *adminUsecase) calculateUserTrendData(students []domain.Student) []int {
 			}
 			trendData[i] = count
 		}
+	}
 
-		// Add students with valid timestamps to their respective days
-		for i := range 30 {
-			targetDate := now.AddDate(0, 0, -29+i)
-			startOfDay := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, targetDate.Location())
-			endOfDay := startOfDay.Add(24 * time.Hour)
-
-			for _, student := range students {
-				if !student.CreatedAt.IsZero() && student.CreatedAt.After(startOfDay) && student.CreatedAt.Before(endOfDay) {
-					trendData[i]++
-				}
-			}
+	// Bucket every student that has a valid timestamp into its day window
+	// (both branches of the original code added these with the same strict
+	// After/Before comparison).
+	windows := buildDayWindows(now)
+	for _, student := range students {
+		if student.CreatedAt.IsZero() {
+			continue
 		}
-	} else {
-		// Normal calculation for students with valid timestamps
-		for i := range 30 {
-			targetDate := now.AddDate(0, 0, -29+i)
-			count := 0
-
-			startOfDay := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, targetDate.Location())
-			endOfDay := startOfDay.Add(24 * time.Hour)
-
-			for _, student := range students {
-				createdAt := student.CreatedAt
-
-				// Skip students without valid timestamps
-				if createdAt.IsZero() {
-					continue
-				}
-
-				// Check if student was created on the target date
-				if createdAt.After(startOfDay) && createdAt.Before(endOfDay) {
-					count++
-				}
-			}
-
-			trendData[i] = count
-		}
+		bucketInstant(windows, trendData, student.CreatedAt)
 	}
 
 	return trendData
 }
 
+// dayKey reduces a timestamp to the same (year, year-day) equality the
+// original per-day loops compared on.
+func dayKey(t time.Time) [2]int {
+	return [2]int{t.Year(), t.YearDay()}
+}
+
 func (u *adminUsecase) calculateContestTrendData(contests []domain.Contest) []int {
-	// Generate 30-day trend data for contests (daily data)
+	// Single-pass contest bucketing (issue #3): one walk of the contests
+	// into a (year, yearDay) -> count map, then the 30 slices are emitted by
+	// lookup. Identical results for the same input.
 	now := time.Now()
 	trendData := make([]int, 30)
 
-	// Count contests created in each of the last 30 days
-	for i := 0; i < 30; i++ {
-		// Go back i days from current day
-		targetDate := now.AddDate(0, 0, -29+i)
-		count := 0
-
-		for _, contest := range contests {
-			// Shared parser (issue #38): same layout set as status
-			// classification; contests with unparseable start times have no
-			// date to bucket and are excluded here (and shown as "upcoming"
-			// in the status distribution).
-			startTime, ok := parseContestTime(contest.StartTime)
-			if !ok {
-				continue
-			}
-
-			// Check if contest was created on the target date
-			if startTime.Year() == targetDate.Year() &&
-				startTime.YearDay() == targetDate.YearDay() {
-				count++
-			}
+	counts := make(map[[2]int]int, len(contests))
+	for _, contest := range contests {
+		// Shared parser (issue #38): same layout set as status
+		// classification; contests with unparseable start times have no
+		// date to bucket and are excluded here (and shown as "upcoming"
+		// in the status distribution).
+		startTime, ok := parseContestTime(contest.StartTime)
+		if !ok {
+			continue
 		}
+		counts[dayKey(startTime)]++
+	}
 
-		trendData[i] = count
+	for i := range 30 {
+		targetDate := now.AddDate(0, 0, -29+i)
+		trendData[i] = counts[dayKey(targetDate)]
 	}
 
 	return trendData
 }
 
 func (u *adminUsecase) calculateRevenueTrendData(payments []domain.PaymentRequest) []int {
-	// Generate 30-day revenue trend data (daily data)
+	// Single-pass revenue bucketing (issue #3). Payments are accumulated per
+	// day in input order, exactly like the original inner loop, so the
+	// float sums (and their int truncation) are bit-identical.
 	now := time.Now()
 	trendData := make([]int, 30)
 
-	for i := 0; i < 30; i++ {
-		// Go back i days from current day
-		targetDate := now.AddDate(0, 0, -29+i)
-		revenue := 0.0
-
-		for _, payment := range payments {
-			// Real approved bank-transfer amounts (ETB), not a per-payment
-			// placeholder (issue #37).
-			if payment.Status == domain.StatusApproved &&
-				payment.UpdatedAt.Year() == targetDate.Year() &&
-				payment.UpdatedAt.YearDay() == targetDate.YearDay() {
-				revenue += payment.Amount
-			}
+	revenue := make(map[[2]int]float64, len(payments))
+	for _, payment := range payments {
+		// Real approved bank-transfer amounts (ETB), not a per-payment
+		// placeholder (issue #37).
+		if payment.Status != domain.StatusApproved {
+			continue
 		}
+		revenue[dayKey(payment.UpdatedAt)] += payment.Amount
+	}
 
-		trendData[i] = int(revenue)
+	for i := range 30 {
+		targetDate := now.AddDate(0, 0, -29+i)
+		trendData[i] = int(revenue[dayKey(targetDate)])
 	}
 
 	return trendData
 }
 
 func (u *adminUsecase) calculateRegistrationTrendData(registrations []domain.ContestRegistration) []int {
-	// Generate 30-day registration trend data (daily data) from real
+	// Single-pass registration bucketing (issue #3) from real
 	// contest-registration timestamps, not submissions (issue #37).
 	now := time.Now()
 	trendData := make([]int, 30)
 
-	for i := 0; i < 30; i++ {
-		// Go back i days from current day
-		targetDate := now.AddDate(0, 0, -29+i)
-		count := 0
-
-		for _, registration := range registrations {
-			registeredAt := registration.RegisteredAt
-			if registeredAt.IsZero() {
-				continue
-			}
-			if registeredAt.Year() == targetDate.Year() &&
-				registeredAt.YearDay() == targetDate.YearDay() {
-				count++
-			}
+	counts := make(map[[2]int]int, len(registrations))
+	for _, registration := range registrations {
+		registeredAt := registration.RegisteredAt
+		if registeredAt.IsZero() {
+			continue
 		}
+		counts[dayKey(registeredAt)]++
+	}
 
-		trendData[i] = count
+	for i := range 30 {
+		targetDate := now.AddDate(0, 0, -29+i)
+		trendData[i] = counts[dayKey(targetDate)]
 	}
 
 	return trendData
