@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 	"victor-contest-go/internal/domain"
 	usecase "victor-contest-go/internal/usecase"
@@ -35,12 +37,25 @@ func NewStudentDynamoRepository(region string, tablename string) *StudentDynamoR
 }
 
 func (r *StudentDynamoRepository) AddStudent(student domain.Student) error {
-	if student.ID == "" {
-		student.ID = uuid.New().String()
-	}
-
 	if student.TelegramID == "" {
 		return fmt.Errorf("telegram_id is required and cannot be empty")
+	}
+
+	// Uniqueness guard (issue #31): the student table has no GSI on
+	// telegram_id (see cmd/setup-tables), so a DynamoDB conditional write
+	// cannot enforce it; we pre-read instead. Residual race: two concurrent
+	// AddStudent calls for the same telegram_id can both pass this check and
+	// both PutItem, because each row gets its own uuid primary key.
+	existing, err := r.GetStudentByTelegramID(student.TelegramID)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return fmt.Errorf("%w: student %s", usecase.ErrStudentAlreadyExists, existing.ID)
+	}
+
+	if student.ID == "" {
+		student.ID = uuid.New().String()
 	}
 
 	// Set CreatedAt timestamp if not already set
@@ -60,16 +75,81 @@ func (r *StudentDynamoRepository) AddStudent(student domain.Student) error {
 	return err
 }
 
+// UpdateStudent patches only the non-zero fields of the given student via
+// UpdateItem/UpdateExpression instead of the old whole-item PutItem read-
+// modify-write (issue #31), so a stale read in one writer can no longer wipe
+// attributes another writer just changed. Zero values (empty strings, false
+// bools, empty lists/maps, nil/zero created_at) are treated as "not provided"
+// and left untouched — a field cannot be cleared through this path, only
+// overwritten with a real value. updated_at is stamped RFC3339 on every write;
+// it is an audit-only attribute outside domain.Student (unmarshal ignores it).
 func (r *StudentDynamoRepository) UpdateStudent(student domain.Student) error {
+	if student.ID == "" {
+		return fmt.Errorf("student id is required and cannot be empty")
+	}
+
 	item, err := attributevalue.MarshalMap(student)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
-		TableName: &r.tableName,
-		Item:      item,
+	if student.CreatedAt.IsZero() {
+		delete(item, "created_at") // do not clobber the real creation time
+	}
+
+	attrs := make([]string, 0, len(item))
+	for name, av := range item {
+		if name == "id" || isZeroAttributeValue(av) {
+			continue
+		}
+		attrs = append(attrs, name)
+	}
+	sort.Strings(attrs) // deterministic expression for logging/tests
+
+	names := map[string]string{"#updated_at": "updated_at"}
+	values := map[string]types.AttributeValue{
+		":updated_at": &types.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339)},
+	}
+	parts := []string{"#updated_at = :updated_at"}
+	for i, name := range attrs {
+		n := fmt.Sprintf("#a%d", i)
+		v := fmt.Sprintf(":v%d", i)
+		names[n] = name
+		values[v] = item[name]
+		parts = append(parts, n+" = "+v)
+	}
+
+	key, err := attributevalue.MarshalMap(map[string]string{"id": student.ID})
+	if err != nil {
+		return err
+	}
+	_, err = r.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+		TableName:                 &r.tableName,
+		Key:                       key,
+		UpdateExpression:          aws.String("SET " + strings.Join(parts, ", ")),
+		ExpressionAttributeNames:  names,
+		ExpressionAttributeValues: values,
 	})
 	return err
+}
+
+// isZeroAttributeValue reports whether a marshalled attribute carries only
+// the Go zero value of the corresponding domain.Student field, i.e. the
+// caller did not meaningfully provide it.
+func isZeroAttributeValue(av types.AttributeValue) bool {
+	switch v := av.(type) {
+	case *types.AttributeValueMemberS:
+		return v.Value == ""
+	case *types.AttributeValueMemberNULL:
+		return true
+	case *types.AttributeValueMemberBOOL:
+		return !v.Value
+	case *types.AttributeValueMemberL:
+		return len(v.Value) == 0
+	case *types.AttributeValueMemberM:
+		return len(v.Value) == 0
+	default:
+		return false
+	}
 }
 
 // UpdateStudentIfExist writes the student only while the row still exists

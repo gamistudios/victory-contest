@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -42,6 +43,10 @@ func (h *StudentHandler) AddStudent(c *gin.Context) {
 	}
 	err := h.usecase.AddStudent(student)
 	if err != nil {
+		if errors.Is(err, usecase.ErrStudentAlreadyExists) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

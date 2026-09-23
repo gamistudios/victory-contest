@@ -7,6 +7,11 @@ import (
 	"victor-contest-go/internal/domain"
 )
 
+// ErrStudentAlreadyExists is returned by AddStudent when a student row with
+// the same telegram_id already exists (issue #31: unconditional PutItem let the
+// same Telegram user register twice). Handlers should map it to HTTP 409.
+var ErrStudentAlreadyExists = errors.New("student with this telegram_id already exists")
+
 // StudentUsecase defines the business logic for students
 type StudentUsecase interface {
 	AddStudent(student domain.Student) error
