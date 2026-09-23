@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import DOMPurify from "dompurify";
 import { Calendar, Clock, Tag, Bookmark, ArrowUp, Eye } from "lucide-react";
 import { Article, Comment } from "../../types/article";
 import { useNavigate, useParams } from "react-router-dom";
@@ -105,10 +106,12 @@ export function ArticleView() {
     // ... (This function is unchanged)
     if (!newComment.trim() || newComment.trim().length < 4) return;
     const newEntry: Comment = {
-      id: String(comments?.length ?? 0 + 1),
+      id: String((comments?.length ?? 0) + 1),
       articleId: article?.id || "",
-      user_name: user?.first_name ?? "" + user?.last_name ?? "shuluqa",
-      user_id: user?.id.toString() ?? "12",
+      user_name:
+        ((user?.first_name ?? "") + " " + (user?.last_name ?? "")).trim() ||
+        "Anonymous",
+      user_id: String(user?.id ?? ""),
       avatar: user?.photo_url ?? "",
       text: newComment,
       createdAt: new Date().toISOString(),
@@ -119,7 +122,7 @@ export function ArticleView() {
     try {
       await postComment(articleId ?? "", newEntry);
       setCommentError(null);
-    } catch (error) {
+    } catch {
       toast.error("Failed to post comment. Please try again later.", {
         style: { backgroundColor: "red", color: "white" },
       });
@@ -127,7 +130,7 @@ export function ArticleView() {
   };
 
   // MODIFIED: View count logic now uses a list (array)
-  const handleViewCount = async () => {
+  const handleViewCount = useCallback(async () => {
     if (!articleId) return;
     getCloudData("viewedArticles", async (viewedIds: string[] | null) => {
       const currentViews: string[] = Array.isArray(viewedIds)
@@ -152,11 +155,11 @@ export function ArticleView() {
               : prev
           );
         } catch (err) {
-          console.log("Failed to increment view count");
+          console.log("Failed to increment view count", err);
         }
       });
     });
-  };
+  }, [articleId, getCloudData, setCloudData]);
 
   // MODIFIED: Like logic now uses a list (array)
   const handleLike = async () => {
@@ -202,7 +205,7 @@ export function ArticleView() {
           await toggleStat(articleId, payload);
         });
       });
-    } catch (err) {
+    } catch {
       toast.error("Failed to update like status. Please try again later.", {
         style: { backgroundColor: "red", color: "white" },
       });
@@ -248,8 +251,29 @@ export function ArticleView() {
       day: "numeric",
     }).format(date);
   };
+  const isMountedRef = useRef(true);
   useEffect(() => {
-    // ... (This useEffect for scroll and comments is unchanged)
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const fetchComments = useCallback(async () => {
+    if (!articleId) return;
+    setCommentLoading(true);
+    try {
+      const data = await getArticleComments(articleId);
+      if (!isMountedRef.current) return;
+      setComments(data);
+    } catch {
+      if (!isMountedRef.current) return;
+      setCommentError("Something went wrong while fetching comments.");
+    } finally {
+      if (isMountedRef.current) setCommentLoading(false);
+    }
+  }, [articleId]);
+
+  useEffect(() => {
     const checkScrollTop = () => {
       if (window.scrollY > 100) {
         setShowScrollButton(true);
@@ -258,21 +282,9 @@ export function ArticleView() {
       }
     };
     window.addEventListener("scroll", checkScrollTop);
-    const fetchComments = async () => {
-      if (!articleId) return;
-      setCommentLoading(true);
-      try {
-        const data = await getArticleComments(articleId);
-        setComments(data);
-      } catch (error) {
-        setCommentError("Something went wrong while fetching comments.");
-      } finally {
-        setCommentLoading(false);
-      }
-    };
     fetchComments();
     return () => window.removeEventListener("scroll", checkScrollTop);
-  }, [articleId]);
+  }, [articleId, fetchComments]);
 
   const scrollToTop = () => {
     window.scrollTo({
@@ -294,13 +306,15 @@ export function ArticleView() {
             createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
             updatedAt: data.updatedAt ? new Date(data.updatedAt) : new Date(),
           };
+          if (!isMountedRef.current) return;
           setArticle(finalData);
-        } catch (error) {
+        } catch {
+          if (!isMountedRef.current) return;
           toast.error("Failed to fetch article. Please try again later.", {
             style: { backgroundColor: "red", color: "white" },
           });
         } finally {
-          setLoading(false);
+          if (isMountedRef.current) setLoading(false);
         }
       };
       fetchArticle();
@@ -318,7 +332,7 @@ export function ArticleView() {
     getCloudData("bookmarkedArticles", (bookmarkedIds: string[] | null) => {
       setBookmarked(!!bookmarkedIds?.includes(articleId));
     });
-  }, [articleId, getCloudData]);
+  }, [articleId, getCloudData, handleViewCount]);
 
   if (loading) {
     // ... (Loading state JSX is unchanged)
@@ -404,7 +418,7 @@ export function ArticleView() {
           </div>
           <div className="flex items-center text-gray-500 text-sm gap-1 mr-2">
             <Eye className="w-4 h-4 text-gray-400" />
-            {formatNumber(Number(article?.viewCount) ?? 0)} views
+            {formatNumber(Number(article?.viewCount) || 0)} views
           </div>
         </div>
 
@@ -455,7 +469,9 @@ export function ArticleView() {
               prose-img:rounded-lg prose-img:shadow-sm
               "
           dangerouslySetInnerHTML={{
-            __html: stripProseWrapper(article?.content || ""),
+            __html: DOMPurify.sanitize(
+              stripProseWrapper(article?.content || "")
+            ),
           }}
         />
       </article>
@@ -540,7 +556,7 @@ export function ArticleView() {
               ) : commentError ? (
                 <ErrorMessage
                   message="Failed to load comments."
-                  onRetry={() => {}}
+                  onRetry={fetchComments}
                 />
               ) : (comments ?? []).length === 0 ? (
                 <p className="text-gray-500">No comments yet.</p>

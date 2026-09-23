@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { ArticleCard } from "./ArticleCard";
 import { ArticleFilters } from "./ArticleFilters";
 import { Article } from "../../types/article";
@@ -13,8 +13,8 @@ import ErrorMessage from "../ErrorComponent";
 export function ArticleList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"favourite" | "all">("all");
-  const [authorFilter, setAuthorFilter] = useState("");
-  const [tagFilter, setTagFilter] = useState("");
+  const [authorFilter, setAuthorFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [sortBy, setSortBy] = useState("publishedAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [articles, setArticles] = useState<Article[] | []>([]);
@@ -35,14 +35,14 @@ export function ArticleList() {
         setBookmarkedIds([]);
       }
     });
-  }, [getCloudData]);
+  }, [getCloudData, setCloudData]);
 
   useEffect(() => {
     const fetchArticles = async () => {
       try {
         const data = await getArticles();
         // Convert date strings to Date objects
-        const parsed = data.map((article: any) => ({
+        const parsed = data.map((article) => ({
           ...article,
           publishedAt: article.publishedAt
             ? new Date(article.publishedAt)
@@ -54,8 +54,8 @@ export function ArticleList() {
             ? new Date(article.updatedAt)
             : undefined,
         }));
-        setArticles(parsed);
-      } catch (error) {
+        setArticles(parsed as Article[]);
+      } catch {
         toast.error("Failed to fetch articles. Please try again later.", {
           style: { backgroundColor: "red", color: "white" },
         });
@@ -65,7 +65,9 @@ export function ArticleList() {
     };
     fetchArticles();
   }, []);
-  showBackButton(() => navigate(-1));
+  useEffect(() => {
+    showBackButton(() => navigate(-1));
+  }, [showBackButton, navigate]);
 
   const handleArticleClick = (article: Article) => {
     navigate(`/article/${article.id}`);
@@ -82,7 +84,7 @@ export function ArticleList() {
   }, [articles]);
 
   const filteredArticles = useMemo(() => {
-    let filtered = articles.filter((article) => {
+    const filtered = articles.filter((article) => {
       const matchesSearch =
         searchTerm === "" ||
         article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,8 +94,8 @@ export function ArticleList() {
       const matchesStatus =
         statusFilter === "all" || bookmarkedArticles.includes(article.id);
       const matchesAuthor =
-        authorFilter === "" || article.author.name === authorFilter;
-      const matchesTag = tagFilter === "" || article.tags.includes(tagFilter);
+        authorFilter === "all" || article.author.name === authorFilter;
+      const matchesTag = tagFilter === "all" || article.tags.includes(tagFilter);
 
       return matchesSearch && matchesStatus && matchesAuthor && matchesTag;
     });
@@ -136,6 +138,7 @@ export function ArticleList() {
     return filtered;
   }, [
     articles,
+    bookmarkedArticles,
     searchTerm,
     statusFilter,
     authorFilter,
@@ -205,22 +208,24 @@ export function ArticleListForHome() {
   const [articles, setArticles] = useState<Article[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setError] = useState<string | null>(null);
-  const [triggerLoading, setTriggerLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleArticleClick = (article: Article) => {
     navigate(`/article/${article.id}`);
   };
 
+  const isMountedRef = useRef(true);
   useEffect(() => {
-    fetchArticles();
-  }, [triggerLoading]);
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const fetchArticles = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getArticles("3");
-      const parsed = data.map((article: any) => ({
+      const parsed = data.map((article) => ({
         ...article,
         publishedAt: article.publishedAt
           ? new Date(article.publishedAt)
@@ -228,14 +233,20 @@ export function ArticleListForHome() {
         createdAt: article.createdAt ? new Date(article.createdAt) : undefined,
         updatedAt: article.updatedAt ? new Date(article.updatedAt) : undefined,
       }));
-      setArticles(parsed);
+      if (!isMountedRef.current) return;
+      setArticles(parsed as Article[]);
       setError(null);
-    } catch (error) {
-      setError("Something went wront. Please try again!");
+    } catch {
+      if (!isMountedRef.current) return;
+      setError("Something went wrong. Please try again!");
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchArticles();
+  }, [fetchArticles]);
   if (loading) {
     return <ArticleSkeleton />;
   }
