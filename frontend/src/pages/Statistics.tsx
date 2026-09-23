@@ -52,6 +52,21 @@ import { getAiRecommendationsFromApi } from "../services/aiService";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import TimeIcon from "../assets/timer-02-stroke-rounded.svg?react";
+
+// recharts 3 does not inherit the wrapper `color` from contentStyle into the
+// tooltip label/item spans — without explicit itemStyle/labelStyle the text
+// stays near-black on the dark chip (#64).
+const tooltipStyles = {
+  contentStyle: {
+    backgroundColor: "#1f2937",
+    border: "none",
+    borderRadius: "12px",
+    color: "#fff",
+  },
+  labelStyle: { color: "#fff", fontWeight: 600 },
+  itemStyle: { color: "#fff" },
+};
+
 const Statistics: React.FC = () => {
   const { user: tgUser } = useTelegram();
   const { user } = useAuth();
@@ -375,12 +390,7 @@ const Statistics: React.FC = () => {
                 <XAxis dataKey="month" stroke="#6b7280" />
                 <YAxis stroke="#6b7280" domain={[0, 100]} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1f2937",
-                    border: "none",
-                    borderRadius: "12px",
-                    color: "#fff",
-                  }}
+                  {...tooltipStyles}
                   formatter={(value) => [`${value}%`, "Accuracy"]}
                 />
                 <Area
@@ -426,12 +436,7 @@ const Statistics: React.FC = () => {
                   strokeWidth={2}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1f2937",
-                    border: "none",
-                    borderRadius: "12px",
-                    color: "#fff",
-                  }}
+                  {...tooltipStyles}
                   formatter={(value) => [`${value}%`, "Accuracy"]}
                 />
               </RadarChart>
@@ -494,12 +499,7 @@ const Statistics: React.FC = () => {
                 />
                 <YAxis stroke="#6b7280" domain={[0, 100]} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1f2937",
-                    border: "none",
-                    borderRadius: "12px",
-                    color: "#fff",
-                  }}
+                  {...tooltipStyles}
                   formatter={(value, name) => [
                     name === "accuracy" ? `${value}%` : value,
                     name === "accuracy"
@@ -545,12 +545,7 @@ const Statistics: React.FC = () => {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1f2937",
-                    border: "none",
-                    borderRadius: "12px",
-                    color: "#fff",
-                  }}
+                  {...tooltipStyles}
                   formatter={(value) => [`${value}%`, "Accuracy"]}
                 />
               </PieChart>
