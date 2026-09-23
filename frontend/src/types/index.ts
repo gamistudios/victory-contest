@@ -162,7 +162,7 @@ export interface Question {
   chapter: string;
   multiple_choice: string[];
   difficulty?: "easy" | "medium" | "hard";
-  question_img?: string;
+  question_image?: string;
 }
 
 export interface ContestAnswer {

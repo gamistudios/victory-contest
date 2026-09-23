@@ -455,10 +455,10 @@ const ContestComponent: React.FC = () => {
         </h3>
 
         {/* --- START: Image Display Logic --- */}
-        {currentQuestion.question_img && (
+        {currentQuestion.question_image && (
           <div className="my-6" onClick={() => setIsImageModalOpen(true)}>
             <img
-              src={currentQuestion.question_img}
+              src={currentQuestion.question_image}
               alt={`Illustration for question ${currentQuestionIndex + 1}`}
               className="w-full max-h-64 object-contain rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
               onError={(e) => {
@@ -535,7 +535,7 @@ const ContestComponent: React.FC = () => {
       </div>
 
       {/* --- START: Image Modal --- */}
-      {isImageModalOpen && currentQuestion.question_img && (
+      {isImageModalOpen && currentQuestion.question_image && (
         <div
           className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in"
           onClick={() => setIsImageModalOpen(false)}
@@ -547,7 +547,7 @@ const ContestComponent: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={currentQuestion.question_img}
+              src={currentQuestion.question_image}
               alt="Enlarged view of the question illustration"
               className="w-auto h-auto max-w-full max-h-[90vh] object-contain rounded-lg"
             />
