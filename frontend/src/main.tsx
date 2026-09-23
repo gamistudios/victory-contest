@@ -4,7 +4,9 @@ import App from './App.tsx';
 import './index.css';
 import { installDevTelegramMock } from './lib/devTelegramMock';
 
-if (import.meta.env.DEV && import.meta.env.VITE_MOCK_TELEGRAM === "true") {
+// Outside Telegram there is no WebApp user, so dev builds fake one and the app
+// runs in a plain browser by default. Opt out with VITE_MOCK_TELEGRAM=false.
+if (import.meta.env.DEV && import.meta.env.VITE_MOCK_TELEGRAM !== "false") {
   installDevTelegramMock();
 }
 
