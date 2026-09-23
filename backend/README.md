@@ -93,7 +93,7 @@ Verified end-to-end on the local stack (2026-09-23): student register/list/profi
 | `achievement.go` | `Achievement{ID, Earned (student id), Name, Description, Type, EarnedDate, Rarity, Progress}` |
 | `admin.go` | `Admin{ID, Email, IsApproved, Name, Password}` (plaintext!), `CustomClaims` JWT, dashboard DTOs (`DashboardStatsResponse`, distributions, trends) |
 | `notification.go` | `Notification{ID, RecipientID ("all"=broadcast), Title, Message, IsRead, SentAt string, Type}` |
-| `feedback.go` | `FeedbackQuestion`, `PollOption{Label, MinScore, MaxScore, RequiresContact}`, `FeedbackResponse{StudentID, Comment, PollResponse, ContactInfo, QuestionResponses map}` + analytics DTOs |
+| `feedback.go` | `FeedbackQuestion` (with `Type`: `options`/empty = radio list, `rating` = 1-5 scale stored as `"1".."5"` in `selected_option`; added 2026-09-23 for the "no rate buttons" client report), `PollOption{Label, MinScore, MaxScore, RequiresContact}`, `FeedbackResponse{StudentID, Comment, PollResponse, ContactInfo, QuestionResponses map}` + analytics DTOs |
 | `contest_statistics.go` | Computed DTOs only (never persisted): `ContestStatistics`, `CategoryStats`, `StudentContestPerformance`, `StatisticsFilters`, paginated `StudentPerformanceList` |
 | `article.go` | `Article{...Status draft/published/archived, Author, Tags, Thumbnail, ReadTime, ViewCount, LikeCount, CommentCount}`, `Comment` |
 | `pageview.go` | `PageView{ID, UserID, Page, UserAgent, IPAddress, Referrer, ViewedAt}` + stats DTOs |
@@ -113,13 +113,13 @@ Mounted under `/api/...` (`router.go:137-156`). **No route uses auth middleware*
 `POST /add` (multipart → Cloudinary) · `POST /multiple-add` · `POST /multiple-delete` (`{"ids":[...]}`, chunked BatchWriteItem, per-id failures reported — added 2026-09-23 for client issue #4) · `PATCH /:id` (JSON *or* multipart) · `DELETE /delete/:id` · `GET /` (**returns correct answers**) · `GET /:id`
 
 ### `/api/submission` (`submission_handler.go:19-30`)
-`POST /` (**client-computed score**) · `GET /` · `GET /contest/:contest_id` · `GET /student/:student_id` · `GET /leaderboard?timeFrame=today|week|month|all` · `GET /rank/:conId` · `DELETE /:id` (404 on missing row; added 2026-09-23) · `GET /:id` · `GET /editorial/:student_id?contest_id=` · `GET /statistics-profile/:student_id` · `GET /statistics/:student_id`
+`POST /` (**client-computed score**) · `GET /` · `GET /contest/:contest_id` · `GET /student/:student_id` · `GET /leaderboard?timeFrame=today|week|month|all` · `GET /rank/:conId` · `DELETE /:id` (404 on missing row; added 2026-09-23) · `GET /:id` · `GET /editorial/:student_id?contest_id=` (`{editorial, participated, message}` — human-readable reason when the contest was deleted or has no questions; 400 when `contest_id` is missing; added 2026-09-23 for the 2nd-round client report) · `GET /statistics-profile/:student_id` · `GET /statistics/:student_id`
 
 ### `/api/admin` (`admin_handler.go:24-33`)
 `POST /register` (**public admin creation**) · `PUT /:id` · `DELETE /:id` · `GET /:id` (looks up by *email*, #22) · `GET /me` (JWT cookie — the only guarded route) · `GET /` (**leaks plaintext passwords**) · `POST /login` (sets `token` cookie, SameSite=None; **no password check**, #4) · `GET /dashboard`
 
 ### `/api/notification` (`notification_handler.go:19-29`)
-`POST /` · `PUT /:id` · `DELETE /:id` · `PATCH /:id/read` · `GET /` (dead — #29) · `GET /:id` · `GET /recipient/:recipient_id` · `GET /admin/:admin_email` · `POST /contest-announce`
+`POST /` · `PUT /:id` · `DELETE /:id` · `PATCH /:id/read` · `GET /` (dead — #29) · `GET /:id` · `GET /recipient/:recipient_id` (newest-first since 2026-09-23; the GSI returned oldest-first and `sent_at` mixes `Z`/`+03:00` offsets, so ordering parses the timestamps) · `GET /admin/:admin_email` · `POST /contest-announce`
 
 ### `/api/achievement` (`achievement_handler.go:19-26`)
 Full CRUD — but nothing ever calls `AddAchievement`; the live badge system is `Student.Badge` in `submission_usecase.go:544-646`. This is **dead feature code**.
