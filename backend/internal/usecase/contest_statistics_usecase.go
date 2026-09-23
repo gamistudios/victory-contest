@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 	"time"
 	"victor-contest-go/internal/domain"
 )
@@ -416,7 +415,7 @@ func (u *contestStatisticsUsecase) calculateStudentPerformance(
 }
 
 func (u *contestStatisticsUsecase) matchesFilters(student domain.Student, filters domain.StatisticsFilters) bool {
-	if filters.Gender != "" && strings.ToLower(student.Gender) != strings.ToLower(filters.Gender) {
+	if filters.Gender != "" && normalizeGender(student.Gender) != normalizeGender(filters.Gender) {
 		return false
 	}
 	if filters.City != "" && student.City != filters.City {
@@ -431,44 +430,41 @@ func (u *contestStatisticsUsecase) matchesFilters(student domain.Student, filter
 	return true
 }
 
+// calculateGenderStats buckets participants with the shared normalizeGender
+// helper (admin_usecase.go, issue #5): the old inline comparison to "male"/
+// "female" silently dropped "M"/"F"/other/unknown rows, so gender_stats could
+// never sum to total_participants. All four buckets are now reported.
 func (u *contestStatisticsUsecase) calculateGenderStats(performances []domain.StudentContestPerformance) domain.GenderStatistics {
-	maleStats := domain.CategoryStats{}
-	femaleStats := domain.CategoryStats{}
+	buckets := map[string]*domain.CategoryStats{
+		genderMale:    {},
+		genderFemale:  {},
+		genderOther:   {},
+		genderUnknown: {},
+	}
 
 	for _, perf := range performances {
-		gender := strings.ToLower(perf.StudentGender)
-		if gender == "male" {
-			maleStats.Total++
-			maleStats.AverageScore += perf.Score
-			if perf.Performance != "fail" {
-				maleStats.Passed++
-			} else {
-				maleStats.Failed++
-			}
-		} else if gender == "female" {
-			femaleStats.Total++
-			femaleStats.AverageScore += perf.Score
-			if perf.Performance != "fail" {
-				femaleStats.Passed++
-			} else {
-				femaleStats.Failed++
-			}
+		stats := buckets[normalizeGender(perf.StudentGender)]
+		stats.Total++
+		stats.AverageScore += perf.Score
+		if perf.Performance != "fail" {
+			stats.Passed++
+		} else {
+			stats.Failed++
 		}
 	}
 
-	// Calculate pass rates and average scores
-	if maleStats.Total > 0 {
-		maleStats.PassRate = (float64(maleStats.Passed) / float64(maleStats.Total)) * 100
-		maleStats.AverageScore = maleStats.AverageScore / float64(maleStats.Total)
-	}
-	if femaleStats.Total > 0 {
-		femaleStats.PassRate = (float64(femaleStats.Passed) / float64(femaleStats.Total)) * 100
-		femaleStats.AverageScore = femaleStats.AverageScore / float64(femaleStats.Total)
+	for _, stats := range buckets {
+		if stats.Total > 0 {
+			stats.PassRate = (float64(stats.Passed) / float64(stats.Total)) * 100
+			stats.AverageScore = stats.AverageScore / float64(stats.Total)
+		}
 	}
 
 	return domain.GenderStatistics{
-		Male:   maleStats,
-		Female: femaleStats,
+		Male:    *buckets[genderMale],
+		Female:  *buckets[genderFemale],
+		Other:   *buckets[genderOther],
+		Unknown: *buckets[genderUnknown],
 	}
 }
 

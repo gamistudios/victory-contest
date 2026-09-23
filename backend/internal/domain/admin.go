@@ -23,6 +23,10 @@ type DashboardStatsResponse struct {
 	ContestStats   ContestStats    `json:"contest_stats" validate:"required"`
 	PageViewStats  PageViewStats   `json:"page_view_stats" validate:"required"`
 	RecentActivity []RecentContest `json:"recent_activity" validate:"required"`
+	// GeneratedAt is the UTC RFC 3339 timestamp at which the request-time
+	// full-scan aggregation ran, so the admin UI can show data freshness
+	// (additive field, client issue #5).
+	GeneratedAt string `json:"generated_at"`
 }
 
 type OverviewStats struct {
@@ -44,6 +48,10 @@ type UserStats struct {
 	ByGender    GenderDistribution  `json:"by_gender" validate:"required"`
 	ByGrade     []GradeDistribution `json:"by_grade" validate:"required"`
 	GrowthTrend []int               `json:"growth_trend" validate:"required"`
+	// Additive deep-stats (client issue #5):
+	// participation per grade and the top schools by submission activity.
+	GradeParticipation []GradeParticipationStat `json:"grade_participation"`
+	TopSchools         []SchoolParticipationStat `json:"top_schools_by_participation"`
 }
 
 type CityDistribution struct {
@@ -56,6 +64,31 @@ type GenderDistribution struct {
 	Male   int `json:"male" validate:"min=0"`
 	Female int `json:"female" validate:"min=0"`
 	Other  int `json:"other" validate:"min=0"`
+	// Unknown holds every student whose stored gender is empty, malformed or
+	// an unrecognized value (issue #5) so male+female+other+unknown always
+	// equals Total (and Total equals the number of students).
+	Unknown int `json:"unknown" validate:"min=0"`
+	Total   int `json:"total" validate:"min=0"`
+}
+
+// GradeParticipationStat is the share of students in one grade that have at
+// least one submission (client issue #5).
+type GradeParticipationStat struct {
+	Grade             string  `json:"grade" validate:"required"`
+	Students          int     `json:"students" validate:"min=0"`
+	Participating     int     `json:"participating_students" validate:"min=0"`
+	ParticipationRate float64 `json:"participation_rate" validate:"min=0,max=100"`
+}
+
+// SchoolParticipationStat is one school's submission activity; the dashboard
+// returns the top 10 by participating students (client issue #5).
+type SchoolParticipationStat struct {
+	School            string  `json:"school" validate:"required"`
+	City              string  `json:"city"`
+	Students          int     `json:"students" validate:"min=0"`
+	Participating     int     `json:"participating_students" validate:"min=0"`
+	ParticipationRate float64 `json:"participation_rate" validate:"min=0,max=100"`
+	Submissions       int     `json:"submissions" validate:"min=0"`
 }
 
 type GradeDistribution struct {
@@ -68,6 +101,31 @@ type ContestStats struct {
 	ParticipationData   []int         `json:"participation_data" validate:"required"`
 	StatusDistribution  StatusStats   `json:"status_distribution" validate:"required"`
 	SubjectDistribution []SubjectStat `json:"subject_distribution" validate:"required"`
+	// Additive deep-stats (client issue #5): score quality per subject and an
+	// overall submission summary computed from the already-fetched scans.
+	SubjectScores   []SubjectScoreStat `json:"subject_scores"`
+	SubmissionStats SubmissionStats    `json:"submission_stats"`
+}
+
+// SubjectScoreStat carries average and median submission scores for one
+// contest subject (client issue #5).
+type SubjectScoreStat struct {
+	Subject     string  `json:"subject" validate:"required"`
+	Submissions int     `json:"submissions" validate:"min=0"`
+	Average     float64 `json:"average_score"`
+	Median      float64 `json:"median_score"`
+}
+
+// SubmissionStats summarizes the submissions table. domain.Submission has no
+// status field, so the honest distribution available is timestamped vs
+// missing-timestamp plus score aggregates (client issue #5).
+type SubmissionStats struct {
+	Total            int     `json:"total" validate:"min=0"`
+	Submitted        int     `json:"submitted" validate:"min=0"`
+	MissingTimestamp int     `json:"missing_timestamp" validate:"min=0"`
+	UniqueStudents   int     `json:"unique_students" validate:"min=0"`
+	AverageScore     float64 `json:"average_score"`
+	MedianScore      float64 `json:"median_score"`
 }
 
 type StatusStats struct {

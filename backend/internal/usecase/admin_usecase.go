@@ -26,6 +26,54 @@ var contestTimeLayouts = []string{
 	"2006-01-02",           // date only
 }
 
+// Canonical gender buckets (client issue #5). Every stored value maps to
+// exactly one of these, so gender stats always add up to the total student
+// count instead of silently dropping unrecognized rows.
+const (
+	genderMale    = "Male"
+	genderFemale  = "Female"
+	genderOther   = "Other"
+	genderUnknown = "Unknown"
+)
+
+// normalizeGender maps raw student.gender values to one of the four canonical
+// buckets. Matching is case-insensitive and trims whitespace, and accepts the
+// one-letter aliases ("M"/"F") that seed/legacy clients actually store —
+// the old exact-string bucketing dropped those rows entirely (issue #5).
+// Empty, missing, malformed or unrecognized values land in "Unknown" rather
+// than disappearing, keeping every chart sum equal to the population total.
+// This is the SINGLE helper used by both the admin dashboard and the contest
+// statistics gender bucketing so the two can never disagree again.
+func normalizeGender(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "m", "male":
+		return genderMale
+	case "f", "female":
+		return genderFemale
+	case "o", "other", "non-binary", "prefer not to say":
+		return genderOther
+	default:
+		return genderUnknown
+	}
+}
+
+// medianOf returns the median of the given scores. It returns 0 for an empty
+// slice (no data) and the average of the two middle values for even lengths.
+// The input is copied before sorting so callers' slices are untouched.
+func medianOf(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sorted := make([]float64, len(values))
+	copy(sorted, values)
+	sort.Float64s(sorted)
+	n := len(sorted)
+	if n%2 == 1 {
+		return sorted[n/2]
+	}
+	return (sorted[n/2-1] + sorted[n/2]) / 2
+}
+
 // parseContestTime parses a contest timestamp against every layout in
 // contestTimeLayouts. It is the SINGLE parsing path used by all dashboard
 // computations so status classification can no longer disagree with itself
@@ -174,8 +222,9 @@ func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, erro
 	// Calculate overview stats
 	overviewStats := u.calculateOverviewStats(students, contests, registrations, payments)
 
-	// Calculate user stats
-	userStats := u.calculateUserStats(students)
+	// Calculate user stats (submissions drive the participation-aware
+	// additions; no extra queries are issued — issue #5).
+	userStats := u.calculateUserStats(students, submissions)
 
 	// Calculate contest stats
 	contestStats := u.calculateContestStats(contests, submissions)
@@ -202,6 +251,9 @@ func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, erro
 		ContestStats:   contestStats,
 		PageViewStats:  *pageViewStats,
 		RecentActivity: recentActivity,
+		// Freshness marker (issue #5): stats are computed request-time from
+		// full scans, so the admin UI can show exactly when they were built.
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 	}, nil
 }
 
@@ -272,11 +324,57 @@ func (u *adminUsecase) calculateOverviewStats(students []domain.Student, contest
 	}
 }
 
-func (u *adminUsecase) calculateUserStats(students []domain.Student) domain.UserStats {
+func (u *adminUsecase) calculateUserStats(students []domain.Student, submissions []domain.Submission) domain.UserStats {
 	// Calculate city distribution
 	cityMap := make(map[string]int)
-	genderMap := make(map[string]int)
+	// Gender bucketing (issue #5): EVERY student lands in exactly one of the
+	// four normalized buckets — the old code dropped "M"/"F"/empty values
+	// entirely, so the gender charts never summed to the total.
+	genderCounts := map[string]int{
+		genderMale:    0,
+		genderFemale:  0,
+		genderOther:   0,
+		genderUnknown: 0,
+	}
 	gradeMap := make(map[string]int)
+
+	// Resolve which students actually participated: submissions may reference
+	// a student by ID or by Telegram handle, so index every raw key and match
+	// both student fields (same convention as the contest statistics usecase).
+	participantKeys := make(map[string]bool, len(submissions)*2)
+	submissionsByKey := make(map[string]int, len(submissions)*2)
+	for _, sub := range submissions {
+		// StudentID and Student.ID usually hold the SAME value; count a
+		// submission once per distinct key so per-school totals stay true.
+		seenKey := make(map[string]bool, 2)
+		for _, key := range []string{sub.StudentID, sub.Student.ID} {
+			if key == "" || seenKey[key] {
+				continue
+			}
+			seenKey[key] = true
+			participantKeys[key] = true
+			submissionsByKey[key]++
+		}
+	}
+	participates := func(s domain.Student) bool {
+		return participantKeys[s.ID] || participantKeys[s.TelegramID]
+	}
+	submissionCountFor := func(s domain.Student) int {
+		if n := submissionsByKey[s.ID]; n > 0 {
+			return n
+		}
+		return submissionsByKey[s.TelegramID]
+	}
+
+	type gradeAgg struct{ students, participating int }
+	type schoolAgg struct {
+		city          string
+		students      int
+		participating int
+		submissions   int
+	}
+	gradeAggs := make(map[string]*gradeAgg)
+	schoolAggs := make(map[string]*schoolAgg)
 
 	for _, student := range students {
 		// City distribution
@@ -284,14 +382,38 @@ func (u *adminUsecase) calculateUserStats(students []domain.Student) domain.User
 			cityMap[student.City]++
 		}
 
-		// Gender distribution
-		if student.Gender != "" {
-			genderMap[strings.ToLower(student.Gender)]++
-		}
+		// Gender distribution — normalizes aliases and never drops a row.
+		genderCounts[normalizeGender(student.Gender)]++
 
 		// Grade distribution
 		if student.Grade != "" {
 			gradeMap[student.Grade]++
+			ga := gradeAggs[student.Grade]
+			if ga == nil {
+				ga = &gradeAgg{}
+				gradeAggs[student.Grade] = ga
+			}
+			ga.students++
+			if participates(student) {
+				ga.participating++
+			}
+		}
+
+		// School aggregation for the top-schools participation list (issue #5).
+		if student.School != "" {
+			sa := schoolAggs[student.School]
+			if sa == nil {
+				sa = &schoolAgg{}
+				schoolAggs[student.School] = sa
+			}
+			if sa.city == "" && student.City != "" {
+				sa.city = student.City
+			}
+			sa.students++
+			if participates(student) {
+				sa.participating++
+			}
+			sa.submissions += submissionCountFor(student)
 		}
 	}
 
@@ -329,18 +451,67 @@ func (u *adminUsecase) calculateUserStats(students []domain.Student) domain.User
 		return gradeDistribution[i].Grade < gradeDistribution[j].Grade
 	})
 
+	// Participation rate per grade (issue #5): students in the grade with at
+	// least one submission over students in the grade.
+	gradeParticipation := make([]domain.GradeParticipationStat, 0, len(gradeAggs))
+	for grade, ga := range gradeAggs {
+		rate := 0.0
+		if ga.students > 0 {
+			rate = float64(ga.participating) / float64(ga.students) * 100
+		}
+		gradeParticipation = append(gradeParticipation, domain.GradeParticipationStat{
+			Grade:             grade,
+			Students:          ga.students,
+			Participating:     ga.participating,
+			ParticipationRate: math.Round(rate*100) / 100,
+		})
+	}
+	sort.Slice(gradeParticipation, func(i, j int) bool {
+		return gradeParticipation[i].Grade < gradeParticipation[j].Grade
+	})
+
+	// Top 10 schools by participation (issue #5).
+	topSchools := make([]domain.SchoolParticipationStat, 0, len(schoolAggs))
+	for school, sa := range schoolAggs {
+		rate := 0.0
+		if sa.students > 0 {
+			rate = float64(sa.participating) / float64(sa.students) * 100
+		}
+		topSchools = append(topSchools, domain.SchoolParticipationStat{
+			School:            school,
+			City:              sa.city,
+			Students:          sa.students,
+			Participating:     sa.participating,
+			ParticipationRate: math.Round(rate*100) / 100,
+			Submissions:       sa.submissions,
+		})
+	}
+	sort.Slice(topSchools, func(i, j int) bool {
+		if topSchools[i].Participating != topSchools[j].Participating {
+			return topSchools[i].Participating > topSchools[j].Participating
+		}
+		return topSchools[i].School < topSchools[j].School
+	})
+	if len(topSchools) > 10 {
+		topSchools = topSchools[:10]
+	}
+
 	// Calculate growth trend (30-day data points)
 	growthTrend := u.calculateUserTrendData(students)
 
 	return domain.UserStats{
 		ByCity: cityDistribution,
 		ByGender: domain.GenderDistribution{
-			Male:   genderMap["male"],
-			Female: genderMap["female"],
-			Other:  genderMap["other"],
+			Male:    genderCounts[genderMale],
+			Female:  genderCounts[genderFemale],
+			Other:   genderCounts[genderOther],
+			Unknown: genderCounts[genderUnknown],
+			Total:   totalStudents,
 		},
-		ByGrade:     gradeDistribution,
-		GrowthTrend: growthTrend,
+		ByGrade:            gradeDistribution,
+		GrowthTrend:        growthTrend,
+		GradeParticipation: gradeParticipation,
+		TopSchools:         topSchools,
 	}
 }
 
@@ -395,6 +566,81 @@ func (u *adminUsecase) calculateContestStats(contests []domain.Contest, submissi
 		return subjectDistribution[i].Count > subjectDistribution[j].Count
 	})
 
+	// Subject score stats (issue #5): average + median score per subject,
+	// derived from the submissions and contests already fetched (the
+	// submission row itself does not persist the contest document, so the
+	// subject is resolved through the contestID -> subject map below).
+	subjectByContest := make(map[string]string, len(contests))
+	for _, contest := range contests {
+		if contest.Subject != "" {
+			subjectByContest[contest.ID] = contest.Subject
+		}
+	}
+	type scoreAgg struct {
+		count   int
+		sum     float64
+		scores  []float64
+	}
+	subjectScoresMap := make(map[string]*scoreAgg)
+	submissionStats := domain.SubmissionStats{Total: len(submissions)}
+	uniqueStudents := make(map[string]bool, len(submissions))
+	var allScores []float64
+	for _, submission := range submissions {
+		allScores = append(allScores, submission.Score)
+		if !submission.SubmissionTime.IsZero() {
+			submissionStats.Submitted++
+		} else {
+			// Legacy rows saved without a submission timestamp — surfaced
+			// explicitly instead of pretending there is a status field that
+			// domain.Submission does not have (issue #5).
+			submissionStats.MissingTimestamp++
+		}
+		key := submission.StudentID
+		if key == "" {
+			key = submission.Student.ID
+		}
+		if key != "" {
+			uniqueStudents[key] = true
+		}
+		subject := subjectByContest[submission.ContestID]
+		if subject == "" {
+			continue
+		}
+		agg := subjectScoresMap[subject]
+		if agg == nil {
+			agg = &scoreAgg{}
+			subjectScoresMap[subject] = agg
+		}
+		agg.count++
+		agg.sum += submission.Score
+		agg.scores = append(agg.scores, submission.Score)
+	}
+	submissionStats.UniqueStudents = len(uniqueStudents)
+	if len(allScores) > 0 {
+		submissionStats.AverageScore = math.Round(sum(allScores)/float64(len(allScores))*100) / 100
+		submissionStats.MedianScore = math.Round(medianOf(allScores)*100) / 100
+	}
+
+	subjectScoreStats := make([]domain.SubjectScoreStat, 0, len(subjectScoresMap))
+	for subject, agg := range subjectScoresMap {
+		avg := 0.0
+		if agg.count > 0 {
+			avg = agg.sum / float64(agg.count)
+		}
+		subjectScoreStats = append(subjectScoreStats, domain.SubjectScoreStat{
+			Subject:     subject,
+			Submissions: agg.count,
+			Average:     math.Round(avg*100) / 100,
+			Median:      math.Round(medianOf(agg.scores)*100) / 100,
+		})
+	}
+	sort.Slice(subjectScoreStats, func(i, j int) bool {
+		if subjectScoreStats[i].Submissions != subjectScoreStats[j].Submissions {
+			return subjectScoreStats[i].Submissions > subjectScoreStats[j].Submissions
+		}
+		return subjectScoreStats[i].Subject < subjectScoreStats[j].Subject
+	})
+
 	return domain.ContestStats{
 		ParticipationData: participationData,
 		StatusDistribution: domain.StatusStats{
@@ -403,7 +649,18 @@ func (u *adminUsecase) calculateContestStats(contests []domain.Contest, submissi
 			Upcoming:  statusMap["upcoming"],
 		},
 		SubjectDistribution: subjectDistribution,
+		SubjectScores:       subjectScoreStats,
+		SubmissionStats:     submissionStats,
 	}
+}
+
+// sum adds up a float slice.
+func sum(values []float64) float64 {
+	var total float64
+	for _, v := range values {
+		total += v
+	}
+	return total
 }
 
 func (u *adminUsecase) getRecentActivity(contests []domain.Contest, submissions []domain.Submission) []domain.RecentContest {

@@ -19,10 +19,14 @@ type ContestStatistics struct {
 	GeneratedAt       string                   `json:"generated_at"`
 }
 
-// GenderStatistics represents statistics broken down by gender
+// GenderStatistics represents statistics broken down by gender.
+// Other and Unknown are additive fields (client issue #5): every participant
+// lands in exactly one bucket, so the four totals sum to total_participants.
 type GenderStatistics struct {
-	Male   CategoryStats `json:"male"`
-	Female CategoryStats `json:"female"`
+	Male    CategoryStats `json:"male"`
+	Female  CategoryStats `json:"female"`
+	Other   CategoryStats `json:"other"`
+	Unknown CategoryStats `json:"unknown"`
 }
 
 // CategoryStats represents statistics for any category (city, school, grade, gender)
