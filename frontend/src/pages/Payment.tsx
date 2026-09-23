@@ -160,10 +160,9 @@ const Payment: FC = () => {
       formData.append("fullName", fullName);
       formData.append("bankName", bankName);
       formData.append("img", billScreenshot!);
-      formData.append("status", "Pending");
 
       await sendPaymentInfo(formData);
-      toast.success("Successfully sent!", {
+      toast.success("Payment submitted! It is pending review.", {
         style: {
           backgroundColor: "#d4edda",
           color: "#155724",
@@ -212,14 +211,13 @@ const Payment: FC = () => {
       const invoiceLink = await createInvoice();
       openInvoice(invoiceLink, async (status) => {
         if (status === "paid") {
-          const payment: PaymentRequest = {
+          const payment: Omit<PaymentRequest, "status"> = {
             userId: user?.id.toString() ?? "",
             id: "",
             fullName:
               ((user?.first_name ?? "") + " " + (user?.last_name ?? "")).trim(),
             bankName: "Telegram Star",
             billScreenshotUrl: "",
-            status: "Approved",
             createdAt: "",
             updatedAt: "",
             medium: "telegram_payment",
@@ -282,7 +280,7 @@ const Payment: FC = () => {
             <h2 className="text-2xl font-bold mb-2">Payment Submitted!</h2>
             <p className="text-muted-foreground mb-6">
               Thank you, {fullName}. Your payment information has been received
-              and is being processed.
+              and is pending review.
             </p>
           </CardContent>
         </Card>

@@ -1,6 +1,8 @@
 import api from "./api";
 import { PaymentRequest } from "../types";
-export async function sendPaymentInfo(formData: FormData | PaymentRequest) {
+export async function sendPaymentInfo(
+  formData: FormData | Omit<PaymentRequest, "status">
+) {
   const res = await api.post("/payment/", formData, {
     // Avoid sending cookies for this call to reduce CORS friction during dev
     withCredentials: false,

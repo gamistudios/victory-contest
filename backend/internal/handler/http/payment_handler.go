@@ -56,7 +56,6 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 	userID := c.Request.PostFormValue("user_id")
 	fullName := c.Request.PostFormValue("fullName")
 	bankName := c.Request.PostFormValue("bankName")
-	status := c.Request.PostFormValue("status")
 
 	if userID == "" || fullName == "" || bankName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required form fields: user_id, fullName, bankName"})
@@ -82,7 +81,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		BankName:          bankName,
 		UserID:            userID,
 		BillScreenshotURL: img_url,
-		Status:            domain.PaymentStatus(status),
+		Status:            domain.StatusPending,
 		CreatedAt:         time.Now().UTC(),
 		UpdatedAt:         time.Now().UTC(),
 		ExpirationDate:    &expirationDate,
@@ -91,6 +90,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 
 	if err := h.usecase.AddPayment(payment); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
 }
