@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+	"log"
 	"sort"
 	"time"
 	"victor-contest-go/internal/domain"
@@ -70,22 +71,7 @@ func (u *studentUsecase) GetStudentByID(id string) (*domain.Student, error) {
 	if student == nil {
 		return nil, nil
 	}
-	payments, err := u.paymentRepo.ListByUser(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if student.ReadNotifications == nil {
-		student.ReadNotifications = make(map[string]domain.ReadNotificationModel)
-	}
-
-	for _, pay := range payments {
-		if pay.Status == "Approved" && pay.ExpirationDate.After(time.Now().UTC()) {
-			student.IsPremium = true
-			break
-		}
-	}
-
+	u.enrichStudent(student)
 	return student, nil
 }
 
@@ -97,24 +83,33 @@ func (u *studentUsecase) GetStudentByTelegramID(telegramID string) (*domain.Stud
 	if student == nil {
 		return nil, nil
 	}
+	u.enrichStudent(student)
+	return student, nil
+}
 
-	payments, err := u.paymentRepo.ListByUser(student.ID)
-	if err != nil {
-		return nil, err
-	}
-
+// enrichStudent derives IsPremium from the student's payment rows: an Approved
+// payment whose (UTC-stored) expiration date is still in the future. A payment
+// lookup failure is logged and treated as "no payments" rather than failing the
+// student lookup — DELETE /api/student/:id and profile reads need the student
+// row to exist even when the payment table misbehaves (client issue #1).
+func (u *studentUsecase) enrichStudent(student *domain.Student) {
 	if student.ReadNotifications == nil {
 		student.ReadNotifications = make(map[string]domain.ReadNotificationModel)
 	}
+	student.IsPremium = false
 
+	payments, err := u.paymentRepo.ListByUser(student.ID)
+	if err != nil {
+		log.Printf("payments: ListByUser(%s) failed, treating as no payments: %v", student.ID, err)
+		return
+	}
+	now := time.Now().UTC()
 	for _, pay := range payments {
-		if pay.ExpirationDate.After(time.Now().In(time.Local)) {
+		if pay.Status == "Approved" && pay.ExpirationDate.After(now) {
 			student.IsPremium = true
 			break
 		}
 	}
-
-	return student, nil
 }
 func (u *studentUsecase) GetQuickStat(studentID string) (map[string]interface{}, error) {
 	return u.repo.GetQuickStat(studentID)
