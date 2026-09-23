@@ -1,6 +1,7 @@
 package http
 
 import (
+	"net/url"
 	"victor-contest-go/internal/repository"
 	"victor-contest-go/internal/usecase"
 
@@ -8,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -123,34 +123,87 @@ func NewServer() *Server {
 	return server
 }
 
+// corsAllowedOrigins parses the CORS_ALLOWED_ORIGINS environment variable: a
+// comma-separated list of exact origins (scheme://host[:port]) that are allowed
+// to make credentialed cross-origin requests. An empty/unset value means
+// "local development mode" (see isDevAllowedOrigin).
+func corsAllowedOrigins() []string {
+	var out []string
+	for _, o := range strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out = append(out, strings.ToLower(o))
+		}
+	}
+	return out
+}
+
+// isDevAllowedOrigin reports whether origin is a loopback dev origin on any
+// port (http://localhost:*, http://127.0.0.1:*, and their https:// and bare
+// host forms). It deliberately does NOT accept *.devtunnels.ms subdomains:
+// those are user-controllable (any GitHub user can spin up a tunnel) and must
+// never receive credentialed CORS (issue #10).
+func isDevAllowedOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Hostname() == "" {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "localhost" || host == "127.0.0.1"
+}
+
+// isOriginAllowed is the pure origin-check used by the CORS middleware:
+// exact-match against the configured allowlist when set, otherwise dev default.
+func isOriginAllowed(origin string, allowlist []string) bool {
+	if origin == "" {
+		return false
+	}
+	normalized := strings.ToLower(origin)
+	if len(allowlist) > 0 {
+		for _, allowed := range allowlist {
+			if normalized == allowed {
+				return true
+			}
+		}
+		return false
+	}
+	return isDevAllowedOrigin(normalized)
+}
+
+// corsMiddleware enforces the CORS policy: only an allowed origin is echoed in
+// Access-Control-Allow-Origin (never "*", since AllowCredentials is on), and
+// Vary: Origin is always set so caches key on the request origin. Arbitrary
+// origins are never reflected.
+func corsMiddleware(allowlist []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+		res := c.Writer.Header()
+		res.Add("Vary", "Origin")
+		// Preflight requests carry no cookies and must never be poisoned with
+		// allow headers for a disallowed origin, so only echo when allowed.
+		if isOriginAllowed(origin, allowlist) {
+			res.Set("Access-Control-Allow-Origin", origin)
+			res.Set("Access-Control-Allow-Credentials", "true")
+			res.Set("Access-Control-Expose-Headers", "Content-Length")
+		}
+		if c.Request.Method == "OPTIONS" {
+			if isOriginAllowed(origin, allowlist) {
+				res.Set("Access-Control-Allow-Methods", "PUT, PATCH, POST, GET, DELETE, OPTIONS")
+				res.Set("Access-Control-Allow-Headers", "Origin, Authorization, Content-Type, Accept, X-Requested-With, Sec-Fetch-Mode, Sec-Fetch-Dest, Sec-Fetch-Site, sec-ch-ua, sec-ch-ua-mobile, sec-ch-ua-platform")
+				res.Set("Access-Control-Max-Age", "43200")
+			}
+			c.AbortWithStatus(204) // StatusNoContent
+			return
+		}
+		c.Next()
+	}
+}
+
 func (s *Server) NewRouter() *gin.Engine {
 	r := gin.Default()
-	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"https://www.my-frontend.com",
-			"http://localhost:5173",
-			"http://localhost:5174",
-			"https://7wwb0knl-5173.euw.devtunnels.ms",
-			"https://victory-contest.vercel.app",
-			"https://txnfqqn7-5173.euw.devtunnels.ms",
-			"https://txnfqqn7-8000.euw.devtunnels.ms",
-			"https://victory-admin-page.vercel.app",
-		},
-		AllowOriginFunc: func(origin string) bool {
-			if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "https://localhost:") {
-				return true
-			}
-			if strings.HasSuffix(origin, ".euw.devtunnels.ms") || strings.HasSuffix(origin, ".devtunnels.ms") {
-				return true
-			}
-			return false
-		},
-		AllowMethods:     []string{"PUT", "PATCH", "POST", "GET", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type", "Accept", "X-Requested-With", "Sec-Fetch-Mode", "Sec-Fetch-Dest", "Sec-Fetch-Site", "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * 60 * 60,
-	}))
+	r.Use(corsMiddleware(corsAllowedOrigins()))
 
 	api := r.Group("/api")
 	s.contestHandler.RegisterRoutes(api.Group("/contest"))

@@ -30,7 +30,7 @@ Module `victor-contest-go` (note the typo — *victor*, `go.mod:1`), Go 1.24.4.
 | Dependency | Role |
 |---|---|
 | `gin-gonic/gin v1.10.1` | HTTP framework |
-| `gin-contrib/cors v1.7.6` | CORS middleware |
+| ~~`gin-contrib/cors v1.7.6`~~ | CORS middleware — **removed 2026-09-23**; custom `corsMiddleware` in `router.go` (see §9 #10) |
 | `aws/aws-sdk-go-v2/*` | DynamoDB (the **only** database — no ORM/SQL) |
 | `google/generative-ai-go v0.20.1` | Gemini AI (`gemini-2.5-flash`, `usecase/ai_usecase.go:136`) |
 | `go-telegram-bot-api/telegram-bot-api/v5` | Telegram bot: `/start` welcome + WebApp button (`usecase/telegram_usecase.go:19-32`) |
@@ -201,7 +201,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 7. **Payments self-approvable** — `payment_handler.go:59,85`: `status` comes straight from the client form.
 8. **Premium bypass** — `student_usecase.go:105-110`: `GetStudentByTelegramID` grants `IsPremium=true` for any unexpired payment **without requiring Approved status** (contrast `:77-82`); also mixes `time.Local` and UTC.
 9. **Telegram webhook unverified** — `telegram_handler.go:21-33`: no `X-Telegram-Bot-Api-Secret-Token` check; spoofable.
-10. **CORS + credentials over-permissive** — `router.go:121-133`: `AllowOriginFunc` accepts **any localhost port** and **any `*.devtunnels.ms` subdomain** (user-controllable namespaces) with `AllowCredentials: true`.
+10. ~~**CORS + credentials over-permissive**~~ **FIXED 2026-09-23** — `gin-contrib/cors` replaced by a hand-rolled middleware: `CORS_ALLOWED_ORIGINS` (comma-separated exact origins) is required in production; with it unset only `localhost`/`127.0.0.1` (any port) are allowed, and `*.devtunnels.ms` is **never** allowed. Allowed origin is echoed (never `*`) with `Vary: Origin`; 19-case table test in `router_test.go`. ⚠️ Ops: set `CORS_ALLOWED_ORIGINS=https://victory-contest.vercel.app,https://victory-admin-page.vercel.app` in prod env before deploy.
 11. **Correct answers exposed to students** — `GET /api/question/` and contest hydration (`contest_usecase.go:57-79`) return `answer` + `explanation` for every question.
 
 ### Logic bugs / races
