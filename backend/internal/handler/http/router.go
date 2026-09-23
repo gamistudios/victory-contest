@@ -7,6 +7,7 @@ import (
 
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -35,6 +36,7 @@ type Server struct {
 	imageHandler               *ImageHandler
 	contestStatisticsHandler   *ContestStatisticsHandler
 	jwtSecret                  string
+	aiRequestsPerMinute        int
 }
 
 func NewServer() *Server {
@@ -52,6 +54,10 @@ func NewServer() *Server {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET environment variable is not set")
+	}
+	aiRequestsPerMinute, err := strconv.Atoi(os.Getenv("AI_REQUESTS_PER_MINUTE"))
+	if err != nil || aiRequestsPerMinute <= 0 {
+		aiRequestsPerMinute = 30 // default: 30 Gemini-backed requests per client per minute
 	}
 
 	// --- Initialize Repositories ---
@@ -115,12 +121,13 @@ func NewServer() *Server {
 		feedbackResponseHandler:    NewFeedbackResponseHandler(feedbackResponseUsecase, notificationUsecase),
 		paymentHandler:             NewPaymentHandler(paymentUsecase, *imgRepo),
 		aiHandler:                  NewAiHandler(aiUsecase),
-		telegramHandler:            NewTelegramHandler(telegramUsecase),
+		telegramHandler:            NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")),
 		pageViewHandler:            NewPageViewHandler(pageViewUsecase),
 		articleHandler:             NewArticleHandler(articleUsecase),
 		imageHandler:               NewImageHandler(imgRepo),
 		contestStatisticsHandler:   NewContestStatisticsHandler(contestStatisticsUsecase),
 		jwtSecret:                  jwtSecret,
+		aiRequestsPerMinute:        aiRequestsPerMinute,
 	}
 	return server
 }
@@ -226,7 +233,10 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.pollOptionHandler.RegisterRoutes(api.Group("/poll-option"), adminAuthMw)
 	s.feedbackResponseHandler.RegisterRoutes(api.Group("/feedback-response"), adminAuthMw)
 	s.paymentHandler.RegisterRoutes(api.Group("/payment"), adminAuthMw)
-	s.aiHandler.RegisterRoutes(api.Group("/ai"))
+	// Gemini-backed endpoints are the most expensive public surface: cap
+	// them per client (issue #9). /api/payment/update needed no limiter —
+	// it is admin-gated since #6.
+	s.aiHandler.RegisterRoutes(api.Group("/ai", rateLimitByClientIP(s.aiRequestsPerMinute, float64(s.aiRequestsPerMinute))))
 	s.telegramHandler.RegisterRoutes(api.Group("/telegram"))
 	s.pageViewHandler.RegisterRoutes(api.Group("/pageview"), adminAuthMw)
 	s.articleHandler.Register(api, adminAuthMw)

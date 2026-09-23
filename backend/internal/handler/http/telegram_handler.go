@@ -1,7 +1,9 @@
 package http
 
 import (
+	"crypto/subtle"
 	"encoding/json"
+	"log"
 	"net/http"
 	"victor-contest-go/internal/usecase"
 
@@ -10,7 +12,8 @@ import (
 )
 
 type telegramHandler struct {
-	usecase usecase.TelegramUsecase
+	usecase        usecase.TelegramUsecase
+	webhookSecret  string // TELEGRAM_WEBHOOK_SECRET; empty = verification disabled
 }
 
 func (t *telegramHandler) RegisterRoutes(rg *gin.RouterGroup) {
@@ -51,6 +54,16 @@ func (t *telegramHandler) PreparedInlineMessage(c *gin.Context) {
 
 // Updater implements TelegramHandler.
 func (t *telegramHandler) Updater(c *gin.Context) {
+	// When TELEGRAM_WEBHOOK_SECRET is configured, Telegram echoes it in the
+	// X-Telegram-Bot-Api-Secret-Token header on every update; without it the
+	// endpoint accepts anyone who knows the URL (issue #9).
+	if t.webhookSecret != "" {
+		got := c.GetHeader("X-Telegram-Bot-Api-Secret-Token")
+		if subtle.ConstantTimeCompare([]byte(got), []byte(t.webhookSecret)) != 1 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
 	var update tgbotapi.Update
 	if err := c.ShouldBindJSON(&update); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -64,6 +77,9 @@ func (t *telegramHandler) Updater(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func NewTelegramHandler(usecase usecase.TelegramUsecase) *telegramHandler {
-	return &telegramHandler{usecase: usecase}
+func NewTelegramHandler(usecase usecase.TelegramUsecase, webhookSecret string) *telegramHandler {
+	if webhookSecret == "" {
+		log.Println("TELEGRAM_WEBHOOK_SECRET not set — webhook updates are accepted without secret-token verification")
+	}
+	return &telegramHandler{usecase: usecase, webhookSecret: webhookSecret}
 }
