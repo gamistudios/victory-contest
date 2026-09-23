@@ -38,6 +38,12 @@ func normalizeReasons(payments []domain.PaymentRequest) {
 }
 
 // ListAll implements usecase.PaymentRepository.
+//
+// Queries the GSI1PK-user_id-index on the partition key only (GSI1PK =
+// "PAYMENT_REQUEST"): every payment row written by Create carries that value,
+// so this returns all payment requests. The previous version pinned the
+// user_id range key to a hardcoded debug value ("112pay"), so the endpoint
+// returned nothing meaningful (issue #19).
 func (r *dynamoDBPaymentRepository) ListAll() ([]domain.PaymentRequest, error) {
 	var payments []domain.PaymentRequest
 	gsi1PK, err := attributevalue.Marshal("PAYMENT_REQUEST")
@@ -48,13 +54,9 @@ func (r *dynamoDBPaymentRepository) ListAll() ([]domain.PaymentRequest, error) {
 	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-user_id-index"),
-		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk AND #st = :user_id"),
-		ExpressionAttributeNames: map[string]string{
-			"#st": "user_id",
-		},
+		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":gsi1pk":  gsi1PK,
-			":user_id": &types.AttributeValueMemberS{Value: "112pay"},
+			":gsi1pk": gsi1PK,
 		},
 	})
 	if err != nil {

@@ -171,15 +171,21 @@ func (r *StudentDynamoRepository) GetStructuredStudents() (map[string]domain.Stu
 	return structured, nil
 }
 
+// VerifyStudentPaid reports whether the student with this telegram id has an
+// approved (premium) subscription. The student table has no GSI (see
+// cmd/setup-tables), so this is a Scan with a filter on the real boolean
+// attribute `is_premium`. The previous Query had no KeyConditionExpression and
+// filtered on a nonexistent `paid` attribute, so it always failed with a
+// ValidationException (issue #20).
 func (r *StudentDynamoRepository) VerifyStudentPaid(telegramID string) (bool, error) {
 	teleIDVal, _ := attributevalue.Marshal(telegramID)
-	paidVal, _ := attributevalue.Marshal(true)
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	premiumVal, _ := attributevalue.Marshal(true)
+	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
 		TableName:        &r.tableName,
-		FilterExpression: aws.String("telegram_id = :tele_id AND paid = :paid"),
+		FilterExpression: aws.String("telegram_id = :tele_id AND is_premium = :premium"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":tele_id": teleIDVal,
-			":paid":    paidVal,
+			":premium": premiumVal,
 		},
 	})
 	if err != nil {
@@ -188,13 +194,17 @@ func (r *StudentDynamoRepository) VerifyStudentPaid(telegramID string) (bool, er
 	return len(out.Items) > 0, nil
 }
 
+// GetPaidStudents returns students whose subscription is active, i.e. the
+// `is_premium` attribute (the domain Student's paid flag, dynamodbav:"is_premium")
+// is true. Scan + FilterExpression is used because the student table defines no
+// GSI on is_premium (see cmd/setup-tables); acceptable at this scale.
 func (r *StudentDynamoRepository) GetPaidStudents() ([]domain.Student, error) {
-	paidVal, _ := attributevalue.Marshal(true)
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	premiumVal, _ := attributevalue.Marshal(true)
+	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
 		TableName:        &r.tableName,
-		FilterExpression: aws.String("paid = :paid"),
+		FilterExpression: aws.String("is_premium = :premium"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":paid": paidVal,
+			":premium": premiumVal,
 		},
 	})
 	if err != nil {

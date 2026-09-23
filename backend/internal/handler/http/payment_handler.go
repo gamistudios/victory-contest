@@ -28,11 +28,25 @@ func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/:user_id", h.GetByUserId)
 }
 
+// GetAllPayments serves GET /api/payment/. The frontend fetches a single
+// user's payments via GET /api/payment/:user_id (see paymentServices.ts),
+// but a ?user_id= query param here is honored too: it returns that user's
+// payments, otherwise all payments. Both branches answer with the
+// {"payments": [...]} shape the frontend reads.
 func (h *PaymentHandler) GetAllPayments(c *gin.Context) {
-	payments, err := h.usecase.GetAllPayments()
+	var payments []domain.PaymentRequest
+	var err error
+	if userID := c.Query("user_id"); userID != "" {
+		payments, err = h.usecase.GetPaymentByStudent(userID)
+	} else {
+		payments, err = h.usecase.GetAllPayments()
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	if payments == nil {
+		payments = make([]domain.PaymentRequest, 0)
 	}
 	c.JSON(http.StatusOK, gin.H{"payments": payments})
 }
