@@ -1,14 +1,17 @@
 package usecase
 
 import (
+	"errors"
 	"sort"
 
 	"victor-contest-go/internal/domain"
 )
 
+var ErrQuestionNotFound = errors.New("question not found")
+
 type QuestionUsecase interface {
 	AddQuestion(question domain.Question) (string, error)
-	UpdateQuestion(id string, update domain.Question) error
+	UpdateQuestion(id string, patch domain.QuestionPatch) error
 	DeleteQuestion(id string) error
 	DeleteQuestions(ids []string) (*BulkDeleteResult, error)
 	GetQuestionByID(id string) (*domain.Question, error)
@@ -40,8 +43,46 @@ func (u *questionUsecase) AddQuestion(question domain.Question) (string, error) 
 	question.ID = GenerateUniqueId()
 	return u.repo.AddQuestion(question)
 }
-func (u *questionUsecase) UpdateQuestion(id string, update domain.Question) error {
-	return u.repo.UpdateQuestion(id, update)
+func (u *questionUsecase) UpdateQuestion(id string, patch domain.QuestionPatch) error {
+	// Read-merge-write: PATCH must only touch the fields the client actually
+	// sent. The repository does a full PutItem, so writing the bound struct
+	// verbatim used to wipe every omitted field.
+	existing, err := u.repo.GetQuestionByID(id)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return ErrQuestionNotFound
+	}
+	updated := *existing
+	if patch.QuestionText != nil {
+		updated.QuestionText = *patch.QuestionText
+	}
+	if patch.Answer != nil {
+		updated.Answer = *patch.Answer
+	}
+	if patch.QuestionImg != nil {
+		updated.QuestionImg = *patch.QuestionImg
+	}
+	if patch.Explanation != nil {
+		updated.Explanation = *patch.Explanation
+	}
+	if patch.ExplanationImg != nil {
+		updated.ExplanationImg = *patch.ExplanationImg
+	}
+	if patch.Subject != nil {
+		updated.Subject = *patch.Subject
+	}
+	if patch.Grade != nil {
+		updated.Grade = *patch.Grade
+	}
+	if patch.Chapter != nil {
+		updated.Chapter = *patch.Chapter
+	}
+	if patch.MultipleChoice != nil {
+		updated.MultipleChoice = *patch.MultipleChoice
+	}
+	return u.repo.UpdateQuestion(id, updated)
 }
 func (u *questionUsecase) DeleteQuestion(id string) error {
 	return u.repo.DeleteQuestion(id)

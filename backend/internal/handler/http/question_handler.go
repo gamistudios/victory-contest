@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -124,71 +125,76 @@ func (h *QuestionHandler) AddMultipleQuestions(c *gin.Context) {
 func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 	id := c.Param("id")
 
-	var update domain.Question
+	var patch domain.QuestionPatch
 
 	// Check if the request is multipart/form-data (has files) or JSON
 	contentType := c.GetHeader("Content-Type")
 
 	if strings.Contains(contentType, "multipart/form-data") {
-		// Handle FormData request (with potential file uploads)
-		update.QuestionText = c.PostForm("question_text")
-		update.Explanation = c.PostForm("explanation")
-		update.Subject = c.PostForm("subject")
-		update.Grade = c.PostForm("grade")
-		update.Chapter = c.PostForm("chapter")
-		update.MultipleChoice = c.PostFormArray("multiple_choice")
-		answerStr := c.PostForm("answer")
-		if answerStr != "" {
+		// Presence-aware form binding: an omitted field must NOT clear the
+		// stored value (the usecase merges the patch over the stored row).
+		setForm := func(key string, dst **string) {
+			if v, ok := c.GetPostForm(key); ok {
+				p := v
+				*dst = &p
+			}
+		}
+		setForm("question_text", &patch.QuestionText)
+		setForm("explanation", &patch.Explanation)
+		setForm("subject", &patch.Subject)
+		setForm("grade", &patch.Grade)
+		setForm("chapter", &patch.Chapter)
+		if _, ok := c.GetPostForm("multiple_choice"); ok {
+			mc := c.PostFormArray("multiple_choice")
+			patch.MultipleChoice = &mc
+		}
+		if answerStr, ok := c.GetPostForm("answer"); ok && answerStr != "" {
 			answer, err := strconv.Atoi(answerStr)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid 'answer' format. Must be an integer."})
 				return
 			}
-			update.Answer = answer
+			patch.Answer = &answer
 		}
 
-		// Handle file uploads if present
-		if fileHeader, err := c.FormFile("question_image"); err == nil && fileHeader != nil {
+		upload := func(field string) (string, error) {
+			fileHeader, err := c.FormFile(field)
+			if err != nil {
+				return "", nil // no file under this key: field not provided
+			}
 			file, err := fileHeader.Open()
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open uploaded file"})
-				return
+				return "", err
 			}
 			defer file.Close()
-
-			imgURL, err := h.imageRepo.UploadImage(file, "questions")
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			update.QuestionImg = imgURL
+			return h.imageRepo.UploadImage(file, "questions")
 		}
-
-		if fileHeader, err := c.FormFile("explanation_image"); err == nil && fileHeader != nil {
-			file, err := fileHeader.Open()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open uploaded file"})
-				return
-			}
-			defer file.Close()
-
-			imgURL, err := h.imageRepo.UploadImage(file, "questions")
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			update.ExplanationImg = imgURL
+		if url, err := upload("question_image"); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		} else if url != "" {
+			patch.QuestionImg = &url
+		}
+		if url, err := upload("explanation_image"); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		} else if url != "" {
+			patch.ExplanationImg = &url
 		}
 	} else {
-		// Handle JSON request
-		if err := c.ShouldBindJSON(&update); err != nil {
+		// JSON: pointer fields make "provided" vs "omitted" explicit.
+		if err := c.ShouldBindJSON(&patch); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 	}
 
-	err := h.usecase.UpdateQuestion(id, update)
+	err := h.usecase.UpdateQuestion(id, patch)
 	if err != nil {
+		if errors.Is(err, usecase.ErrQuestionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		log.Printf("UpdateQuestion(id=%s) failed: %v", id, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
