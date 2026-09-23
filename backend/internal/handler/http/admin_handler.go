@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -14,11 +15,12 @@ import (
 )
 
 type AdminHandler struct {
-	usecase usecase.AdminUsecase
+	usecase   usecase.AdminUsecase
+	jwtSecret []byte
 }
 
-func NewAdminHandler(u usecase.AdminUsecase) *AdminHandler {
-	return &AdminHandler{usecase: u}
+func NewAdminHandler(u usecase.AdminUsecase, jwtSecret string) *AdminHandler {
+	return &AdminHandler{usecase: u, jwtSecret: []byte(jwtSecret)}
 }
 
 func (h *AdminHandler) RegisterRoutes(rg *gin.RouterGroup) {
@@ -42,7 +44,7 @@ func (h *AdminHandler) GetMe(c *gin.Context) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte("a-very-long-and-secret-string"), nil
+		return h.jwtSecret, nil
 	})
 
 	if err != nil || !token.Valid {
@@ -59,13 +61,35 @@ func (h *AdminHandler) GetMe(c *gin.Context) {
 
 }
 
+type adminInput struct {
+	ID         string `json:"id"`
+	Email      string `json:"email"`
+	Name       string `json:"name"`
+	IsApproved bool   `json:"is_approved"`
+	Password   string `json:"password"`
+}
+
+func (i adminInput) toDomain() domain.Admin {
+	return domain.Admin{
+		ID:         i.ID,
+		Email:      i.Email,
+		Name:       i.Name,
+		IsApproved: i.IsApproved,
+		Password:   i.Password,
+	}
+}
+
 func (h *AdminHandler) AddAdmin(c *gin.Context) {
-	var admin domain.Admin
-	if err := c.ShouldBindJSON(&admin); err != nil {
+	var req adminInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	id, err := h.usecase.AddAdmin(admin)
+	if req.Password == "" || req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email and password are required"})
+		return
+	}
+	id, err := h.usecase.AddAdmin(req.toDomain())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -75,12 +99,12 @@ func (h *AdminHandler) AddAdmin(c *gin.Context) {
 
 func (h *AdminHandler) UpdateAdmin(c *gin.Context) {
 	id := c.Param("id")
-	var update domain.Admin
-	if err := c.ShouldBindJSON(&update); err != nil {
+	var req adminInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	err := h.usecase.UpdateAdmin(id, update)
+	err := h.usecase.UpdateAdmin(id, req.toDomain())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -127,8 +151,12 @@ func (h *AdminHandler) SignIn(c *gin.Context) {
 		return
 	}
 	admin, err := h.usecase.SignIn(req.Email, req.Password)
-	if err != nil || admin == nil {
+	if errors.Is(err, usecase.ErrInvalidCredentials) || admin == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "login failed"})
 		return
 	}
 	claims := domain.CustomClaims{
@@ -141,7 +169,7 @@ func (h *AdminHandler) SignIn(c *gin.Context) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte("a-very-long-and-secret-string"))
+	tokenString, err := token.SignedString(h.jwtSecret)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create token"})
 		return

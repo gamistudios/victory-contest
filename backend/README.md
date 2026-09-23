@@ -3,6 +3,8 @@
 The API server for the Victory Contest student-contest platform (Telegram Mini App + admin panel). Go 1.24, Gin, DynamoDB-only persistence, Google Gemini AI, Cloudinary image hosting, and a Telegram bot.
 
 > ✅ **Build status (verified 2026-09-23):** `go build ./...` and `go vet ./...` are green after fixing the `CommentRepository` brace in `interfaces.go:150-152` and the `log.Printf` format bug in `article_usecase.go:101`. The server boots on `:8080` against the real AWS account and `GET /api/contest/` returns live data. Remaining hygiene: all files use CRLF line endings, so `gofmt -l .` flags every file (run `gofmt -w` in one dedicated commit if desired).
+>
+> 🔒 **Security progress (2026-09-23):** issues #2–#5 and #21 fixed — bot token and JWT secret moved to env (`TELEGRAM_BOT_TOKEN`, `JWT_SECRET`), admin passwords bcrypt-hashed and no longer leaked in responses, `SignIn` actually verifies passwords (with legacy-plaintext upgrade path). ⚠️ Ops follow-ups: get a fresh bot token from @BotFather (the committed one is already revoked by Telegram), and #6 (auth middleware) is still open.
 
 ## Contents
 
@@ -174,10 +176,10 @@ Feedback: admin questions + score-range poll options (require contact info above
 1. ~~**Does not compile**~~ **FIXED 2026-09-23** — closing brace added to `CommentRepository` in `internal/usecase/interfaces.go:152`; `go build ./...` and `go vet ./...` now pass (the `log.Printf` vet finding in `article_usecase.go:101` was also fixed).
 
 ### Security — critical
-2. **Hardcoded Telegram bot token** — `router.go:39` (real token committed; revoke/rotate, move to env, scrub history).
-3. **Hardcoded JWT secret** `"a-very-long-and-secret-string"` — `admin_handler.go:45,144`; anyone with repo access can forge admin tokens.
-4. **Password auth bypass** — `admin_dynamo.go:141-167`: `SignIn` **never compares the password**; knowing an admin email yields a valid JWT.
-5. **Plaintext passwords stored & leaked** — `domain/admin.go:10` (no bcrypt anywhere); `GET /api/admin/` returns the `password` field (`admin_handler.go:111-118`); `POST /api/admin/register` is unauthenticated (`:62-89`).
+2. ~~**Hardcoded Telegram bot token**~~ **FIXED 2026-09-23 (code side)** — `router.go` now reads `TELEGRAM_BOT_TOKEN` from env (bot gracefully disables if unset/invalid). The old committed token was **already revoked by Telegram** ("Unauthorized" at `getMe`); ⚠️ a fresh token from @BotFather must be added to `backend/.env`, and git history still contains the old one.
+3. ~~**Hardcoded JWT secret**~~ **FIXED 2026-09-23** — `JWT_SECRET` env var, injected into `AdminHandler`; a random secret was generated locally. All issued tokens must be re-minted (logins invalidated).
+4. ~~**Password auth bypass**~~ **FIXED 2026-09-23** — `admin_usecase.SignIn` now verifies the password (bcrypt, with transparent upgrade of legacy plaintext records on successful login). Smoke-tested 200/401.
+5. ~~**Plaintext passwords stored & leaked**~~ **FIXED 2026-09-23 (storage & leak parts)** — `AddAdmin`/`UpdateAdmin` hash with bcrypt; `domain.Admin.Password` is `json:"-"` so responses no longer leak it (`GET /api/admin/` verified). ⚠️ Remaining: `POST /api/admin/register` is still unauthenticated (see #6), and legacy rows keep their plaintext password until that admin logs in once.
 6. **Entire API unauthenticated** — CORS is the only global middleware (`router.go:110`); all admin/CRUD/delete routes are public, including `GET /api/student/` (full PII: phone, name, Telegram IDs) and image delete.
 7. **Payments self-approvable** — `payment_handler.go:59,85`: `status` comes straight from the client form.
 8. **Premium bypass** — `student_usecase.go:105-110`: `GetStudentByTelegramID` grants `IsPremium=true` for any unexpired payment **without requiring Approved status** (contrast `:77-82`); also mixes `time.Local` and UTC.
@@ -195,7 +197,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 18. **Badge duplication / lost updates** — `submission_usecase.go:556-568`: `already` map never consulted → duplicate badge IDs every submission; `defer` at `:327` runs **before** insert-error check; student `PutItem` at `:645` is unconditional read-modify-write (clobbers concurrent profile edits).
 19. **`GetAllPayments` hardcoded debug key** — `payment_dynamo.go:35-42`: range value `":user_id" = "112pay"` → returns nothing meaningful.
 20. **Guaranteed-runtime-error Queries** — `student_dynamo.go:150-182`: `Query` with FilterExpression and **no KeyConditionExpression** → ValidationException; `GET /api/student/paid` and `VerifyStudentPaid` always 500 (also filters on a nonexistent `paid` attribute).
-21. **Index-out-of-range panic** — `admin_dynamo.go:115-119`: checks `Items == nil`, then reads `Items[0]` unconditionally.
+21. ~~**Index-out-of-range panic**~~ **FIXED 2026-09-23** — `admin_dynamo.go` `GetAdminByEmail` now checks `len(Items) == 0` (was `Items == nil` then read `Items[0]`); verified by login smoke test.
 22. **`GET /api/admin/:id` queries by email** — `admin_handler.go:101-108` passes the URL id to `GetAdminByEmail`.
 23. **Leaderboard "all" timeframe ≈ 1 year** — `submission_usecase.go:395-396`: `now.AddDate(-1,0,1)`.
 24. **Contest rank tie-break inverted + string compare** — `submission_usecase.go:371-377`: slower `"HH:MM:SS"` sorts first; lexicographic comparison breaks.
@@ -234,8 +236,8 @@ Feedback: admin questions + score-range poll options (require contact info above
 
 **Immediate**
 1. Fix `interfaces.go:150-157`; add `go build ./... && go vet ./...` CI gate.
-2. Rotate the Telegram bot token and JWT secret; move both to env; scrub git history; verify `.gitignore` covers `.env`.
-3. Repair always-failing paths: #19 (GetAllPayments), #20 (Query without key condition — confirmed 500 by smoke test), #21 (panic), #14/#15 (double writes).
+2. ~~Rotate the Telegram bot token and JWT secret; move both to env~~ **DONE 2026-09-23 (code side)** — both now env-driven; old token already revoked externally, old secret retired; git history still contains both.
+3. Repair always-failing paths: #19 (GetAllPayments), #20 (Query without key condition — confirmed 500 by smoke test), ~~#21 (panic — fixed 2026-09-23)~~, #14/#15 (double writes).
 
 **Security**
 4. Auth middleware: verify Telegram `initData` HMAC for student routes; shared JWT middleware for admin/CRUD; RBAC split.

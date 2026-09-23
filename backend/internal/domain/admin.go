@@ -7,7 +7,7 @@ type Admin struct {
 	Email      string `json:"email"       dynamodbav:"email"`
 	IsApproved bool   `json:"is_approved" dynamodbav:"is_approved"`
 	Name       string `json:"name"        dynamodbav:"name"`
-	Password   string `json:"password"    dynamodbav:"password"`
+	Password   string `json:"-"           dynamodbav:"password"`
 }
 
 type CustomClaims struct {

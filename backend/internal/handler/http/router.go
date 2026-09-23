@@ -4,6 +4,8 @@ import (
 	"victor-contest-go/internal/repository"
 	"victor-contest-go/internal/usecase"
 
+	"log"
+	"os"
 	"strings"
 
 	"github.com/gin-contrib/cors"
@@ -35,8 +37,20 @@ type Server struct {
 
 func NewServer() *Server {
 
-	// Bot
-	bot, _ := tgbotapi.NewBotAPI("8328194489:AAF1Ul46yoR0XXkDF0bZeBXw37mol_vO68U")
+	// Bot — optional: API boots without it, webhook route reports it as disabled
+	var bot *tgbotapi.BotAPI
+	if botToken := os.Getenv("TELEGRAM_BOT_TOKEN"); botToken == "" {
+		log.Println("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
+	} else if b, err := tgbotapi.NewBotAPI(botToken); err != nil {
+		log.Printf("failed to initialize Telegram bot, disabling: %v", err)
+	} else {
+		bot = b
+	}
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is not set")
+	}
 
 	// --- Initialize Repositories ---
 	imgRepo := repository.NewImageRepostory("something")
@@ -87,7 +101,7 @@ func NewServer() *Server {
 		studentHandler:             NewStudentHandler(studentUsecase, notificationUsecase),
 		questionHandler:            NewQuestionHandler(questionUsecase, imgRepo), // Corrected line
 		submissionHandler:          NewSubmissionHandler(submissionUsecase),
-		adminHandler:               NewAdminHandler(adminUsecase),
+		adminHandler:               NewAdminHandler(adminUsecase, jwtSecret),
 		notificationHandler:        NewNotificationHandler(notificationUsecase),
 		achievementHandler:         NewAchievementHandler(achievementUsecase),
 		contestRegistrationHandler: NewContestRegistrationHandler(contestRegistrationUsecase),

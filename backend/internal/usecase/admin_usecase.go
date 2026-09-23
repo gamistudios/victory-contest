@@ -1,6 +1,8 @@
 package usecase
 
 import (
+	"crypto/subtle"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -8,7 +10,11 @@ import (
 	"strings"
 	"time"
 	"victor-contest-go/internal/domain"
+
+	"golang.org/x/crypto/bcrypt"
 )
+
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
 type AdminUsecase interface {
 	AddAdmin(admin domain.Admin) (string, error)
@@ -49,9 +55,21 @@ func NewAdminUsecase(repo AdminRepository, studentRepo StudentRepository, contes
 }
 
 func (u *adminUsecase) AddAdmin(admin domain.Admin) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(admin.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	admin.Password = string(hash)
 	return u.repo.AddAdmin(admin)
 }
 func (u *adminUsecase) UpdateAdmin(id string, update domain.Admin) error {
+	if update.Password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(update.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		update.Password = string(hash)
+	}
 	return u.repo.UpdateAdmin(id, update)
 }
 func (u *adminUsecase) DeleteAdmin(id string) error {
@@ -64,7 +82,34 @@ func (u *adminUsecase) GetAllAdmins() ([]domain.Admin, error) {
 	return u.repo.GetAllAdmins()
 }
 func (u *adminUsecase) SignIn(email, password string) (*domain.Admin, error) {
-	return u.repo.SignIn(email, password)
+	admin, err := u.repo.GetAdminByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	if admin == nil || admin.Password == "" {
+		return nil, ErrInvalidCredentials
+	}
+
+	hashed := strings.HasPrefix(admin.Password, "$2")
+	ok := false
+	if hashed {
+		ok = bcrypt.CompareHashAndPassword([]byte(admin.Password), []byte(password)) == nil
+	} else {
+		// Legacy plaintext record: compare, then upgrade to a hash on success.
+		ok = subtle.ConstantTimeCompare([]byte(admin.Password), []byte(password)) == 1
+	}
+	if !ok {
+		return nil, ErrInvalidCredentials
+	}
+
+	if !hashed {
+		if hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost); err == nil {
+			admin.Password = string(hash)
+			_ = u.repo.UpdateAdmin(admin.ID, *admin)
+		}
+	}
+	admin.Password = ""
+	return admin, nil
 }
 
 func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, error) {

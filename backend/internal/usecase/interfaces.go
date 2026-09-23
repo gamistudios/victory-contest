@@ -54,7 +54,6 @@ type AdminRepository interface {
 	DeleteAdmin(id string) error
 	GetAdminByID(id string) (*domain.Admin, error)
 	GetAllAdmins() ([]domain.Admin, error)
-	SignIn(email, password string) (*domain.Admin, error)
 	GetAdminByEmail(email string) (*domain.Admin, error)
 }
 

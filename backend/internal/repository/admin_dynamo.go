@@ -112,8 +112,8 @@ func (r *AdminDynamoRepository) GetAdminByEmail(email string) (*domain.Admin,err
 	if err != nil {
 		return nil, err
 	}
-	if out.Items ==nil {
-		return nil,nil
+	if len(out.Items) == 0 {
+		return nil, nil
 	}
 	var admin domain.Admin
 	err = attributevalue.UnmarshalMap(out.Items[0],&admin)
@@ -136,32 +136,4 @@ func (r *AdminDynamoRepository) GetAllAdmins() ([]domain.Admin, error) {
 		return nil, err
 	}
 	return admins, nil
-}
-
-func (r *AdminDynamoRepository) SignIn(email, password string) (*domain.Admin, error) {
-    emailVal, _ := attributevalue.Marshal(email)
-
-    out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
-        TableName:              &r.tableName,
-        IndexName:              aws.String("email-id-index"),
-        KeyConditionExpression: aws.String("email = :email"),
-        ExpressionAttributeValues: map[string]types.AttributeValue{
-            ":email": emailVal,
-        },
-    })
-    if err != nil {
-        return nil, err
-    }
-
-    if len(out.Items) == 0 {
-        return nil, nil
-    }
-
-    var admin domain.Admin
-    
-    if err := attributevalue.UnmarshalMap(out.Items[0], &admin); err != nil {
-        return nil, err
-    }
-    
-    return &admin, nil
 }
