@@ -91,9 +91,18 @@ func TestCheckStudentActiveInContestActivatesOnce(t *testing.T) {
 		t.Fatalf("activateCalls = %d, want 1", repo.activateCalls)
 	}
 
-	// Second (sequential) call must surface the already-registered conflict.
-	if _, err := uc.CheckStudentActiveInContest("c1", "s1"); !errors.Is(err, ErrAlreadyRegisteredForContest) {
-		t.Fatalf("second activation err = %v, want ErrAlreadyRegisteredForContest", err)
+	// Second call is the "re-enter a contest I already joined" path — it
+	// must succeed without another write (the student-facing gate bounces
+	// on any error, so already-active is NOT a failure).
+	active2, err := uc.CheckStudentActiveInContest("c1", "s1")
+	if err != nil {
+		t.Fatalf("second activation (already active) err = %v, want nil", err)
+	}
+	if active2 == nil || !*active2 {
+		t.Fatalf("expected active=true on re-entry, got %v", active2)
+	}
+	if repo.activateCalls != 1 {
+		t.Fatalf("activateCalls = %d, want still 1 (no write for an active row)", repo.activateCalls)
 	}
 }
 
@@ -145,8 +154,14 @@ func TestCheckStudentActiveInContestConflictRetry(t *testing.T) {
 		}
 		uc := &contestRegistrationUsecase{repo: repo}
 
-		if _, err := uc.CheckStudentActiveInContest("c1", "s1"); !errors.Is(err, ErrAlreadyRegisteredForContest) {
-			t.Fatalf("err = %v, want ErrAlreadyRegisteredForContest after losing the race", err)
+		// Losing the race now converges on success: the re-read sees the
+		// winner's active row and returns it.
+		active, err := uc.CheckStudentActiveInContest("c1", "s1")
+		if err != nil {
+			t.Fatalf("err = %v, want nil after losing the race (already active)", err)
+		}
+		if active == nil || !*active {
+			t.Fatalf("expected active=true, got %v", active)
 		}
 		if repo.activateCalls != 1 {
 			t.Fatalf("activateCalls = %d, want 1 (retry must stop at the re-read)", repo.activateCalls)

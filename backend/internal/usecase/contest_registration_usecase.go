@@ -70,7 +70,11 @@ func (u *contestRegistrationUsecase) CheckStudentActiveInContest(contestId strin
 			return nil, ErrNotRegisteredForContest
 		}
 		if registration.IsActive {
-			return nil, ErrAlreadyRegisteredForContest
+			// Re-entering a contest you already joined is normal — the
+			// student-facing gate treats any error here as "you may not
+			// enter", so already-active must succeed, not conflict.
+			active := true
+			return &active, nil
 		}
 		registration.IsActive = true
 		err = u.activate(*registration)
