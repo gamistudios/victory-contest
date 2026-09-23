@@ -22,6 +22,7 @@ type Server struct {
 	adminHandler               *AdminHandler
 	notificationHandler        *NotificationHandler
 	achievementHandler         *AchievementHandler
+	bankHandler                *BankHandler
 	contestRegistrationHandler *ContestRegistrationHandler
 	feedbackQuestionHandler    *FeedbackQuestionHandler
 	pollOptionHandler          *PollOptionHandler
@@ -61,6 +62,7 @@ func NewServer() *Server {
 	adminRepo := repository.NewAdminDynamoRepository("eu-north-1", "admin")
 	notificationRepo := repository.NewNotificationDynamoRepository("eu-north-1", "notification")
 	achievementRepo := repository.NewAchievementDynamoRepository("eu-north-1", "achievement")
+	bankRepo := repository.NewBankDynamoRepository("eu-north-1", "banks")
 	contestRegistrationRepo := repository.NewContestRegistrationDynamoRepository("eu-north-1", "contest_registeration")
 	paymentRepo := repository.NewDynamoDBPaymentRepository("eu-north-1", "payment")
 	pageViewRepo := repository.NewPageViewDynamoRepository("eu-north-1", "pageviews")
@@ -82,6 +84,7 @@ func NewServer() *Server {
 	articleUsecase := usecase.NewArticleUsecase(articleRepo,commentRepo)
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo, contestRepo, studentRepo)
 	achievementUsecase := usecase.NewAchievementUsecase(achievementRepo)
+	bankUsecase := usecase.NewBankUsecase(bankRepo)
 	contestRegistrationUsecase := usecase.NewContestRegistrationUsecase(contestRegistrationRepo)
 	paymentUsecase := usecase.NewPaymentUsecases(paymentRepo)
 	aiUsecase := usecase.NewAiUsecase(submissionRepo)
@@ -104,6 +107,7 @@ func NewServer() *Server {
 		adminHandler:               NewAdminHandler(adminUsecase, jwtSecret),
 		notificationHandler:        NewNotificationHandler(notificationUsecase),
 		achievementHandler:         NewAchievementHandler(achievementUsecase),
+		bankHandler:                NewBankHandler(bankUsecase),
 		contestRegistrationHandler: NewContestRegistrationHandler(contestRegistrationUsecase),
 		feedbackQuestionHandler:    NewFeedbackQuestionHandler(feedbackQuestionUsecase, notificationUsecase),
 		pollOptionHandler:          NewPollOptionHandler(pollOptionUsecase),
@@ -156,6 +160,7 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.adminHandler.RegisterRoutes(api.Group("/admin"))
 	s.notificationHandler.RegisterRoutes(api.Group("/notification"))
 	s.achievementHandler.RegisterRoutes(api.Group("/achievement"))
+	s.bankHandler.RegisterRoutes(api.Group("/banks"))
 	s.contestRegistrationHandler.RegisterRoutes(api.Group("/contest-registration"))
 	s.feedbackQuestionHandler.RegisterRoutes(api.Group("/feedback-question"))
 	s.pollOptionHandler.RegisterRoutes(api.Group("/poll-option"))

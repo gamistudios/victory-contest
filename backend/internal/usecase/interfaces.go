@@ -75,6 +75,14 @@ type AchievementRepository interface {
 	GetAchievementsByStudent(studentID string) ([]domain.Achievement, error)
 }
 
+type BankRepository interface {
+	AddBank(bank domain.Bank) (string, error)
+	UpdateBank(id string, update domain.Bank) error
+	DeleteBank(id string) error
+	GetBankByID(id string) (*domain.Bank, error)
+	GetAllBanks() ([]domain.Bank, error)
+}
+
 type ContestRegistrationRepository interface {
 	AddContestRegistration(registration domain.ContestRegistration) (string, error)
 	UpdateContestRegistration(id string, update domain.ContestRegistration) error

@@ -38,6 +38,7 @@ var tables = []table{
 		{name: "recipient_id-index", partition: "recipient_id", partType: types.ScalarAttributeTypeS},
 	}},
 	{Name: "achievement"},
+	{Name: "banks"},
 	{Name: "contest_registeration", gsis: []gsi{
 		{name: "contest_id-student_id-index", partition: "contest_id", sort: "student_id",
 			partType: types.ScalarAttributeTypeS, sortType: types.ScalarAttributeTypeS},

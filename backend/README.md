@@ -5,6 +5,8 @@ The API server for the Victory Contest student-contest platform (Telegram Mini A
 > ✅ **Build status (verified 2026-09-23):** `go build ./...` and `go vet ./...` are green after fixing the `CommentRepository` brace in `interfaces.go:150-152` and the `log.Printf` format bug in `article_usecase.go:101`. The server boots on `:8080` against the real AWS account and `GET /api/contest/` returns live data. Remaining hygiene: all files use CRLF line endings, so `gofmt -l .` flags every file (run `gofmt -w` in one dedicated commit if desired).
 >
 > 🔒 **Security progress (2026-09-23):** issues #2–#5 and #21 fixed — bot token and JWT secret moved to env (`TELEGRAM_BOT_TOKEN`, `JWT_SECRET`), admin passwords bcrypt-hashed and no longer leaked in responses, `SignIn` actually verifies passwords (with legacy-plaintext upgrade path). ⚠️ Ops follow-ups: get a fresh bot token from @BotFather (the committed one is already revoked by Telegram), and #6 (auth middleware) is still open.
+>
+> 🏦 **Banks (2026-09-23):** new `banks` table + `/api/banks` CRUD (see §5) — the frontend payment page now renders admin-managed banks instead of hardcoded lists. Verified end-to-end on the local dynalite stack.
 
 ## Contents
 
@@ -54,7 +56,7 @@ backend/
     └── handler/http/       ← Gin handlers, each exposing RegisterRoutes(rg)
 ```
 
-- **Composition root:** `handler/http/router.go` — `NewServer()` (`:36-106`) constructs 15 repositories (each independently calls `config.LoadDefaultConfig` → **16 SDK clients**) and all usecases/handlers; `NewRouter()` (`:108-159`) applies CORS and mounts every handler under `/api/<feature>`.
+- **Composition root:** `handler/http/router.go` — `NewServer()` constructs 16 repositories (each independently calls `config.LoadDefaultConfig` → 17 SDK clients) and all usecases/handlers; `NewRouter()` applies CORS and mounts every handler under `/api/<feature>`.
 - **Layer inversions:** `repository/payment_dynamo.go:9` and `notification_dynamo.go:7` import `internal/usecase` (repo → usecase direction reversed). `ContestStatisticsRepository` is constructed with a `nil` impl (`router.go:77`) and never used. Several usecases (`achievement`, `question`, `pageview`) are pure pass-throughs.
 
 ## 3. Running & configuration
@@ -70,7 +72,7 @@ go run .               # from backend/ — serves on :8080
 
 ```bash
 npx -y dynalite --port 8000     # local DynamoDB (in-memory)
-go run ./cmd/setup-tables       # idempotent: creates all 15 tables + every queried GSI
+go run ./cmd/setup-tables       # idempotent: creates all 16 tables + every queried GSI
 go run .                        # boots against the local stack
 ```
 
@@ -131,6 +133,9 @@ Questions: CRUD + `GET /active` + `GET /admin/:admin_id`. Poll options: CRUD + `
 ### `/api/payment` (`payment_handler.go:22-29`)
 `GET /` (broken, #19) · `POST /update` (**public approve/reject**) · `POST /` (multipart; verified working end-to-end) · `GET /getexpired` · `GET /withstatus?status=` · `GET /:user_id`
 
+### `/api/banks` (`bank_handler.go`)
+`GET /` (active banks, ordered by `display_order`) · `GET /all` (incl. inactive, admin) · `GET /:id` · `POST /` · `PUT /:id` (omitted `is_active` preserves stored flag) · `DELETE /:id` — admin-managed payment bank list; replaces the values previously hardcoded in the frontend. Table `banks` (partition `id`), provisioned by `cmd/setup-tables`. Write routes inherit the open auth gap (#6).
+
 ### `/api/ai` (`ai_handler.go:18-22`)
 `POST /practice` · `POST /getRecommendation` — no auth, no rate limit.
 
@@ -171,8 +176,8 @@ Feedback: admin questions + score-range poll options (require contact info above
 
 ## 7. DynamoDB design
 
-- One client per repository (16 × `LoadDefaultConfig`), region hardcoded `eu-north-1`, `context.TODO()` everywhere (no cancellation), failures `panic()` at startup.
-- **Tables** (hardcoded `router.go:43-59`): `question, contests, student, submissions, admin, notification, achievement, contest_registeration (sic), payment, pageviews, articles, comments, feedback_questions, poll_options, feedback_responses`.
+- One client per repository (17 × `LoadDefaultConfig`), region hardcoded `eu-north-1`, `context.TODO()` everywhere (no cancellation), failures `panic()` at startup.
+- **Tables** (hardcoded `router.go:43-59`): `question, contests, student, submissions, admin, notification, achievement, contest_registeration (sic), payment, pageviews, articles, comments, feedback_questions, poll_options, feedback_responses, banks`.
 - **Keys:** every table is single-partition `id` (S); no sort keys.
 - **GSIs** (inferred from queries — **no IaC/creation code exists in-repo**): `payment` → `GSI1PK-user_id/status/expirationDate-index` (GSI1PK constant `"PAYMENT_REQUEST"`); `submissions` → `contest_id-index`, `student_id-index`, `contest_id-student_id-index`; `admin` → `email-id-index`; `notification` → `recipient_id-index`; `articles` → `status-index`; `comments` → `articleId-index`; `contest_registeration` → `contest_id-student_id-index`.
 - **Scan vs Query:** many list/analytics paths are full Scans with FilterExpression (`GetStudentByTelegramID`, all feedback listings, all `GetAll*`, pageviews). **No call handles `LastEvaluatedKey`** → silent truncation past 1 MB. Two `Query` calls omit `KeyConditionExpression` entirely and fail at runtime (#20).
@@ -234,7 +239,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 41. **No `LastEvaluatedKey` pagination in any Scan/Query** — e.g. `contest_dynamo.go:53-66`, `student_dynamo.go:121-134`, `pageview_dynamo.go:56-80`, `feedback_response_dynamo.go:139-152`.
 42. **Questions attribute written as `SS` on update but `L` on insert** — `contest_dynamo.go:136-139`.
 43. **Stray `reason` attribute** on payment status updates — `payment_dynamo.go:119-141`.
-44. ~~**No table/GSI provisioning code**~~ **PARTIALLY FIXED 2026-09-23** — `cmd/setup-tables/main.go` creates all 15 tables and every GSI the code queries (idempotent; used against dynalite for local e2e). Prod still needs real IaC.
+44. ~~**No table/GSI provisioning code**~~ **PARTIALLY FIXED 2026-09-23** — `cmd/setup-tables/main.go` creates all 16 tables (incl. `banks`) and every GSI the code queries (idempotent; used against dynalite for local e2e). Prod still needs real IaC.
 45. **16 independent AWS SDK clients** — `router.go:43-59`.
 46. **`context.TODO()` everywhere** — no timeouts/cancellation.
 47. **Typos**: `pyament.go`, `NewImageRepostory` (`image_repo.go:18`), table `contest_registeration` (`router.go:50`), "Feadback" (`student_handler.go:51`, `feedback_handler.go:51`), `GetStudentStatisctis` (`submission_handler.go:29`), "recepientId"/"reciepientId" (`student_handler.go:53`, `feedback_handler.go:257`), module `victor-contest-go`.
