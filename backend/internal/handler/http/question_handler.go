@@ -248,7 +248,14 @@ func (h *QuestionHandler) GetAllQuestions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"questions": questions})
+	// Opt-in pagination via ?page / ?page_size; untouched full list when absent
+	// (storage-level paging is a follow-up, see pagination.go).
+	resp := gin.H{"questions": questions}
+	if err := applyPagination(c, resp, "questions", questions); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *QuestionHandler) GetQuestionByID(c *gin.Context) {

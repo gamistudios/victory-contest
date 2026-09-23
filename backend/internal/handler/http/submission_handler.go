@@ -52,7 +52,14 @@ func (h *SubmissionHandler) GetAllSubmissions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"submissions": submissions})
+	// Opt-in pagination via ?page / ?page_size; untouched full list when absent
+	// (storage-level paging is a follow-up, see pagination.go).
+	resp := gin.H{"submissions": submissions}
+	if err := applyPagination(c, resp, "submissions", submissions); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *SubmissionHandler) GetStudentStatisctis(c *gin.Context) {

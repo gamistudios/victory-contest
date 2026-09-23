@@ -80,7 +80,14 @@ func (h *StudentHandler) GetStudents(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"students": students})
+	// Opt-in pagination via ?page / ?page_size; untouched full list when absent
+	// (storage-level paging is a follow-up, see pagination.go).
+	resp := gin.H{"students": students}
+	if err := applyPagination(c, resp, "students", students); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *StudentHandler) GetPaidStudents(c *gin.Context) {
