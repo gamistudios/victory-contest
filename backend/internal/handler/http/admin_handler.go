@@ -124,9 +124,13 @@ func (h *AdminHandler) DeleteAdmin(c *gin.Context) {
 
 func (h *AdminHandler) GetAdminByID(c *gin.Context) {
 	id := c.Param("id")
-	admin, err := h.usecase.GetAdminByEmail(id)
+	admin, err := h.usecase.GetAdminByID(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if admin == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "admin not found"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"admin": admin})

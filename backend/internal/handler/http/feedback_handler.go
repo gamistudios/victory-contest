@@ -254,7 +254,10 @@ func (h *FeedbackResponseHandler) AddFeedbackResponse(c *gin.Context) {
 		if h.notificationService != nil {
 			message := fmt.Sprintf("%s sent a feedback response", response.StudentName)
 			Type := "feedback_response"
-			reciepientId := response.StudentID
+			// Notify the admins who review feedback, not the student who just
+			// submitted it ("admin" is the recipient the notification usecase
+			// special-cases for admin audiences).
+			reciepientId := "admin"
 			h.notificationService.SendNotification("New Feedback response", message, Type, reciepientId)
 		}
 	}()

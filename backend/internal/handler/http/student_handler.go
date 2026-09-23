@@ -46,15 +46,6 @@ func (h *StudentHandler) AddStudent(c *gin.Context) {
 		return
 	}
 
-	go func() {
-		if h.notificationService != nil {
-			message := "Feadback questions are added. so everybody fill all the questions"
-			title := "New feedback question"
-			recepientId := "all"
-			Type := "feedback_question"
-			h.notificationService.SendNotification(title, message, Type, recepientId)
-		}
-	}()
 	student.IsPremium = false
 	c.JSON(http.StatusOK, gin.H{"student": student})
 }
