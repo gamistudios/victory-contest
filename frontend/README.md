@@ -171,7 +171,7 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 - **B9. State mutation** — ✅ fixed (`.sort()` copies, NotificationCenter mutations removed, `updatedAnswers` copy).
 - **B10. Crash/stale risks** — ✅ fixed (`read_notifications` guards, Profile init from null-safe user, `stats.subjects` guard).
 - **B11. Side effects during render** — ✅ fixed (Telegram calls moved into effects in Home, ContestEditorial, ArticleList, Payment).
-- **B12. Fetch races** — ✅ fixed (AbortController/ignore-flag in Home, Contest, Leaderboard, ArticleList/View, Profile). 🟡 `updateStudentDefaultScoreRange` GET-modify-PUT lost-update race still exists (needs a backend conditional update).
+- **B12. Fetch races** — ✅ fixed (AbortController/ignore-flag in Home, Contest, Leaderboard, ArticleList/View, Profile, NotificationContext; cancelled/aborted requests — StrictMode double-mount, Vite dev reload — are classified by `isAbortedRequest()` in `services/api.ts` and no longer flash "Authentication Failed"/"could not load banks"/"Request aborted" error states; `getNotification` now always returns an array via `normalizeNotifications()`). 🟡 `updateStudentDefaultScoreRange` GET-modify-PUT lost-update race still exists (needs a backend conditional update).
 - **B13. Empty-state guard** — ✅ fixed.
 - **B15. NaN percentages** — ✅ fixed (Leaderboard + LeaderboardModal).
 - **B16. Registration payload discarded** — ✅ fixed (form fields sent; participants count real; `contestInfo.id` guarded instead of `!`-asserted).

@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useTelegram } from "../hooks/useTelegram";
 import { getNotification } from "../services/notificationService";
+import { isAbortedRequest } from "../services/api";
 import { useAuth } from "./AuthContext";
 
 export interface Notification {
@@ -60,8 +61,10 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
           return { ...notification, is_read: true };
         });
         setNotifications(transformedNotifications);
-      } catch {
-        setNotifications([]);
+      } catch (err) {
+        // An aborted/cancelled fetch is not a failure: keep the previous
+        // list rather than flashing an empty inbox.
+        if (!isAbortedRequest(err)) setNotifications([]);
       } finally {
         setNotificationLoading(false);
       }

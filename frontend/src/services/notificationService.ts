@@ -1,9 +1,14 @@
 import api from "./api";
+import { normalizeNotifications } from "./notificationNormalize";
+import type { Notification } from "../context/NotificationContext";
 
-export async function getNotification(userId: string | number) {
-  // Adjust the endpoint as per your backend API
+export async function getNotification(
+  userId: string | number
+): Promise<Notification[]> {
+  // GET /api/notification/recipient/:id -> {"notifications": [...]}
+  // (see notification_handler.go); normalize always yields an array.
   const res = await api.get(`/notification/recipient/${userId}`);
-  return res.data.notifications || res.data;
+  return normalizeNotifications(res.data);
 }
 
 export async function markNotificationAsRead(notificationId: string) {

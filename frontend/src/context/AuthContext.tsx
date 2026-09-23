@@ -4,11 +4,13 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   useCallback,
 } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { getStudentById } from "../services/studentServices";
+import { isAbortedRequest } from "../services/api";
 import { AuthStudent } from "../types";
 import { useTelegram } from "../hooks/useTelegram";
 import Loader from "../components/Loader";
@@ -35,15 +37,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const { user: tgUser, isLoading: tgLoading } = useTelegram();
   const location = useLocation();
 
+  // Monotonic request id: only the latest fetchUser invocation may apply its
+  // result. StrictMode double-invokes mount effects, so an earlier pass can
+  // otherwise resolve after the newer one and clobber state.
+  const fetchSeq = useRef(0);
+
   const fetchUser = useCallback(async () => {
     if (!tgUser?.id) return;
+    const seq = ++fetchSeq.current;
     setStatus("pending");
     setError(null);
     try {
       const student = await getStudentById(tgUser.id.toString());
+      if (seq !== fetchSeq.current) return; // stale response from a dead pass
       setUser(student);
       setStatus("success");
     } catch (err) {
+      // A cancelled/aborted request is not an authentication failure: under
+      // StrictMode and Vite dev full-reloads the in-flight GET /student/:id
+      // can be aborted, which previously surfaced "Request aborted" inside
+      // the "Authentication Failed" ErrorState. Leave state untouched; the
+      // live (or next) pass resolves it.
+      if (isAbortedRequest(err)) return;
+      if (seq !== fetchSeq.current) return; // stale response from a dead pass
       setError(
         err instanceof Error ? err.message : "An unexpected error occurred."
       );

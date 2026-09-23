@@ -18,6 +18,7 @@ import {
 import { ArticleListForHome } from "../components/article/ArticleList";
 import { useAuth } from "../context/AuthContext";
 import ErrorMessage from "../components/ErrorComponent";
+import { isAbortedRequest } from "../services/api";
 
 const Home: React.FC = () => {
   const { user, hapticFeedback, hideBackButton } = useTelegram();
@@ -65,8 +66,10 @@ const Home: React.FC = () => {
           setPreviousContests(previous);
         }
       } catch (e) {
-        // handle error
-        if (!cancelled) {
+        // A cancelled/aborted request (StrictMode double mount, Vite dev
+        // full-reload) is not a real failure: render no error state. The
+        // `cancelled` guard still blocks state updates from dead passes.
+        if (!cancelled && !isAbortedRequest(e)) {
           setContestError(e instanceof Error ? e.message : String(e));
         }
       } finally {

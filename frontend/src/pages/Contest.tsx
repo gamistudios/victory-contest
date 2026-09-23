@@ -6,7 +6,7 @@ import { ContestAnswer, Contest } from "../types";
 import { Clock, CheckCircle, XCircle } from "lucide-react";
 import { getContestById } from "../services/contestApi";
 import { toast } from "sonner";
-import api from "../services/api";
+import api, { isAbortedRequest } from "../services/api";
 import { submitContestResult } from "../services/contestApi";
 import { Button } from "../components/ui/button";
 import axios from "axios";
@@ -92,6 +92,10 @@ const ContestComponent: React.FC = () => {
         const diffInSeconds = Math.floor((endTime - now) / 1000);
         if (!cancelled) setTimeLeft(diffInSeconds > 0 ? diffInSeconds : 0);
       } catch (err) {
+        // A cancelled/aborted request (StrictMode double mount, Vite dev
+        // full-reload) must not toast "Request aborted" and redirect home;
+        // the `cancelled` guard still prevents the dead pass setting state.
+        if (isAbortedRequest(err)) return;
         let apiError: string;
         if (axios.isAxiosError(err)) {
           apiError =

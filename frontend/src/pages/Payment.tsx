@@ -31,6 +31,7 @@ import {
 } from "../components/ui/drawer";
 import { createInvoice } from "../services/telegramServices";
 import { getActiveBanks } from "../services/bankServices";
+import { isAbortedRequest } from "../services/api";
 import { Bank, PaymentRequest } from "../types";
 import { useNavigate } from "react-router-dom";
 
@@ -62,7 +63,8 @@ const Payment: FC = () => {
     try {
       const list = await getActiveBanks();
       setBanks(list);
-    } catch {
+    } catch (err) {
+      if (isAbortedRequest(err)) return; // cancellation, not a real failure
       setBanks([]);
       setBanksError(true);
     } finally {
@@ -78,8 +80,11 @@ const Payment: FC = () => {
       try {
         const list = await getActiveBanks();
         if (!ignore) setBanks(list);
-      } catch {
-        if (!ignore) {
+      } catch (err) {
+        // A cancelled/aborted request (StrictMode double mount, Vite dev
+        // full-reload) must not render the "could not load banks" error
+        // state; the ignore flag still blocks state from the dead pass.
+        if (!ignore && !isAbortedRequest(err)) {
           setBanks([]);
           setBanksError(true);
         }
