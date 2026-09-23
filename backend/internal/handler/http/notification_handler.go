@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"victor-contest-go/internal/domain"
 	"victor-contest-go/internal/usecase"
@@ -20,8 +21,9 @@ func (h *NotificationHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/", h.AddNotification)
 	rg.PUT("/:id", h.UpdateNotification)
 	rg.DELETE("/:id", h.DeleteNotification)
+	rg.PATCH("/:id", h.MarkAsRead)
 	rg.PATCH("/:id/read", h.MarkAsRead)
-	rg.GET("/", h.GetNotificationsByRecipient)
+	rg.GET("/", h.GetAllNotifications)
 	rg.GET("/:id", h.GetNotificationByID)
 	rg.GET("/recipient/:recipient_id", h.GetNotificationsByRecipient)
 	rg.GET("/admin/:admin_email", h.GetNotificationsByAdminEmail)
@@ -71,6 +73,10 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	id := c.Param("id")
 	err := h.usecase.MarkNotificationAsRead(id)
 	if err != nil {
+		if errors.Is(err, usecase.ErrNotificationNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

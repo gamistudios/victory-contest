@@ -110,6 +110,7 @@ func (h *QuestionHandler) AddMultipleQuestions(c *gin.Context) {
 	}
 	if err := h.usecase.AddMultipleQuestions(questions.Questions); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
 }

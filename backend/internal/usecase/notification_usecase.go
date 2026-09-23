@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -8,6 +9,9 @@ import (
 
 	"github.com/lithammer/shortuuid/v4"
 )
+
+// ErrNotificationNotFound is returned when a notification id does not exist.
+var ErrNotificationNotFound = errors.New("notification not found")
 
 type NotificationUsecase interface {
 	AddNotification(notification domain.Notification) (string, error)
@@ -73,6 +77,9 @@ func (u *notificationUsecase) MarkNotificationAsRead(id string) error {
 	notification, err := u.repo.GetNotificationByID(id)
 	if err != nil {
 		return err
+	}
+	if notification == nil {
+		return ErrNotificationNotFound
 	}
 
 	// Mark as read

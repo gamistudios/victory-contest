@@ -1,11 +1,15 @@
 package usecase
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
 	"victor-contest-go/internal/domain"
 )
+
+// ErrArticleNotFound is returned when an article id does not exist.
+var ErrArticleNotFound = errors.New("article not found")
 
 type ArticleUsecase struct {
     repo ArticleRepository
@@ -93,12 +97,22 @@ func (uc *ArticleUsecase) DecrementLike(id string) error {
 
 // Comment methods
 func (uc *ArticleUsecase) CreateComment(comment domain.Comment) (string, error) {
+	article, err := uc.repo.GetByID(comment.ArticleID)
+	if err != nil {
+		return "", err
+	}
+	if article == nil {
+		return "", ErrArticleNotFound
+	}
+
 	id, err := uc.commentRepo.Create(comment)
 	if err != nil {
 		return "", err
 	}
-	if err := uc.repo.IncrementComments(id); err != nil {
+	// increment the counter on the article, not on the comment
+	if err := uc.repo.IncrementComments(comment.ArticleID); err != nil {
 		log.Printf("failed to increment comment count: %v", err)
+		return id, err
 	}
 	return id,nil
 }

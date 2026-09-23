@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"victor-contest-go/internal/domain"
@@ -50,10 +51,15 @@ func (h *ArticleHandler) ListPublished(c *gin.Context) {
     
     items, err := h.uc.ListPublished()
     if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
-    if number != "" && len(items) > 0 {
+    if number != "" {
         n, err := strconv.Atoi(number)
-        if err == nil && n < len(items) {
-            items = items[:n]
+        if err == nil {
+            // clamp: non-positive -> empty list, larger than the result set -> all items
+            if n <= 0 {
+                items = []domain.Article{}
+            } else if n < len(items) {
+                items = items[:n]
+            }
         }
     }
     c.JSON(http.StatusOK, gin.H{"articles": items})
@@ -161,6 +167,10 @@ func (h *ArticleHandler) CreateComment(c *gin.Context) {
     
     id, err := h.uc.CreateComment(comment)
     if err != nil {
+        if errors.Is(err, usecase.ErrArticleNotFound) {
+            c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+            return
+        }
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }

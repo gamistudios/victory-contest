@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 	"victor-contest-go/internal/domain"
+	"victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -185,6 +187,8 @@ func (r *ArticleDynamoRepository) IncrementComments(id string) error {
 			"id": &types.AttributeValueMemberS{Value: id},
 		},
 		UpdateExpression: aws.String("SET commentCount = if_not_exists(commentCount, :zero) + :inc"),
+		// never create an item for a missing article
+		ConditionExpression: aws.String("attribute_exists(id)"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":inc":  &types.AttributeValueMemberN{Value: "1"},
 			":zero": &types.AttributeValueMemberN{Value: "0"},
@@ -192,6 +196,10 @@ func (r *ArticleDynamoRepository) IncrementComments(id string) error {
 	}
 
 	_, err := r.db.UpdateItem(context.TODO(), input)
+	var conditionalFailed *types.ConditionalCheckFailedException
+	if errors.As(err, &conditionalFailed) {
+		return usecase.ErrArticleNotFound
+	}
 	return err
 }
 func (r *ArticleDynamoRepository) DecrementView(id string) error {
