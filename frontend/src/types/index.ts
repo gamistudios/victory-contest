@@ -52,7 +52,7 @@ export interface TelegramWebApp {
     disable: () => void;
     showProgress: (leaveActive?: boolean) => void;
     hideProgress: () => void;
-    setParams: (params: any) => void;
+    setParams: (params: Record<string, unknown>) => void;
   };
   BackButton: {
     isVisible: boolean;
@@ -137,7 +137,7 @@ export interface InlineQueryResultArticle {
   thumbnail_url?: string;
   thumbnail_width?: number;
   thumbnail_height?: number;
-  reply_markup?: any;
+  reply_markup?: unknown;
 }
 export interface LinkPreviewOption {
   is_disabled: boolean; // Optional. True, if the link preview is disabled
@@ -171,6 +171,13 @@ export interface ContestAnswer {
   is_correct: boolean;
   time_taken: number;
 }
+export interface ContestSubmission {
+  student: { id: string; imgurl: string; name: string };
+  contest_id: string;
+  score: number;
+  missed_questions: Array<{ id: string; selected_answer: number }>;
+  time_spend: string;
+}
 export interface Student {
   id: string; // or use telegram_id as pk if unique
   telegram_id: string; // link this to submissions or registrations
@@ -194,6 +201,7 @@ export interface AuthStudent extends Student {
 }
 
 export interface Achievement {
+  id: string;
   name: string;
   description: string;
   type: string;
@@ -202,7 +210,6 @@ export interface Achievement {
   earnedDate: string;
   progress: string;
 }
-export interface UserStat {}
 export interface Contest {
   id: string;
   title: string;
@@ -291,15 +298,6 @@ export interface PaymentRequest {
   updatedAt: string;
   expirationDate?: string;
   medium?: string;
-}
-export interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  rarity: "common" | "uncommon" | "rare" | "epic" | "legendary";
-  earned: boolean;
-  earnedDate: string;
 }
 
 export interface ContestInfo {

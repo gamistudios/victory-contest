@@ -6,6 +6,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** value as a percentage of total, or 0 when total is missing/zero */
+export function safePercent(value: number, total: number): number {
+  return total > 0 ? (value / total) * 100 : 0;
+}
+
+/**
+ * Compares grades that may arrive in different formats ("9" vs "Grade 9").
+ * Grades are created as "1".."13" in registration but stored on contests
+ * however admins type them, so only the numeric part is meaningful.
+ */
+export function sameGrade(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false;
+  const na = a.match(/\d+/)?.[0];
+  const nb = b.match(/\d+/)?.[0];
+  return !!na && !!nb && na === nb;
+}
+
 /**
  * Safely formats a date string to a relative time (e.g., "2 hours ago")
  * @param dateString - The date string to format
@@ -57,7 +74,7 @@ export function safeParseDate(dateString: string | null | undefined, fallback: D
  * @param questions - The questions array to check
  * @returns The length of the array or 0 if null/undefined
  */
-export function safeQuestionsLength(questions: any[] | null | undefined): number {
+export function safeQuestionsLength(questions: unknown[] | null | undefined): number {
   if (!questions || !Array.isArray(questions)) {
     console.warn('Questions is not a valid array:', questions);
     return 0;
@@ -71,7 +88,7 @@ export function safeQuestionsLength(questions: any[] | null | undefined): number
  * @param index - The index to access
  * @returns The question at the index or null if invalid
  */
-export function safeGetQuestion(questions: any[] | null | undefined, index: number): any {
+export function safeGetQuestion(questions: unknown[] | null | undefined, index: number): unknown {
   if (!questions || !Array.isArray(questions)) {
     console.warn('Questions is not a valid array:', questions);
     return null;

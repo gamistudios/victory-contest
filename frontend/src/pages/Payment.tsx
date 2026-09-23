@@ -29,7 +29,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "../components/ui/drawer";
-import { createInvoice } from "../services/articleService";
+import { createInvoice } from "../services/telegramServices";
 import { PaymentRequest } from "../types";
 import { useNavigate } from "react-router-dom";
 
@@ -73,9 +73,24 @@ const Payment: FC = () => {
     };
   }, [imagePreviewUrl]);
 
+  useEffect(() => {
+    if (isSuccess) {
+      showBackButton(() => navigate(-1));
+    }
+  }, [isSuccess, showBackButton, navigate]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && file.type.startsWith("image/")) {
+      if (file.size > 10 * 1024 * 1024) {
+        setBillScreenshot(null);
+        setImagePreviewUrl("");
+        setErrors({
+          ...errors,
+          billScreenshot: "Image must be 10MB or smaller.",
+        });
+        return;
+      }
       setBillScreenshot(file);
       const previewUrl = URL.createObjectURL(file);
       setImagePreviewUrl(previewUrl);
@@ -116,7 +131,7 @@ const Payment: FC = () => {
       formData.append("status", "Pending");
 
       await sendPaymentInfo(formData);
-      toast.success("Sucessfully sent!", {
+      toast.success("Successfully sent!", {
         style: {
           backgroundColor: "#d4edda",
           color: "#155724",
@@ -124,10 +139,14 @@ const Payment: FC = () => {
       });
       setIsSuccess(true);
       resetForm();
-    } catch (err: any) {
+    } catch (err) {
+      const apiError = err as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
       const msg =
-        err?.response?.data?.error ||
-        err?.message ||
+        apiError?.response?.data?.error ||
+        apiError?.message ||
         "Unable to send your payment!";
       toast.error(msg, {
         style: {
@@ -164,7 +183,8 @@ const Payment: FC = () => {
           const payment: PaymentRequest = {
             userId: user?.id.toString() ?? "",
             id: "",
-            fullName: user?.first_name ?? "" + user?.last_name!,
+            fullName:
+              ((user?.first_name ?? "") + " " + (user?.last_name ?? "")).trim(),
             bankName: "Telegram Star",
             billScreenshotUrl: "",
             status: "Approved",
@@ -174,7 +194,7 @@ const Payment: FC = () => {
           };
           await sendPaymentInfo(payment);
           setIsSuccess(true);
-          toast.success("Payment is successfull", {
+          toast.success("Payment is successful", {
             style: {
               backgroundColor: "green",
               color: "white",
@@ -186,7 +206,7 @@ const Payment: FC = () => {
             },
           });
           resetForm();
-          window.location.replace("/");
+          navigate("/");
         } else if (status === "cancelled") {
           toast.warning("Payment is cancelled", {
             position: "top-center",
@@ -202,7 +222,7 @@ const Payment: FC = () => {
             },
           });
         } else {
-          toast.error("Payment is faild", {
+          toast.error("Payment failed", {
             position: "top-center",
             style: {
               background: "red",
@@ -217,10 +237,11 @@ const Payment: FC = () => {
           });
         }
       });
-    } catch (error) {}
+    } catch (error) {
+      console.warn("Invoice flow failed:", error);
+    }
   };
   if (isSuccess) {
-    showBackButton(() => navigate(-1));
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 font-sans">
         <Card className="w-full max-w-lg text-center">

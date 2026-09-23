@@ -36,7 +36,15 @@ import CollapseText from "../components/ui/Collapse";
 import { useAuth } from "../context/AuthContext";
 import { badges } from "../lib/data";
 
-const achievementStyles: any = {
+interface AchievementStyle {
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  textColor: string;
+  bgColor: string;
+  borderColor: string;
+}
+
+const achievementStyles: Record<string, AchievementStyle> = {
   first: {
     icon: Trophy,
     color: "from-yellow-400 to-yellow-600",
@@ -117,7 +125,13 @@ const Profile = () => {
     read_notifications: user?.read_notifications || {},
   });
 
-  const [userStats, setUserStats] = useState<any>(null);
+  const [userStats, setUserStats] = useState<{
+    rank?: number | string;
+    totalContests?: number;
+    correctAnswers?: number;
+    accuracy?: number;
+    averageTime?: number;
+  } | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -133,8 +147,8 @@ const Profile = () => {
       try {
         setProfileLoading(true);
         const [stat] = await Promise.all([
-          getUserStat(tgUser?.id.toString()!),
-          // getUserProfile(tgUser?.id.toString()!),
+          getUserStat(tgUser.id.toString()),
+          // getUserProfile(tgUser.id.toString()),
         ]);
 
         if (isMounted) {
@@ -173,6 +187,12 @@ const Profile = () => {
 
     fetchStats();
 
+    return () => {
+      isMounted = false;
+    };
+  }, [tgUser]);
+
+  useEffect(() => {
     if (user || tgUser) {
       setEditedProfile({
         name: user?.name || "",
@@ -191,14 +211,11 @@ const Profile = () => {
         phoneNumber: user?.phoneNumber || "",
       });
     }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [tgUser]);
+  }, [user, tgUser]);
 
   const hasChanges = (() => {
     if (!user) return false;
+    const current = user;
     const fieldsToCompare: (keyof AuthStudent)[] = [
       "name",
       "grade",
@@ -209,7 +226,7 @@ const Profile = () => {
       "age",
     ];
     return fieldsToCompare.some(
-      (key) => (editedProfile as any)[key] !== (user as any)[key]
+      (key) => editedProfile[key] !== current[key]
     );
   })();
 
@@ -229,7 +246,9 @@ const Profile = () => {
       setUser((prev) => (prev ? { ...prev, ...editedProfile } : prev));
       try {
         refreshUser();
-      } catch {}
+      } catch {
+        /* non-fatal: profile save succeeded even if refresh failed */
+      }
       toast.success("Changes saved!", {
         style: {
           backgroundColor: "green",
@@ -238,7 +257,7 @@ const Profile = () => {
         position: "top-center",
       });
       setIsEditing(false);
-    } catch (error) {
+    } catch {
       toast.error("Unable to save changes", {
         style: {
           backgroundColor: "red",
@@ -350,7 +369,7 @@ const Profile = () => {
                 <SelectContent>
                   {Array.from({ length: 4 }, (_, index) => {
                     return (
-                      <SelectItem value={`${9 + index}`}>{`${
+                      <SelectItem key={9 + index} value={`${9 + index}`}>{`${
                         9 + index
                       }th Grade`}</SelectItem>
                     );

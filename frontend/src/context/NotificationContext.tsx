@@ -16,7 +16,7 @@ export interface Notification {
   message: string;
   sent_at: string;
   is_read: boolean;
-  icon?: React.ComponentType<any>;
+  icon?: React.ComponentType<{ className?: string }>;
   color?: string;
   actionUrl?: string;
 }
@@ -50,21 +50,17 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       setNotificationLoading(true);
       try {
         const res: Notification[] = await getNotification(user.id);
-        const n = res.filter((no) => {
-          if (!userInfo?.read_notifications[no.id]) {
-            return true;
-          }
-          return !userInfo.read_notifications[no.id].is_deleted;
-        });
+        const readNotifications = userInfo?.read_notifications ?? {};
+        const n = res.filter((no) => !readNotifications[no.id]?.is_deleted);
         const transformedNotifications = n.map((notification: Notification) => {
-          if (!userInfo?.read_notifications[notification.id]) {
+          if (!readNotifications[notification.id]) {
             return notification;
           }
 
           return { ...notification, is_read: true };
         });
         setNotifications(transformedNotifications);
-      } catch (e) {
+      } catch {
         setNotifications([]);
       } finally {
         setNotificationLoading(false);
@@ -72,7 +68,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     };
 
     fetchNotification();
-  }, [user?.id]);
+  }, [user?.id, userInfo?.read_notifications]);
 
   return (
     <NotificationContext.Provider

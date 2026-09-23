@@ -30,6 +30,8 @@ import {
 import { toast } from "sonner";
 import { CheckCircle, Loader2, XCircle } from "lucide-react";
 import { studentRegister } from "../services/studentServices";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { useTelegram } from "../hooks/useTelegram";
 import { useState } from "react";
 
@@ -56,16 +58,22 @@ const formSchema = z.object({
     .or(z.literal("")),
   isSuspended: z.boolean().default(false),
   phoneNumber: z
-    .string({ error: "Please write your photo number" })
-    .max(13, { message: "The phone number must not exceed 10" })
+    .string({ error: "Please enter your phone number" })
+    .max(13, { message: "The phone number must not exceed 13 characters" })
     .min(10, { message: "The phone number must be 10 or 12" }),
 });
 
 export default function RegistrationForm() {
   const { user } = useTelegram();
+  const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema) as any,
+  const form = useForm<
+    z.input<typeof formSchema>,
+    unknown,
+    z.output<typeof formSchema>
+  >({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       age: 5,
@@ -94,7 +102,7 @@ export default function RegistrationForm() {
         id: user?.id.toString(),
       });
 
-      toast.success("Succesfully registered!", {
+      toast.success("Successfully registered!", {
         icon: <CheckCircle />,
         style: {
           backgroundColor: "green",
@@ -106,11 +114,12 @@ export default function RegistrationForm() {
         },
       });
       setTimeout(() => {
-        window.location.replace("/");
+        refreshUser();
+        navigate("/");
       }, 4000);
 
       return;
-    } catch (error) {
+    } catch {
       message = "Something went wrong";
       toast(message, {
         icon: <XCircle />,
@@ -209,7 +218,11 @@ export default function RegistrationForm() {
                         <Input
                           type="number"
                           placeholder="e.g., 14"
-                          {...field}
+                          name={field.name}
+                          ref={field.ref}
+                          onBlur={field.onBlur}
+                          onChange={field.onChange}
+                          value={typeof field.value === "number" ? field.value : ""}
                         />
                       </FormControl>
                       <FormMessage />

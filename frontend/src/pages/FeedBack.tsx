@@ -1,4 +1,3 @@
-"use client";
 
 import * as React from "react";
 import {
@@ -78,6 +77,33 @@ interface ExistingFeedbackResponse extends FeedbackState {
   submittedAt: string;
 }
 
+// Raw shapes returned by the backend (snake_case)
+interface RawFeedbackQuestion {
+  id: string;
+  question: string;
+  options?: string[];
+  is_active?: boolean;
+}
+
+interface RawPollOption {
+  id: string;
+  label: string;
+  min_score?: number;
+  max_score?: number;
+  requires_contact?: boolean;
+}
+
+interface RawFeedbackResponse {
+  id: string;
+  student_id: string;
+  student_name: string;
+  comment?: string;
+  poll_response?: string;
+  question_responses?: Record<string, { selected_option: string }>;
+  contact_info?: { phone_number?: string; language?: string; score?: number };
+  submitted_at: string;
+}
+
 // Add interface for student profile
 interface StudentProfile {
   id: string;
@@ -94,7 +120,7 @@ interface StudentProfile {
   badge: string[];
   gender: string;
   is_premium: boolean;
-  read_notifications?: any;
+  read_notifications?: { [key: string]: { id: string; is_deleted: boolean } };
   defaultScoreRange?: string;
 }
 
@@ -173,7 +199,7 @@ const shouldShowScoreRange = (
 };
 
 export function FeedbackPage() {
-  const { user } = useTelegram();
+  const { user, webApp } = useTelegram();
   const [questions, setQuestions] = useState<FeedbackQuestion[]>([]);
   const [pollOptions, setPollOptions] = useState<PollOption[]>([]);
   const [feedback, setFeedback] = useState<FeedbackState>(initialFeedbackState);
@@ -194,22 +220,9 @@ export function FeedbackPage() {
   >(null);
 
   useEffect(() => {
-    console.log(
-      "useEffect triggered - studentProfile:",
-      studentProfile?.defaultScoreRange,
-      "pollOptions length:",
-      pollOptions.length
-    );
-
     if (studentProfile?.defaultScoreRange && pollOptions.length > 0) {
       const defaultLabelRaw = studentProfile.defaultScoreRange;
       const defaultLabel = (defaultLabelRaw || "").trim();
-      console.log("Setting default score range:", defaultLabel);
-      console.log(
-        "Available poll options:",
-        pollOptions.map((opt) => opt.label)
-      );
-
       // Find the corresponding poll option using a normalized comparison
       const normalize = (s: string) =>
         (s || "").trim().toLowerCase().replace(/\s+/g, "");
@@ -225,7 +238,6 @@ export function FeedbackPage() {
         }));
         setSelectedPollOption(defaultOption);
         setShowContactForm(!!defaultOption.requiresContact);
-        console.log("Default poll option found:", defaultOption);
       } else {
         // Fallback: set the raw default label so at least something is visible
         setFeedback((prev) => ({ ...prev, pollResponse: defaultLabel }));
@@ -250,7 +262,6 @@ export function FeedbackPage() {
           setFeedback((prev) => ({ ...prev, pollResponse: match.label }));
           setSelectedPollOption(match);
           setShowContactForm(!!match.requiresContact);
-          console.log("Prefilled score range:", match.label);
           return true;
         }
         setFeedback((prev) => ({ ...prev, pollResponse: trimmed }));
@@ -291,18 +302,16 @@ export function FeedbackPage() {
             const stored = localStorage.getItem(`lockedScoreRange:${user.id}`);
             if (stored) {
               setLocalLockedScoreRange(stored);
-              console.log(
-                "Loaded locked score range from localStorage:",
-                stored
-              );
             }
-          } catch (e) {}
+          } catch {
+            /* ignore unreadable localStorage score range */
+          }
           try {
             // Use the same axios client/base as updates to avoid environment/base URL mismatches
             const studentData = await getStudentById(user.id.toString());
             setStudentProfile(studentData);
           } catch (error) {
-            console.log("Could not fetch student profile:", error);
+            console.warn("Failed to load student profile:", error);
           }
 
           // Check if student has existing feedback (but still fetch questions/polls)
@@ -312,7 +321,9 @@ export function FeedbackPage() {
             );
             if (existingResponse.status == 200) {
               const existingData = await existingResponse.data;
-              const responses = Array.isArray(existingData.responses)
+              const responses: RawFeedbackResponse[] = Array.isArray(
+                existingData.responses
+              )
                 ? existingData.responses
                 : [];
               if (responses.length > 0) {
@@ -320,7 +331,7 @@ export function FeedbackPage() {
                 const latest = responses
                   .slice()
                   .sort(
-                    (a: any, b: any) =>
+                    (a, b) =>
                       new Date(b.submitted_at).getTime() -
                       new Date(a.submitted_at).getTime()
                   )[0];
@@ -335,7 +346,7 @@ export function FeedbackPage() {
                   questionResponses: latest.question_responses
                     ? Object.fromEntries(
                         Object.entries(latest.question_responses).map(
-                          ([qid, qr]: any) => [qid, (qr as any).selected_option]
+                          ([qid, qr]) => [qid, qr.selected_option]
                         )
                       )
                     : {},
@@ -354,26 +365,25 @@ export function FeedbackPage() {
               }
             }
           } catch (error) {
-            console.log("No existing feedback found, proceeding with form");
+            console.warn("Failed to load existing feedback:", error);
           }
         }
 
         // Fetch active feedback questions
         const questionsResponse = await api.get(`/feedback-question/active`);
-        console.log("Questions response status:", questionsResponse.status);
-
         if (questionsResponse.status == 200) {
           const questionsData = await questionsResponse.data;
-          console.log("Questions data:", questionsData);
           // Transform snake_case to camelCase for frontend
-          const transformedQuestions: FeedbackQuestion[] = (
-            questionsData.questions || []
-          ).map((q: any) => ({
-            id: q.id,
-            question: q.question,
-            options: q.options || [],
-            isActive: q.is_active, // Transform from snake_case to camelCase
-          }));
+          const rawQuestions: RawFeedbackQuestion[] =
+            questionsData.questions || [];
+          const transformedQuestions: FeedbackQuestion[] = rawQuestions.map(
+            (q) => ({
+              id: q.id,
+              question: q.question,
+              options: q.options || [],
+              isActive: !!q.is_active, // Transform from snake_case to camelCase
+            })
+          );
           setQuestions(transformedQuestions);
         } else {
           console.error(
@@ -384,21 +394,19 @@ export function FeedbackPage() {
 
         // Fetch poll options
         const pollResponse = await api.get(`/poll-option/`);
-        console.log("Poll response status:", pollResponse.status);
-
         if (pollResponse.status === 200) {
           const pollData = await pollResponse.data;
-          console.log("Poll data:", pollData);
           // Transform snake_case to camelCase for frontend
-          const transformedPollOptions: PollOption[] = (
-            pollData.options || []
-          ).map((po: any) => ({
-            id: po.id,
-            label: po.label,
-            minScore: po.min_score,
-            maxScore: po.max_score,
-            requiresContact: po.requires_contact,
-          }));
+          const rawPollOptions: RawPollOption[] = pollData.options || [];
+          const transformedPollOptions: PollOption[] = rawPollOptions.map(
+            (po) => ({
+              id: po.id,
+              label: po.label,
+              minScore: po.min_score ?? 0,
+              maxScore: po.max_score ?? 0,
+              requiresContact: !!po.requires_contact,
+            })
+          );
           setPollOptions(transformedPollOptions);
         } else {
           console.error(
@@ -450,7 +458,6 @@ export function FeedbackPage() {
   };
 
   const handleContactInfoChange = (field: string, value: string | number) => {
-    console.log("Setting contact info field:", field, "to value:", value);
     setFeedback((prev) => {
       const newContactInfo = {
         ...prev.contactInfo,
@@ -460,11 +467,10 @@ export function FeedbackPage() {
               ? parseInt(value) || 0
               : value
             : value,
-      };
-      console.log("New contact info:", newContactInfo);
+      } as NonNullable<FeedbackState["contactInfo"]>;
       return {
         ...prev,
-        contactInfo: newContactInfo as any,
+        contactInfo: newContactInfo,
       };
     });
   };
@@ -474,11 +480,18 @@ export function FeedbackPage() {
 
     // Show confirmation dialog for score range selection
     if (feedback.pollResponse) {
-      const confirmed = window.confirm(
+      const confirmMessage =
         "⚠️ IMPORTANT: Your score range selection will be permanent and used for all future feedback submissions.\n\n" +
-          "This selection cannot be changed later and will be automatically loaded for all future feedback forms.\n\n" +
-          "Are you sure you want to proceed with your current selection?"
-      );
+        "This selection cannot be changed later and will be automatically loaded for all future feedback forms.\n\n" +
+        "Are you sure you want to proceed with your current selection?";
+
+      const confirmed = webApp
+        ? await new Promise<boolean>((resolve) =>
+            webApp.showConfirm(confirmMessage, (isConfirmed) =>
+              resolve(isConfirmed)
+            )
+          )
+        : window.confirm(confirmMessage);
 
       if (!confirmed) {
         return;
@@ -529,7 +542,6 @@ export function FeedbackPage() {
               user.id.toString(),
               feedback.pollResponse
             );
-            console.log("Score range saved as default for student");
             // Update local student profile so UI reflects the saved default without refetch
             setStudentProfile((prev) =>
               prev
@@ -542,7 +554,9 @@ export function FeedbackPage() {
                 feedback.pollResponse
               );
               setLocalLockedScoreRange(feedback.pollResponse);
-            } catch (e) {}
+            } catch {
+              /* ignore localStorage write failure (quota / private mode) */
+            }
           } catch (error) {
             console.error("Failed to save default score range:", error);
             // Don't fail the entire submission if this fails
@@ -590,10 +604,7 @@ export function FeedbackPage() {
         studentProfile?.defaultScoreRange &&
         feedback.pollResponse === studentProfile.defaultScoreRange
       ) {
-        console.log(
-          "Using default score range for validation:",
-          studentProfile.defaultScoreRange
-        );
+        console.debug("Using student default score range:", studentProfile.defaultScoreRange);
       }
     } else {
       // For non-eligible students, score range is optional
@@ -622,153 +633,6 @@ export function FeedbackPage() {
   }
 
   // Show read-only view if student has already submitted feedback
-  // Always show the feedback form even if a previous submission exists,
-  // but inform the user that their score range is permanent
-  if (false && hasExistingFeedback && existingFeedback) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Feedback Already Submitted
-            </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-400">
-              Thank you for your previous feedback! Your score range selection
-              has been recorded.
-            </p>
-          </div>
-
-          {/* Previous Submission Summary */}
-          <Card className="bg-white dark:bg-gray-800 shadow-lg border-2 border-green-200 dark:border-green-700">
-            <CardHeader className="text-center">
-              <CardTitle className="text-xl text-green-800 dark:text-green-200">
-                Your Previous Submission
-              </CardTitle>
-              <CardDescription className="text-green-600 dark:text-green-400">
-                Submitted on{" "}
-                {(() => {
-                  try {
-                    const submittedAt = existingFeedback?.submittedAt;
-                    if (!submittedAt) return "Unknown date";
-                    const date = new Date(submittedAt as string);
-                    if (isNaN(date.getTime())) return "Invalid date";
-                    return date.toLocaleDateString();
-                  } catch (error) {
-                    console.warn("Error formatting submittedAt date:", error);
-                    return "Unknown date";
-                  }
-                })()}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Score Range Selection */}
-              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                <div className="flex items-center space-x-3 mb-3">
-                  <Target className="w-5 h-5 text-green-600" />
-                  <h3 className="font-semibold text-green-800 dark:text-green-200">
-                    {existingFeedback?.pollResponse === "skip"
-                      ? "Score Range Status"
-                      : "Score Range Selected"}
-                  </h3>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Badge
-                    variant="secondary"
-                    className="bg-green-100 text-green-700 border-green-300"
-                  >
-                    {existingFeedback?.pollResponse === "skip"
-                      ? "Skipped"
-                      : existingFeedback?.pollResponse || ""}
-                  </Badge>
-                  {existingFeedback?.contactInfo &&
-                    existingFeedback?.pollResponse !== "skip" && (
-                      <Badge
-                        variant="outline"
-                        className="text-green-600 border-green-300"
-                      >
-                        Contact Info Provided
-                      </Badge>
-                    )}
-                </div>
-                {existingFeedback?.pollResponse === "skip" && (
-                  <p className="text-sm text-green-700 dark:text-green-300 mt-2">
-                    You chose not to provide a score range at this time.
-                  </p>
-                )}
-              </div>
-
-              {/* Contact Information (if provided) */}
-              {existingFeedback?.contactInfo && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <Phone className="w-5 h-5 text-blue-600" />
-                    <h3 className="font-semibold text-blue-800 dark:text-blue-200">
-                      Contact Information
-                    </h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-sm text-blue-700 dark:text-blue-300">
-                        Phone Number
-                      </Label>
-                      <p className="text-blue-800 dark:text-blue-200 font-medium">
-                        {existingFeedback?.contactInfo?.phoneNumber || ""}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-sm text-blue-700 dark:text-blue-300">
-                        Your Score
-                      </Label>
-                      <p className="text-blue-800 dark:text-blue-200 font-medium">
-                        {existingFeedback?.contactInfo?.score || 0} points
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Comment (if provided) */}
-              {existingFeedback?.comment && (
-                <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <MessageSquare className="w-5 h-5 text-purple-600" />
-                    <h3 className="font-semibold text-purple-800 dark:text-purple-200">
-                      Your Comment
-                    </h3>
-                  </div>
-                  <p className="text-purple-700 dark:text-purple-300 italic">
-                    "{existingFeedback?.comment || ""}"
-                  </p>
-                </div>
-              )}
-
-              {/* Important Notice */}
-              <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-700">
-                <div className="flex items-center space-x-3">
-                  <div className="w-5 h-5 text-amber-600">ℹ️</div>
-                  <div>
-                    <h3 className="font-semibold text-amber-800 dark:text-amber-200">
-                      Important Notice
-                    </h3>
-                    <p className="text-amber-700 dark:text-amber-300 text-sm">
-                      {existingFeedback?.pollResponse === "skip"
-                        ? "You chose not to provide a score range. You can still submit feedback without it."
-                        : "Score range selection can only be done once per student. This ensures fair assessment as entrance exams are typically taken only once in a student's academic journey."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
   if (isSubmitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">

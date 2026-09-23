@@ -40,11 +40,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setStatus("pending");
     setError(null);
     try {
-      const student = await getStudentById(tgUser?.id.toString()!);
+      const student = await getStudentById(tgUser.id.toString());
       setUser(student);
       setStatus("success");
     } catch (err) {
-      setError((err as any)?.message || "An unexpected error occurred.");
+      setError(
+        err instanceof Error ? err.message : "An unexpected error occurred."
+      );
       setStatus("error");
     }
   }, [tgUser]);

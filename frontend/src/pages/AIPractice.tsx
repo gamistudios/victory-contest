@@ -1,4 +1,3 @@
-"use client";
 
 import * as React from "react";
 import {
@@ -107,7 +106,7 @@ export function AIPracticePage() {
     } else {
       hideBackButton();
     }
-  }, [pageState]);
+  }, [pageState, showBackButton, hideBackButton]);
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -128,7 +127,7 @@ export function AIPracticePage() {
       setTimeLeft(ai_questions.length * 60); // 1 minute per question
       setIsLoading(false);
       setPageState("PRACTICING");
-    } catch (error) {
+    } catch {
       toast.error("Failed to generate questions. Please try again.", {
         style: {
           backgroundColor: "#f8d7da",
@@ -378,7 +377,10 @@ export function AIPracticePage() {
             <Select
               value={settings.difficulty}
               onValueChange={(val) =>
-                setSettings((s) => ({ ...s, difficulty: val as any }))
+                setSettings((s) => ({
+                  ...s,
+                  difficulty: val as "easy" | "medium" | "hard" | "",
+                }))
               }
             >
               <SelectTrigger id="difficulty">
