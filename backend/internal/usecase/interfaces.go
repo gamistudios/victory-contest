@@ -127,6 +127,7 @@ type FeedbackResponseRepository interface {
 type PaymentRepository interface {
 	Create(req *domain.PaymentRequest) error
 	GetByID(id string) (*domain.PaymentRequest, error)
+	DeletePayment(id string) error
 	UpdateStatus(id string, newStatus domain.PaymentStatus, reason string) error
 	ListByStatus(status domain.PaymentStatus) ([]domain.PaymentRequest, error)
 	ListByUser(userID string) ([]domain.PaymentRequest, error)

@@ -14,6 +14,7 @@ import (
 
 type SubmissionUsecase interface {
 	AddSubmission(submission domain.SubmissionDto) (string, error)
+	DeleteSubmission(id string) error
 	GetSubmissionByID(id string) (*domain.Submission, error)
 	GetAllSubmissions() ([]domain.Submission, error)
 	GetSubmissionsByContest(contestID string) ([]domain.Submission, error)
@@ -31,6 +32,20 @@ type submissionUsecase struct {
 	questionRepo QuestionRepository
 	conUsecase   ContestUsecase
 	studentRepo  StudentRepository
+}
+
+// ErrSubmissionNotFound is returned by DeleteSubmission (and mapped to HTTP
+// 404 by the handler) when no submission row has the given id.
+var ErrSubmissionNotFound = errors.New("submission not found")
+
+// submissionDeleteRepository is the delete capability of a
+// SubmissionRepository. It is a separate interface instead of a method on
+// usecase.SubmissionRepository (interfaces.go) because existing
+// SubmissionRepository fakes in frozen test files must keep compiling; the
+// DynamoDB repository implements it, so the type assertion in
+// submissionUsecase.DeleteSubmission succeeds in production wiring.
+type submissionDeleteRepository interface {
+	DeleteSubmission(id string) error
 }
 
 // GetStudentStatistics implements SubmissionUsecase.
@@ -346,6 +361,18 @@ func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (stri
 }
 func (u *submissionUsecase) GetSubmissionByID(id string) (*domain.Submission, error) {
 	return u.subRepo.GetSubmissionByID(id)
+}
+
+// DeleteSubmission implements SubmissionUsecase. It removes only the
+// submission row; there is deliberately no cascade to student state (badges
+// and statistics are recomputed from the remaining submissions at read time).
+// Returns ErrSubmissionNotFound when the row does not exist.
+func (u *submissionUsecase) DeleteSubmission(id string) error {
+	repo, ok := u.subRepo.(submissionDeleteRepository)
+	if !ok {
+		return errors.New("submission repository does not support delete")
+	}
+	return repo.DeleteSubmission(id)
 }
 func (u *submissionUsecase) GetAllSubmissions() ([]domain.Submission, error) {
 	return u.subRepo.GetAllSubmissions()

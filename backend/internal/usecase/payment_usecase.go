@@ -1,13 +1,19 @@
 package usecase
 
 import (
+	"errors"
 	"time"
 	"victor-contest-go/internal/domain"
 )
 
+// ErrPaymentNotFound is returned by PaymentRepository.DeletePayment (and
+// mapped to HTTP 404 by the handler) when no payment row has the given id.
+var ErrPaymentNotFound = errors.New("payment not found")
+
 type PaymentUsecase interface {
 	AddPayment(payment domain.PaymentRequest) error
 	UpdatePaymentStatus(id string, status domain.PaymentStatus, reason string) error
+	DeletePayment(id string) error
 	GetPaymentById(id string) (*domain.PaymentRequest, error)
 	GetPaymentByStudent(studId string) ([]domain.PaymentRequest, error)
 	GetExpiredPayment() ([]domain.PaymentRequest, error)
@@ -67,6 +73,14 @@ func (p *paymentUsecase) GetPaymentByStudent(studId string) ([]domain.PaymentReq
 // UpdatePayment implements PaymentUsecase.
 func (p *paymentUsecase) UpdatePaymentStatus(id string, status domain.PaymentStatus, reason string) error {
 	return p.paymentRepo.UpdateStatus(id, status, reason)
+}
+
+// DeletePayment implements PaymentUsecase. It removes only the payment row;
+// there is deliberately no cascade to the student profile — premium is
+// derived at read time from unexpired approved payments (README #8).
+// Returns ErrPaymentNotFound when the row does not exist.
+func (p *paymentUsecase) DeletePayment(id string) error {
+	return p.paymentRepo.DeletePayment(id)
 }
 
 func NewPaymentUsecases(payRepo PaymentRepository) PaymentUsecase {

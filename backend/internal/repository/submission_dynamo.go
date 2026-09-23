@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"victor-contest-go/internal/domain"
+	usecase "victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -176,4 +178,30 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudentAndContest(conId, st
 	}
 
 	return &submission, nil
+}
+
+// DeleteSubmission removes a submission row by primary key. The conditional
+// write (attribute_exists(id)) makes the delete atomic w.r.t. existence: a
+// missing row surfaces as usecase.ErrSubmissionNotFound so the handler can
+// answer 404 without a separate Get round-trip (GetSubmissionByID returns
+// nil, nil for missing rows, so a pre-check would double-read).
+func (r *SubmissionDynamoRepository) DeleteSubmission(id string) error {
+	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
+	if err != nil {
+		return err
+	}
+	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+		TableName:                aws.String(r.tableName),
+		Key:                      key,
+		ConditionExpression:      aws.String("attribute_exists(#id)"),
+		ExpressionAttributeNames: map[string]string{"#id": "id"},
+	})
+	if err != nil {
+		var ccf *types.ConditionalCheckFailedException
+		if errors.As(err, &ccf) {
+			return usecase.ErrSubmissionNotFound
+		}
+		return err
+	}
+	return nil
 }

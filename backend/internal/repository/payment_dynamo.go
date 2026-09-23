@@ -127,6 +127,32 @@ func (r *dynamoDBPaymentRepository) GetByID(id string) (*domain.PaymentRequest, 
 	return &req, nil
 }
 
+// DeletePayment removes a payment request row by primary key. The conditional
+// write (attribute_exists(id)) reports a missing row as usecase.ErrPaymentNotFound
+// in a single round-trip so the handler can answer 404. Note: no auth
+// middleware exists in this codebase yet (README #6); this matches the
+// unauthenticated style of the other delete endpoints.
+func (r *dynamoDBPaymentRepository) DeletePayment(id string) error {
+	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
+	if err != nil {
+		return fmt.Errorf("failed to marshal key: %w", err)
+	}
+	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+		TableName:                aws.String(r.tableName),
+		Key:                      key,
+		ConditionExpression:      aws.String("attribute_exists(#id)"),
+		ExpressionAttributeNames: map[string]string{"#id": "id"},
+	})
+	if err != nil {
+		var ccf *types.ConditionalCheckFailedException
+		if errors.As(err, &ccf) {
+			return usecase.ErrPaymentNotFound
+		}
+		return fmt.Errorf("failed to delete payment: %w", err)
+	}
+	return nil
+}
+
 func (r *dynamoDBPaymentRepository) UpdateStatus(id string, newStatus domain.PaymentStatus, reason string) error {
 	// ✅ Use the full composite key
 	key, err := attributevalue.MarshalMap(map[string]string{

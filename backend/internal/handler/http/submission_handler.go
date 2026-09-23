@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"victor-contest-go/internal/domain"
 	"victor-contest-go/internal/usecase"
@@ -24,6 +25,7 @@ func (h *SubmissionHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/leaderboard", h.GetLeaderboardByTimeFrame)
 	rg.GET("/rank/:conId", h.GetRankForContest)
 	rg.GET("/:id", h.GetSubmissionByID)
+	rg.DELETE("/:id", h.DeleteSubmission)
 	rg.GET("/editorial/:student_id", h.GetStudentEditorial)
 	rg.GET("/statistics-profile/:student_id", h.GetStudentProfileStatistics)
 	rg.GET("/statistics/:student_id", h.GetStudentStatisctis)
@@ -81,6 +83,24 @@ func (h *SubmissionHandler) GetSubmissionByID(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"submission": submission})
+}
+
+// DeleteSubmission serves DELETE /api/submission/:id. 404 when the row does
+// not exist (the repository delete is conditional, so no double-read), 200
+// {"message":"success"} after a successful delete. No auth yet — this codebase
+// has no auth middleware (tracked in README #6), matching the other delete
+// endpoints.
+func (h *SubmissionHandler) DeleteSubmission(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.usecase.DeleteSubmission(id); err != nil {
+		if errors.Is(err, usecase.ErrSubmissionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "success"})
 }
 
 func (h *SubmissionHandler) GetSubmissionsByContest(c *gin.Context) {

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"time"
 	"victor-contest-go/internal/domain"
@@ -23,6 +24,7 @@ func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/", h.GetAllPayments)
 	rg.POST("/update", h.UpdatePaymentStatus)
 	rg.POST("/", h.CreatePayment)
+	rg.DELETE("/:id", h.DeletePayment)
 	rg.GET("/getexpired", h.GetExpiredPayments)
 	rg.GET("/withstatus", h.GetPaymentsWithStatus)
 	rg.GET("/:user_id", h.GetByUserId)
@@ -108,6 +110,25 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
+}
+
+// DeletePayment serves DELETE /api/payment/:id. 404 when the row does not
+// exist, 200 {"message":"success"} after a successful delete. Deleting a
+// payment is admin-only in spirit, but this codebase has no auth middleware
+// yet (tracked in README #6), so it matches the unauthenticated style of the
+// other delete endpoints. No cascade: premium is derived at read time from
+// unexpired approved payments, so removing the row is sufficient.
+func (h *PaymentHandler) DeletePayment(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.usecase.DeletePayment(id); err != nil {
+		if errors.Is(err, usecase.ErrPaymentNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "success"})
 }
 func (h *PaymentHandler) GetExpiredPayments(c *gin.Context) {
 	payments, err := h.usecase.GetExpiredPayment()
