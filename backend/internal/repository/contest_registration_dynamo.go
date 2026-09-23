@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"victor-contest-go/internal/domain"
+	"victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -70,6 +72,32 @@ func (r *ContestRegistrationDynamoRepository) UpdateContestRegistration(id strin
 		Item:      item,
 	})
 	return err
+}
+
+// UpdateContestRegistrationIfExist writes the registration only while the row
+// still exists (ConditionExpression attribute_exists(id)) — the same recipe as
+// StudentDynamoRepository.UpdateStudentIfExist. It refuses to resurrect a
+// registration a concurrent delete removed, and the activation flow in the
+// usecase re-reads and retries once on conflict. A
+// ConditionalCheckFailedException is mapped to usecase.ErrConditionalCheckFailed.
+func (r *ContestRegistrationDynamoRepository) UpdateContestRegistrationIfExist(registration domain.ContestRegistration) error {
+	item, err := attributevalue.MarshalMap(registration)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+		TableName:           &r.tableName,
+		Item:                item,
+		ConditionExpression: aws.String("attribute_exists(id)"),
+	})
+	if err != nil {
+		var ccf *types.ConditionalCheckFailedException
+		if errors.As(err, &ccf) {
+			return fmt.Errorf("%w: contest registration %s", usecase.ErrConditionalCheckFailed, registration.ID)
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *ContestRegistrationDynamoRepository) DeleteContestRegistration(id string) error {

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 	"victor-contest-go/internal/domain"
@@ -220,24 +221,63 @@ func (r *FeedbackResponseDynamoRepository) GetFeedbackAnalytics(filter domain.An
 	return analytics, nil
 }
 
+// DeleteContactByPhoneNumber clears the contact info of EVERY response that
+// carries the given phone number. The old version had a `return` inside the
+// scan loop (only the first match was ever cleared) and rewrote the whole
+// item via PutItem (lost-update: concurrent edits to other attributes were
+// clobbered). Each match is now updated with a targeted UpdateItem that
+// touches only contact_info and is conditioned on the stored phone number
+// still matching, so a concurrently rewritten or deleted contact is never
+// resurrected. Errors on individual items do not stop the sweep; the first
+// error is returned after all items were attempted.
 func (r *FeedbackResponseDynamoRepository) DeleteContactByPhoneNumber(phoneNumber string) error {
-	// Get all responses to find the one with the matching phone number
 	responses, err := r.GetAllFeedbackResponses()
 	if err != nil {
 		return err
 	}
 
-	// Find the response with the matching phone number
+	var firstErr error
 	for _, response := range responses {
-		if response.ContactInfo != nil && response.ContactInfo.PhoneNumber == phoneNumber {
-			// Remove the contact info
-			response.ContactInfo = nil
-			// Update the response
-			return r.UpdateFeedbackResponse(response.ID, response)
+		if response.ContactInfo == nil || response.ContactInfo.PhoneNumber != phoneNumber {
+			continue
+		}
+		key, err := attributevalue.MarshalMap(map[string]string{"id": response.ID})
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		phoneVal, err := attributevalue.Marshal(phoneNumber)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		_, err = r.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+			TableName:           &r.tableName,
+			Key:                 key,
+			UpdateExpression:    aws.String("REMOVE contact_info"),
+			ConditionExpression: aws.String("attribute_exists(id) AND contact_info.phone_number = :phone"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":phone": phoneVal,
+			},
+		})
+		if err != nil {
+			// Row vanished or its contact was changed concurrently: the goal
+			// (no contact with this phone on that row) already holds — skip.
+			var ccf *types.ConditionalCheckFailedException
+			if errors.As(err, &ccf) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
 		}
 	}
 
-	return nil // Contact not found, consider it already deleted
+	return firstErr // nil when nothing matched: contact considered already deleted
 }
 
 // Helper methods for analytics calculations

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"victor-contest-go/internal/domain"
 	"victor-contest-go/internal/usecase"
@@ -33,6 +34,10 @@ func (h *ContestRegistrationHandler) AddContestRegistration(c *gin.Context) {
 	}
 	id, err := h.usecase.AddContestRegistration(registration)
 	if err != nil {
+		if errors.Is(err, usecase.ErrAlreadyRegisteredForContest) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -79,7 +84,18 @@ func (h *ContestRegistrationHandler) CheckStudentActiveInContest(c *gin.Context)
 	conId, studId := c.Param("contest_id"), c.Param("student_id")
 	isActive, err := h.usecase.CheckStudentActiveInContest(conId, studId)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "The user is active"})
+		// Distinct mapping: "already active" is a conflict (unchanged 409 body
+		// for the frontend), a missing registration is a 404, and anything
+		// else (repository read/write failures, persistent conflicts) is a
+		// real 500 — previously every error was reported as 409.
+		switch {
+		case errors.Is(err, usecase.ErrAlreadyRegisteredForContest):
+			c.JSON(http.StatusConflict, gin.H{"error": "The user is active"})
+		case errors.Is(err, usecase.ErrNotRegisteredForContest):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": isActive})
