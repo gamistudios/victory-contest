@@ -75,16 +75,17 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 	}
 	defer openedFile.Close()
 	img_url, _ := h.imgRepo.UploadImage(openedFile, "payments")
-	expirationDate := time.Now().UTC().AddDate(0, 0, 3)
+	now := time.Now().UTC()
+	// ExpirationDate is owned by PaymentUsecase.AddPayment (created_at + 1 month);
+	// the handler must not compute it (see README #16).
 	payment := domain.PaymentRequest{
 		FullName:          fullName,
 		BankName:          bankName,
 		UserID:            userID,
 		BillScreenshotURL: img_url,
 		Status:            domain.StatusPending,
-		CreatedAt:         time.Now().UTC(),
-		UpdatedAt:         time.Now().UTC(),
-		ExpirationDate:    &expirationDate,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 		RejectionReason:   "",
 	}
 

@@ -207,9 +207,9 @@ Feedback: admin questions + score-range poll options (require contact info above
 ### Logic bugs / races
 12. **Client-computed scores trusted** — `submission_handler.go:32-45`, `submission_usecase.go:315-326`: no server-side grading; leaderboard/achievements trivially cheatable.
 13. ~~`CreatePayment` always 400s~~ **NOT A BUG (verified 2026-09-23)** — smoke test: a real multipart `POST /api/payment/` with all fields succeeded end-to-end (Cloudinary upload + DynamoDB write, HTTP 200). Go's `Request.PostFormValue` does parse multipart bodies on first access, so the field-read order in `payment_handler.go:56-64` is safe — though fragile and worth switching to `c.PostForm`/`c.GetRawPostForm` for clarity.
-14. **Double response write** — `payment_handler.go:92-95`: missing `return` after 500; then writes 200.
+14. ~~**Double response write** — `payment_handler.go:92-95`: missing `return` after 500; then writes 200.~~ **FIXED 2026-09-23** — missing `return` after the 500 in `CreatePayment` (also: client-supplied `status` is now ignored — server always stores Pending; see commit d2c1fa4).
 15. **Same missing-return** — `question_handler.go:111-115` (500 then empty 200).
-16. **Payment expiration contradiction** — handler sets +3 days (`payment_handler.go:79,88`), usecase overwrites to +1 month (`payment_usecase.go:39`); handler value dead.
+16. ~~**Payment expiration contradiction** — handler sets +3 days (`payment_handler.go:79,88`), usecase overwrites to +1 month (`payment_usecase.go:39`); handler value dead.~~ **FIXED 2026-09-23** — `AddPayment` (usecase) is the single authoritative rule: expiration = created_at + 1 month; the dead +3-days handler computation is deleted.
 17. **Webhook nil-pointer panic** — `telegram_usecase.go:36-39`: `update.Message.Chat` dereferenced unchecked; any non-message update panics. `HandleStartCommand` ignores `userId` (`:18`).
 18. **Badge duplication / lost updates** — `submission_usecase.go:556-568`: `already` map never consulted → duplicate badge IDs every submission; `defer` at `:327` runs **before** insert-error check; student `PutItem` at `:645` is unconditional read-modify-write (clobbers concurrent profile edits).
 19. **`GetAllPayments` hardcoded debug key** — `payment_dynamo.go:35-42`: range value `":user_id" = "112pay"` → returns nothing meaningful.
@@ -222,14 +222,14 @@ Feedback: admin questions + score-range poll options (require contact info above
 26. **Average-time divides by questions, not contests** — `submission_usecase.go:211`.
 27. **Contest PATCH ignores new question lists** — `contest_handler.go:78-88,144-150` (only prevents clearing); non-string JSON silently dropped (`:94`).
 28. **Wrong broadcast on registration** — `student_handler.go:49-57`: new students trigger "Feadback questions are added…" to everyone; feedback-response notification addressed to the student themselves (`feedback_handler.go:257`).
-29. **`GET /api/notification/` dead** — handler reads `:recipient_id` that isn't in the route (`notification_handler.go:24,100-101`).
+29. ~~**`GET /api/notification/` dead** — handler reads `:recipient_id` that isn't in the route (`notification_handler.go:24,100-101`).~~ **FIXED 2026-09-23** — `GET /api/notification/` now wired to `GetAllNotifications`; `PATCH /:id` alias added for the frontend mark-read call (commit 0c28bcd).
 30. **Nil deref in `MarkNotificationAsRead`** — `notification_usecase.go:71-83` no nil check.
 31. **Duplicate students + whole-item overwrite** — `student_dynamo.go:35-71`: `PutItem` without `telegram_id` uniqueness check; `UpdateStudent` PutItem wipes stale fields.
 32. **Registration double-entry race** — `contest_registration_usecase.go:31-42`: check-then-set with ignored update error (`:40`); handler maps all errors to 409 (`contest_registration_handler.go:78-86`).
 33. **`DeleteContactByPhoneNumber` clears only first match** — `feedback_response_dynamo.go:223-241` (`return` inside loop) + PutItem lost-update.
-34. **Comment counter incremented on wrong ID** — `article_usecase.go:95-104`: passes comment ID instead of `ArticleID`; UpdateItem also **creates phantom items**.
+34. ~~**Comment counter incremented on wrong ID** — `article_usecase.go:95-104`: passes comment ID instead of `ArticleID`; UpdateItem also **creates phantom items**.~~ **FIXED 2026-09-23** — increment now targets `comment.ArticleID` with `attribute_exists(id)` condition; non-existent articles return 404 instead of creating phantom items.
 35. **AI error-handling order** — `ai_usecase.go:55-67`: API error checked only after JSON slicing → misleading "could not find JSON object"; prose containing `[` mis-slices.
-36. **Negative-slice panic** — `article_handler.go:54-57`: `?number=-1` → `items[:n]` panic.
+36. ~~**Negative-slice panic** — `article_handler.go:54-57`: `?number=-1` → `items[:n]` panic.~~ **FIXED 2026-09-23** — `ListPublished` clamps `n <= 0` (and `n > len`) — no negative-slice panic; returns `[]` not nil.
 37. **Fake dashboard numbers** — `admin_usecase.go:143` registrations = submissions count; revenue hardcoded `$100.0` per approved payment (`:368-378,513`).
 38. **Contest status time-format inconsistency** — `admin_usecase.go:256-271` skips unparseable formats while `:469-474` accepts four.
 39. **`AnnounceContest` discards its payload** — `contest_handler.go:226-246`.
@@ -238,7 +238,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 ### Data access / hygiene
 41. **No `LastEvaluatedKey` pagination in any Scan/Query** — e.g. `contest_dynamo.go:53-66`, `student_dynamo.go:121-134`, `pageview_dynamo.go:56-80`, `feedback_response_dynamo.go:139-152`.
 42. **Questions attribute written as `SS` on update but `L` on insert** — `contest_dynamo.go:136-139`.
-43. **Stray `reason` attribute** on payment status updates — `payment_dynamo.go:119-141`.
+43. ~~**Stray `reason` attribute** on payment status updates — `payment_dynamo.go:119-141`.~~ **FIXED 2026-09-23** — `UpdateStatus` no longer writes `reason`; legacy items fold `reason` into `rejection_reason` at read time via `normalizeReasons` and never write it back.
 44. ~~**No table/GSI provisioning code**~~ **PARTIALLY FIXED 2026-09-23** — `cmd/setup-tables/main.go` creates all 16 tables (incl. `banks`) and every GSI the code queries (idempotent; used against dynalite for local e2e). Prod still needs real IaC.
 45. **16 independent AWS SDK clients** — `router.go:43-59`.
 46. **`context.TODO()` everywhere** — no timeouts/cancellation.

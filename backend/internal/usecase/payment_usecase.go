@@ -34,9 +34,12 @@ func (p *paymentUsecase) GetPaymentByStatus(status domain.PaymentStatus) ([]doma
 }
 
 // AddPayment implements PaymentUsecase.
+//
+// AddPayment is the single authoritative place for the payment expiration rule:
+// a payment expires one month after it was created (see README #16).
 func (p *paymentUsecase) AddPayment(payment domain.PaymentRequest) error {
 	payment.CreatedAt = time.Now().UTC()
-	expDate := time.Now().UTC().AddDate(0, 1, 0)
+	expDate := payment.CreatedAt.AddDate(0, 1, 0)
 	payment.ExpirationDate = &expDate
 	payment.ID = GenerateUniqueId()
 	return p.paymentRepo.Create(&payment)

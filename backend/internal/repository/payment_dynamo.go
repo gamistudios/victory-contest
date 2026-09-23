@@ -21,6 +21,22 @@ type dynamoDBPaymentRepository struct {
 	tableName string
 }
 
+// normalizeReason folds the legacy `reason` attribute (written by older builds
+// of UpdateStatus, README #43) into rejection_reason when the latter is empty,
+// then clears it so nothing ever writes `reason` back.
+func normalizeReason(p *domain.PaymentRequest) {
+	if p.RejectionReason == "" {
+		p.RejectionReason = p.LegacyReason
+	}
+	p.LegacyReason = ""
+}
+
+func normalizeReasons(payments []domain.PaymentRequest) {
+	for i := range payments {
+		normalizeReason(&payments[i])
+	}
+}
+
 // ListAll implements usecase.PaymentRepository.
 func (r *dynamoDBPaymentRepository) ListAll() ([]domain.PaymentRequest, error) {
 	var payments []domain.PaymentRequest
@@ -47,6 +63,7 @@ func (r *dynamoDBPaymentRepository) ListAll() ([]domain.PaymentRequest, error) {
 	if err := attributevalue.UnmarshalListOfMaps(out.Items, &payments); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payments: %w", err)
 	}
+	normalizeReasons(payments)
 	return payments, nil
 }
 
@@ -104,6 +121,7 @@ func (r *dynamoDBPaymentRepository) GetByID(id string) (*domain.PaymentRequest, 
 	if err := attributevalue.UnmarshalMap(out.Item, &req); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal item: %w", err)
 	}
+	normalizeReason(&req)
 	return &req, nil
 }
 
@@ -116,17 +134,17 @@ func (r *dynamoDBPaymentRepository) UpdateStatus(id string, newStatus domain.Pay
 		return fmt.Errorf("failed to marshal key: %w", err)
 	}
 
-	updateExpression := "SET #status = :status, #updatedAt = :updatedAt, #reason = :reason"
+	// Only rejection_reason is written: the legacy `reason` attribute was a bug
+	// (README #43) - reads still fold it in as a fallback (see normalizeReasons).
+	updateExpression := "SET #status = :status, #updatedAt = :updatedAt"
 	expressionAttributeNames := map[string]string{
 		"#status":    "status",
 		"#updatedAt": "updated_at",
-		"#reason":    "reason",
 	}
 
 	expressionAttributeValues, err := attributevalue.MarshalMap(map[string]any{
 		":status":    newStatus,
 		":updatedAt": time.Now().UTC(),
-		":reason":    aws.String(reason),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal base values: %w", err)
@@ -136,7 +154,10 @@ func (r *dynamoDBPaymentRepository) UpdateStatus(id string, newStatus domain.Pay
 		updateExpression += ", #rejectionReason = :rejectionReason"
 		expressionAttributeNames["#rejectionReason"] = "rejection_reason"
 
-		reasonValue, _ := attributevalue.Marshal(reason)
+		reasonValue, marshalErr := attributevalue.Marshal(reason)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to marshal reason: %w", marshalErr)
+		}
 		expressionAttributeValues[":rejectionReason"] = reasonValue
 	}
 
@@ -186,6 +207,7 @@ func (r *dynamoDBPaymentRepository) ListByStatus(status domain.PaymentStatus) ([
 	if err := attributevalue.UnmarshalListOfMaps(out.Items, &payments); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payments: %w", err)
 	}
+	normalizeReasons(payments)
 	return payments, nil
 }
 
@@ -217,6 +239,7 @@ func (r *dynamoDBPaymentRepository) ListByUser(userID string) ([]domain.PaymentR
 	if err := attributevalue.UnmarshalListOfMaps(out.Items, &payments); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payments: %w", err)
 	}
+	normalizeReasons(payments)
 	return payments, nil
 }
 
@@ -249,5 +272,6 @@ func (r *dynamoDBPaymentRepository) ListExpired(now time.Time) ([]domain.Payment
 	if err := attributevalue.UnmarshalListOfMaps(out.Items, &payments); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal expired payments: %w", err)
 	}
+	normalizeReasons(payments)
 	return payments, nil
 }

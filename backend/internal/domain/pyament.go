@@ -10,6 +10,7 @@ type PaymentRequest struct {
 	BillScreenshotURL string        `json:"billScreenshotUrl" dynamodbav:"bill_screenshot_url"`
 	Status            PaymentStatus `json:"status" dynamodbav:"status"`
 	RejectionReason   string        `json:"rejectionReason,omitempty" dynamodbav:"rejection_reason"`
+	LegacyReason      string        `json:"-" dynamodbav:"reason,omitempty"` // obsolete `reason` attr written by older UpdateStatus builds (README #43); read-only fallback into RejectionReason, never written
 	CreatedAt         time.Time     `json:"createdAt" dynamodbav:"created_at"`
 	UpdatedAt         time.Time     `json:"updatedAt" dynamodbav:"updated_at"`
 	ExpirationDate    *time.Time    `json:"expirationDate,omitempty" dynamodbav:"expirationDate,omitempty"`
