@@ -1,4 +1,4 @@
-import React, { useState, useEffect, FC } from "react";
+import React, { useState, useEffect, FC, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -30,7 +30,8 @@ import {
   DrawerTrigger,
 } from "../components/ui/drawer";
 import { createInvoice } from "../services/telegramServices";
-import { PaymentRequest } from "../types";
+import { getActiveBanks } from "../services/bankServices";
+import { Bank, PaymentRequest } from "../types";
 import { useNavigate } from "react-router-dom";
 
 interface FormErrors {
@@ -49,20 +50,47 @@ const Payment: FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [banksLoading, setBanksLoading] = useState<boolean>(true);
+  const [banksError, setBanksError] = useState<boolean>(false);
   const { user, openInvoice, showBackButton } = useTelegram();
   const navigate = useNavigate();
 
-  const banks: string[] = [
-    "Bank of America",
-    "JPMorgan Chase",
-    "Wells Fargo",
-    "Citigroup",
-    "U.S. Bank",
-    "PNC Bank",
-    "TD Bank",
-    "Capital One",
-    "Other",
-  ];
+  const loadBanks = useCallback(async () => {
+    setBanksLoading(true);
+    setBanksError(false);
+    try {
+      const list = await getActiveBanks();
+      setBanks(list);
+    } catch {
+      setBanks([]);
+      setBanksError(true);
+    } finally {
+      setBanksLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      setBanksLoading(true);
+      setBanksError(false);
+      try {
+        const list = await getActiveBanks();
+        if (!ignore) setBanks(list);
+      } catch {
+        if (!ignore) {
+          setBanks([]);
+          setBanksError(true);
+        }
+      } finally {
+        if (!ignore) setBanksLoading(false);
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   // Clean up the object URL when the component unmounts or the file changes
   useEffect(() => {
@@ -120,11 +148,15 @@ const Payment: FC = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validateForm()) return;
+    if (!user?.id) {
+      toast.error("Your Telegram session is missing a user ID. Please reopen the app from Telegram.");
+      return;
+    }
     const formData = new FormData();
     try {
       console.log(fullName, bankName);
       setIsSubmitting(true);
-      formData.append("user_id", user?.id.toString() ?? "112pay");
+      formData.append("user_id", user.id.toString());
       formData.append("fullName", fullName);
       formData.append("bankName", bankName);
       formData.append("img", billScreenshot!);
@@ -281,29 +313,35 @@ const Payment: FC = () => {
                   </DrawerDescription>
                 </DrawerHeader>
 
-                {/* --- MODIFIED SECTION START --- */}
                 <div className="p-4">
                   <div className="space-y-4">
-                    <div>
-                      <p className="font-semibold">American Bank</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Account Number: 300-303-884-591
+                    {banksLoading ? (
+                      <p className="text-sm text-muted-foreground">
+                        Loading bank details...
                       </p>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Suisse Bank</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Account Number: 771-CH-91283-001
+                    ) : banksError ? (
+                      <p className="text-sm text-destructive">
+                        Could not load bank details. Please try again.
                       </p>
-                    </div>
-                    <div>
-                      <p className="font-semibold">
-                        Commercial Bank of Ethiopia
+                    ) : banks.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No bank accounts are currently available.
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Account Number: 1000123456789
-                      </p>
-                    </div>
+                    ) : (
+                      banks.map((bank) => (
+                        <div key={bank.id}>
+                          <p className="font-semibold">{bank.name}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Account Number: {bank.account_number}
+                          </p>
+                          {bank.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {bank.description}
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </DrawerContent>
@@ -329,18 +367,34 @@ const Payment: FC = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="bankName">Bank Name</Label>
-              <Select onValueChange={setBankName} value={bankName}>
+              <Select onValueChange={setBankName} value={bankName} disabled={banksLoading}>
                 <SelectTrigger id="bankName">
                   <SelectValue placeholder="Select a bank" />
                 </SelectTrigger>
                 <SelectContent>
                   {banks.map((bank) => (
-                    <SelectItem key={bank} value={bank}>
-                      {bank}
+                    <SelectItem key={bank.id} value={bank.name}>
+                      {bank.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
+              {banksError && (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-destructive">
+                    Could not load the bank list.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={loadBanks}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
               {errors.bankName && (
                 <p className="text-sm text-destructive">{errors.bankName}</p>
               )}

@@ -3,6 +3,8 @@ package main
 import (
 	"victor-contest-go/internal/handler/http"
 
+	"os"
+
 	"github.com/joho/godotenv"
 )
 
@@ -11,5 +13,9 @@ func main() {
 	server := http.NewServer()
 	r := server.NewRouter()
 
-	r.Run(":8080")
+	addr := ":8080"
+	if p := os.Getenv("PORT"); p != "" {
+		addr = ":" + p
+	}
+	r.Run(addr)
 }

@@ -102,6 +102,7 @@ Endpoints per service:
 | `notificationService.ts` | GET `/notification/recipient/:id` · PATCH/DELETE `/notification/:id` — used by `NotificationCenter`/`NotificationContext` |
 | `paymentServices.ts` | POST `/payment/` (multipart; locally disables `withCredentials`) · GET `/payment/:userId` |
 | `telegramServices.ts` | POST `/telegram/invoice-link` · POST `/telegram/prepared-inline-message` |
+| `bankServices.ts` | GET `/banks/` (active list for the Payment page) · GET `/banks/all` · POST/PUT/DELETE for admin use — banks are now **server-configured**, hardcoded lists removed |
 
 ## 5. Pages
 
@@ -115,7 +116,7 @@ Endpoints per service:
 8. **AIPractice** — full practice UI (timer, settings) still **unreachable**: `return <ComingSoon/>` (product decision pending).
 9. **Articles** — wrapper over `ArticleList` + `ArticleFilters`; `ArticleView` renders article HTML **sanitized with DOMPurify**; view/like/bookmark flows use array-shaped CloudStorage keys with stable callbacks.
 10. **StudentRegisteration** *(sic)* — RHF+zod signup (photo URL, name, phone, grade "1".."13", defaults city "Adama"/region "Oromia" — ⚠️ B20), then client-side `navigate("/")` instead of a full-page reload.
-11. **Payment** — bank-transfer screenshot upload (10MB size now validated client-side; hardcoded US bank list + Ethiopian CBE drawer accounts + `"112pay"` fallback remain — ⚠️ B20) and Telegram Stars `openInvoice` path that still submits `status:"Approved"` from the client (⚠️ S4).
+11. **Payment** — bank-transfer screenshot upload (10MB validated client-side); the bank dropdown **and** the "Bank Transfer Details" drawer are fetched live from `/api/banks` (admin-managed; loading/error+retry states, "Other" free-text entry kept); the `"112pay"` debug user-id fallback is gone — submitting without `user.id` is blocked with a toast. Telegram Stars `openInvoice` path still submits `status:"Approved"` from the client (⚠️ S4).
 12. **UserPaymentHistoryPage** — timeline via `PaymentTimelineItem` (orphan `payment-timeline.tsx` deleted).
 13. **FeedBack** — multi-section survey persisted to CloudStorage + `updateUserInfo`; the ~140-line `if (false && …)` block is deleted; confirmations use Telegram `showConfirm` (with `window.confirm` only as non-Telegram fallback); the `"/500"` counter without `maxLength` remains (⚠️ B20).
 
@@ -148,7 +149,7 @@ npm run lint       # eslint . — must stay clean (0/0)
 npm run build      # tsc -b && vite build
 ```
 
-`vercel.json` provides SPA fallback rewrites. No `.env.example` exists; the only env var consumed is `VITE_API_BASE_URL` (`services/api.ts`). ⚠️ The Stars-payment flow additionally requires the backend to expose `/api/telegram/*` proxies (deploy pending).
+`vercel.json` provides SPA fallback rewrites. The only env var the app itself consumes is `VITE_API_BASE_URL` (`services/api.ts`); `frontend/.env.local` (git-ignored) additionally holds `VITE_MOCK_TELEGRAM=true`, which gates `src/lib/devTelegramMock.ts` (dev-only `window.Telegram` stub so pages can be browser-tested outside Telegram; never active in production builds). ⚠️ The Stars-payment flow additionally requires the backend to expose `/api/telegram/*` proxies (deploy pending).
 
 ## 9. Issue catalog — status
 
@@ -188,7 +189,7 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 ### UX / hygiene
 - **B14. Invalid classes/constants** — ✅ fixed (`--success`/`--warning` vars defined, `pt-30`/`z-100` corrected, hex-as-class fixed).
 - **B19. A11y** — ✅ mostly fixed (BottomNavigation semantics, button labels, SelectItem keys, receipt modal focus handling; inline toast styles cleaned).
-- **B20. Hardcoded values** — ❌ open, needs content/ops decisions: US-vs-Ethiopian bank list and `"112pay"` (`Payment.tsx`), `picsum.photos` thumbnail fallback (`ArticleView.tsx:233`), "Adama"/"Oromia" registration defaults, fake `earnedDate`s in `lib/data.ts`, ".../500" counter without `maxLength` (`FeedBack.tsx`), fabricated "+12%" trend deltas (`Statistics.tsx`). Fixed from this list: `debug:true` Adsgram (now `import.meta.env.DEV`), missing 10MB upload check (now validated), `"shuluqa"` name fallback (removed).
+- **B20. Hardcoded values** — 🟡 partially fixed. Fixed: bank list + transfer account numbers now served by `/api/banks` CRUD (admin-configurable, e2e-verified locally), `"112pay"` fallback removed, `debug:true` Adsgram (now `import.meta.env.DEV`), missing 10MB upload check (now validated), `"shuluqa"` name fallback (removed). Still open, needs content/ops decisions: `picsum.photos` thumbnail fallback (`ArticleView.tsx`), "Adama"/"Oromia" registration defaults, fake `earnedDate`s in `lib/data.ts`, ".../500" counter without `maxLength` (`FeedBack.tsx`), fabricated "+12%" trend deltas (`Statistics.tsx`).
 - **B21. Typos & leftovers** — ✅ fixed (user-facing strings corrected, `"use client"` removed, Telegram `showConfirm` replaces `window.confirm/alert`, unencoded URLs fixed, zod max/message mismatch fixed). File/route renames (`StudentRegisteration`, `FeedBack`, `WelcomeCarousell`, `newBadge.tsx`) deferred — they churn routes/history for cosmetic gain. 🟡 heavy `console.log` in FeedBack/services reduced, some remain.
 
 ## 10. Remaining recommendations

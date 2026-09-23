@@ -309,3 +309,14 @@ export interface ContestInfo {
   startTime: string;
   prizes: string | null;
 }
+
+export interface Bank {
+  id: string;
+  name: string;
+  account_number: string;
+  account_holder: string;
+  description: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
