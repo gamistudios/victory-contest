@@ -208,7 +208,10 @@ func (u *submissionUsecase) GetStudentProfileStatistics(studId string) (*domain.
 	averageTime := 0
 	if totalQuestions > 0 {
 		accuracy = (correctAnswers * 100) / totalQuestions
-		averageTime = totalTime / totalQuestions
+	}
+	// Average time is total time spent per contest, not per question.
+	if totalContests > 0 {
+		averageTime = totalTime / totalContests
 	}
 
 	rankings, err := u.GetLeaderboardByTimeFrame("all")
@@ -371,7 +374,8 @@ func (u *submissionUsecase) GetRankingsForContest(contestId string) ([]domain.Le
 	sort.Slice(rankings, func(i, j int) bool {
 		rank1, rank2 := rankings[i], rankings[j]
 		if rank1.Score == rank2.Score {
-			return rank1.TimeTaken > rank2.TimeTaken
+			// Faster time wins: compare numerically in seconds, ascending.
+			return ParseTimeSpend(rank1.TimeTaken) < ParseTimeSpend(rank2.TimeTaken)
 		}
 		return rank1.Score > rank2.Score
 	})
@@ -393,7 +397,8 @@ func (u *submissionUsecase) calculateStartTime(timeFrame string) (time.Time, err
 	case "month":
 		return time.Date(year, month, 1, 0, 0, 0, 0, time.Local), nil
 	case "all":
-		return time.Date(year-1, month, 1, 0, 0, 0, 0, time.Local), nil
+		// Truly all-time: zero time includes submissions regardless of age.
+		return time.Time{}, nil
 	default:
 		return time.Time{}, fmt.Errorf("invalid timeFrame: %s", timeFrame)
 	}
@@ -435,12 +440,13 @@ func (uc *submissionUsecase) sortAndRank(aggregates map[string]*domain.Leaderboa
 		list = append(list, *entry)
 	}
 
-	// Sort by score (desc) and then time taken (asc)
+	// Sort by score (desc) and then time taken (asc, faster wins).
+	// TimeTaken is formatted later; sort on the numeric seconds here.
 	sort.Slice(list, func(i, j int) bool {
 		if list[i].Score != list[j].Score {
 			return list[i].Score > list[j].Score
 		}
-		return list[i].TimeTaken < list[j].TimeTaken
+		return list[i].TimeTakenSeconds < list[j].TimeTakenSeconds
 	})
 
 	limit := min(len(list), 100)

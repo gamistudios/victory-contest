@@ -216,10 +216,10 @@ Feedback: admin questions + score-range poll options (require contact info above
 20. **Guaranteed-runtime-error Queries** — `student_dynamo.go:150-182`: `Query` with FilterExpression and **no KeyConditionExpression** → ValidationException; `GET /api/student/paid` and `VerifyStudentPaid` always 500 (also filters on a nonexistent `paid` attribute).
 21. ~~**Index-out-of-range panic**~~ **FIXED 2026-09-23** — `admin_dynamo.go` `GetAdminByEmail` now checks `len(Items) == 0` (was `Items == nil` then read `Items[0]`); verified by login smoke test.
 22. **`GET /api/admin/:id` queries by email** — `admin_handler.go:101-108` passes the URL id to `GetAdminByEmail`.
-23. **Leaderboard "all" timeframe ≈ 1 year** — `submission_usecase.go:395-396`: `now.AddDate(-1,0,1)`.
-24. **Contest rank tie-break inverted + string compare** — `submission_usecase.go:371-377`: slower `"HH:MM:SS"` sorts first; lexicographic comparison breaks.
-25. **Global leaderboard tie-break no-op** — `:439-444`: sorts by `TimeTaken` before it's formatted (`:452`).
-26. **Average-time divides by questions, not contests** — `submission_usecase.go:211`.
+23. ~~**Leaderboard "all" timeframe ≈ 1 year** — `submission_usecase.go:395-396`: `now.AddDate(-1,0,1)`.~~ **FIXED 2026-09-23** — `"all"` now uses the zero time, so every submission counts regardless of age; covered by `TestCalculateStartTime_AllIsAllTime`.
+24. ~~**Contest rank tie-break inverted + string compare** — `submission_usecase.go:371-377`: slower `"HH:MM:SS"` sorts first; lexicographic comparison breaks.~~ **FIXED 2026-09-23** — ties now compare `ParseTimeSpend` seconds ascending — faster wins; covered by `TestGetRankingsForContest_TieBreakFasterWins`.
+25. ~~**Global leaderboard tie-break no-op** — `:439-444`: sorts by `TimeTaken` before it's formatted (`:452`).~~ **FIXED 2026-09-23** — `sortAndRank` sorts on `TimeTakenSeconds` before formatting; covered by `TestSortAndRank_TieBreakByFasterSeconds`.
+26. ~~**Average-time divides by questions, not contests** — `submission_usecase.go:211`.~~ **FIXED 2026-09-23** — average time = total time / contest count (guarded); accuracy still per question; covered by `TestGetStudentProfileStatistics_AvgTimePerContest`.
 27. **Contest PATCH ignores new question lists** — `contest_handler.go:78-88,144-150` (only prevents clearing); non-string JSON silently dropped (`:94`).
 28. **Wrong broadcast on registration** — `student_handler.go:49-57`: new students trigger "Feadback questions are added…" to everyone; feedback-response notification addressed to the student themselves (`feedback_handler.go:257`).
 29. ~~**`GET /api/notification/` dead** — handler reads `:recipient_id` that isn't in the route (`notification_handler.go:24,100-101`).~~ **FIXED 2026-09-23** — `GET /api/notification/` now wired to `GetAllNotifications`; `PATCH /:id` alias added for the frontend mark-read call (commit 0c28bcd).
