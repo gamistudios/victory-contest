@@ -1,14 +1,31 @@
 package usecase
 
-import "victor-contest-go/internal/domain"
+import (
+	"sort"
+
+	"victor-contest-go/internal/domain"
+)
 
 type QuestionUsecase interface {
 	AddQuestion(question domain.Question) (string, error)
 	UpdateQuestion(id string, update domain.Question) error
 	DeleteQuestion(id string) error
+	DeleteQuestions(ids []string) (*BulkDeleteResult, error)
 	GetQuestionByID(id string) (*domain.Question, error)
 	GetAllQuestions() ([]domain.Question, error)
 	AddMultipleQuestions(questions []domain.Question) error
+}
+
+// BulkDeleteFailure reports one id that could not be deleted and why.
+type BulkDeleteFailure struct {
+	ID    string `json:"id"`
+	Error string `json:"error"`
+}
+
+// BulkDeleteResult is the outcome of a bulk delete: ids removed and per-id failures.
+type BulkDeleteResult struct {
+	Deleted []string            `json:"deleted"`
+	Failed  []BulkDeleteFailure `json:"failed"`
 }
 
 type questionUsecase struct {
@@ -28,6 +45,26 @@ func (u *questionUsecase) UpdateQuestion(id string, update domain.Question) erro
 }
 func (u *questionUsecase) DeleteQuestion(id string) error {
 	return u.repo.DeleteQuestion(id)
+}
+
+// DeleteQuestions bulk-deletes the given ids and reports per-id failures.
+func (u *questionUsecase) DeleteQuestions(ids []string) (*BulkDeleteResult, error) {
+	deleted, failedMap, err := u.repo.DeleteQuestions(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	failures := make([]BulkDeleteFailure, 0, len(failedMap))
+	for id, msg := range failedMap {
+		failures = append(failures, BulkDeleteFailure{ID: id, Error: msg})
+	}
+	// Deterministic order for the failed list.
+	sort.Slice(failures, func(i, j int) bool { return failures[i].ID < failures[j].ID })
+
+	if deleted == nil {
+		deleted = []string{}
+	}
+	return &BulkDeleteResult{Deleted: deleted, Failed: failures}, nil
 }
 func (u *questionUsecase) GetQuestionByID(id string) (*domain.Question, error) {
 	return u.repo.GetQuestionByID(id)

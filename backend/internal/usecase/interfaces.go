@@ -45,6 +45,7 @@ type QuestionRepository interface {
 	AddMultipleQuestions(questions []domain.Question) error
 	UpdateQuestion(id string, update domain.Question) error
 	DeleteQuestion(id string) error
+	DeleteQuestions(ids []string) (deleted []string, failed map[string]string, err error)
 	GetQuestionByID(id string) (*domain.Question, error)
 	GetAllQuestions() ([]domain.Question, error)
 }

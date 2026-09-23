@@ -24,6 +24,7 @@ func NewQuestionHandler(u usecase.QuestionUsecase, imgRepo *repository.ImageRepo
 func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/add", h.AddQuestion)
 	rg.POST("/multiple-add", h.AddMultipleQuestions)
+	rg.POST("/multiple-delete", h.DeleteMultipleQuestions)
 	rg.PATCH("/:id", h.UpdateQuestion)
 	rg.DELETE("/delete/:id", h.DeleteQuestion)
 	rg.GET("/", h.GetAllQuestions)
@@ -199,6 +200,46 @@ func (h *QuestionHandler) DeleteQuestion(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success"})
+}
+
+// maxBulkDeleteIDs caps the number of ids accepted by the bulk-delete endpoint.
+const maxBulkDeleteIDs = 500
+
+type bulkDeleteQuestionsRequest struct {
+	IDs []string `json:"ids"`
+}
+
+// DeleteMultipleQuestions handles POST /api/question/multiple-delete with body
+// {"ids": ["..."]}. It returns 200 with {"deleted": [...], "failed": [{"id","error"}]}.
+func (h *QuestionHandler) DeleteMultipleQuestions(c *gin.Context) {
+	var req bulkDeleteQuestionsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: expected JSON {\"ids\": [\"...\"]} with string ids"})
+		return
+	}
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "'ids' must be a non-empty array of question ids"})
+		return
+	}
+	if len(req.IDs) > maxBulkDeleteIDs {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Too many ids: maximum " + strconv.Itoa(maxBulkDeleteIDs) + " per request"})
+		return
+	}
+	for _, id := range req.IDs {
+		if strings.TrimSpace(id) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "'ids' must contain non-empty strings"})
+			return
+		}
+	}
+
+	result, err := h.usecase.DeleteQuestions(req.IDs)
+	if err != nil {
+		log.Printf("DeleteMultipleQuestions(count=%d) failed: %v", len(req.IDs), err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deleted": result.Deleted, "failed": result.Failed})
 }
 
 func (h *QuestionHandler) GetAllQuestions(c *gin.Context) {
