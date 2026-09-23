@@ -237,6 +237,31 @@ func (r *ArticleDynamoRepository) DecrementLike(id string) error {
 	_, err := r.db.UpdateItem(context.TODO(), input)
 	return err
 }
+
+// DecrementComments mirrors IncrementComments; used when a comment is deleted.
+// if_not_exists starts from 1 so a missing counter lands at 0 instead of -1.
+func (r *ArticleDynamoRepository) DecrementComments(id string) error {
+	input := &dynamodb.UpdateItemInput{
+		TableName: aws.String(r.tableName),
+		Key: map[string]types.AttributeValue{
+			"id": &types.AttributeValueMemberS{Value: id},
+		},
+		UpdateExpression: aws.String("SET commentCount = if_not_exists(commentCount, :one) - :dec"),
+		// never create an item for a missing article
+		ConditionExpression: aws.String("attribute_exists(id)"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":dec":  &types.AttributeValueMemberN{Value: "1"},
+			":one":  &types.AttributeValueMemberN{Value: "1"},
+		},
+	}
+
+	_, err := r.db.UpdateItem(context.TODO(), input)
+	var conditionalFailed *types.ConditionalCheckFailedException
+	if errors.As(err, &conditionalFailed) {
+		return usecase.ErrArticleNotFound
+	}
+	return err
+}
 func estimateReadTime(html string) int {
     // naive: 200 wpm
     words := 0

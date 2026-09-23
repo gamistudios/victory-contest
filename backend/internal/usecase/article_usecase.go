@@ -11,6 +11,10 @@ import (
 // ErrArticleNotFound is returned when an article id does not exist.
 var ErrArticleNotFound = errors.New("article not found")
 
+// ErrCommentNotFound is returned when a comment id does not exist or does not
+// belong to the article it is being addressed under.
+var ErrCommentNotFound = errors.New("comment not found")
+
 type ArticleUsecase struct {
 	repo        ArticleRepository
 	commentRepo CommentRepository
@@ -125,4 +129,49 @@ func (uc *ArticleUsecase) CreateComment(comment domain.Comment) (string, error) 
 
 func (uc *ArticleUsecase) ListCommentsByArticleID(articleID string) ([]domain.Comment, error) {
 	return uc.commentRepo.ListByArticleID(articleID)
+}
+
+// UpdateComment replaces the text of an existing comment.
+// NOTE: an author-only check is not possible yet — no auth middleware exists
+// in this codebase (tracked as README issue #6).
+func (uc *ArticleUsecase) UpdateComment(articleID, commentID, text string) (*domain.Comment, error) {
+	comment, err := uc.commentRepo.GetByID(commentID)
+	if err != nil {
+		return nil, err
+	}
+	// also covers a comment that exists but belongs to a different article
+	if comment == nil || comment.ArticleID != articleID {
+		return nil, ErrCommentNotFound
+	}
+
+	comment.Text = text
+	comment.UpdatedAt = time.Now().UTC()
+	if err := uc.commentRepo.Update(*comment); err != nil {
+		return nil, err
+	}
+	return comment, nil
+}
+
+// DeleteComment removes a comment and decrements the article's comment count,
+// mirroring the increment in CreateComment.
+// NOTE: an author-only check is not possible yet — no auth middleware exists
+// in this codebase (tracked as README issue #6).
+func (uc *ArticleUsecase) DeleteComment(articleID, commentID string) error {
+	comment, err := uc.commentRepo.GetByID(commentID)
+	if err != nil {
+		return err
+	}
+	if comment == nil || comment.ArticleID != articleID {
+		return ErrCommentNotFound
+	}
+
+	if err := uc.commentRepo.Delete(commentID); err != nil {
+		return err
+	}
+	// decrement the counter on the article, not on the comment
+	if err := uc.repo.DecrementComments(articleID); err != nil {
+		log.Printf("failed to decrement comment count: %v", err)
+		return err
+	}
+	return nil
 }

@@ -155,11 +155,15 @@ type ArticleRepository interface {
 	IncrementLike(id string) error
 	DecrementLike(id string) error
 	IncrementComments(id string) error
+	DecrementComments(id string) error
 }
 
 type CommentRepository interface {
 	Create(comment domain.Comment) (string, error)
 	ListByArticleID(articleID string) ([]domain.Comment, error)
+	GetByID(id string) (*domain.Comment, error)
+	Update(comment domain.Comment) error
+	Delete(id string) error
 }
 
 type ContestStatisticsRepository interface {

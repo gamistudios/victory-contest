@@ -74,6 +74,51 @@ func (r *CommentDynamoRepository) ListByArticleID(articleID string) ([]domain.Co
 	return comments, nil
 }
 
+// GetByID returns the comment with the given id, or nil when it does not exist.
+func (r *CommentDynamoRepository) GetByID(id string) (*domain.Comment, error) {
+	result, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+		TableName: aws.String(r.tableName),
+		Key: map[string]types.AttributeValue{
+			"id": &types.AttributeValueMemberS{Value: id},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Item) == 0 {
+		return nil, nil
+	}
+	var comment domain.Comment
+	if err := attributevalue.UnmarshalMap(result.Item, &comment); err != nil {
+		return nil, err
+	}
+	return &comment, nil
+}
+
+// Update overwrites the comment item (read-modify-write done by the caller/usecase).
+func (r *CommentDynamoRepository) Update(comment domain.Comment) error {
+	item, err := attributevalue.MarshalMap(comment)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+		TableName: aws.String(r.tableName),
+		Item:      item,
+	})
+	return err
+}
+
+// Delete removes the comment item by id.
+func (r *CommentDynamoRepository) Delete(id string) error {
+	_, err := r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+		TableName: aws.String(r.tableName),
+		Key: map[string]types.AttributeValue{
+			"id": &types.AttributeValueMemberS{Value: id},
+		},
+	})
+	return err
+}
+
 // Fallback method if GSI is not available - scans the table (less efficient)
 func (r *CommentDynamoRepository) ListByArticleIDScan(articleID string) ([]domain.Comment, error) {
 	input := &dynamodb.ScanInput{

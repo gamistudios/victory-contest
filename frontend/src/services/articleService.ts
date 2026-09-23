@@ -29,3 +29,20 @@ export async function postComment(articleId: string, comment: Comment) {
   const res = await api.post(`/articles/${articleId}/comments`, comment);
   return res.data;
 }
+export async function updateComment(
+  articleId: string,
+  commentId: string,
+  content: string
+): Promise<Comment> {
+  const res = await api.put<Comment>(
+    `/articles/${articleId}/comments/${commentId}`,
+    { text: content }
+  );
+  return res.data;
+}
+export async function deleteComment(
+  articleId: string,
+  commentId: string
+): Promise<void> {
+  await api.delete(`/articles/${articleId}/comments/${commentId}`);
+}

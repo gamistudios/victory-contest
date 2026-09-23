@@ -27,7 +27,9 @@ func (h *ArticleHandler) Register(rg *gin.RouterGroup) {
     rg.POST("/articles", h.Create)
     rg.POST("/articles/:id/comments", h.CreateComment)
     rg.PUT("/articles/:id", h.Update)
+    rg.PUT("/articles/:id/comments/:commentId", h.UpdateComment)
     rg.DELETE("/articles/:id", h.Delete)
+    rg.DELETE("/articles/:id/comments/:commentId", h.DeleteComment)
     rg.PATCH("/articles/:id/status", h.ToggleStatus)
     rg.PATCH("/articles/:id/stats", h.UpdateStats)
 }
@@ -176,4 +178,49 @@ func (h *ArticleHandler) CreateComment(c *gin.Context) {
     }
     
     c.JSON(http.StatusCreated, gin.H{"id": id, "message": "Comment created successfully"})
+}
+
+type commentTextPayload struct { Text string `json:"text" binding:"required"` }
+
+// UpdateComment handles PUT /articles/:id/comments/:commentId.
+// NOTE: author-only enforcement is pending auth middleware (README issue #6).
+func (h *ArticleHandler) UpdateComment(c *gin.Context) {
+    articleID := c.Param("id")
+    commentID := c.Param("commentId")
+    var p commentTextPayload
+    if err := c.ShouldBindJSON(&p); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    comment, err := h.uc.UpdateComment(articleID, commentID, p.Text)
+    if err != nil {
+        if errors.Is(err, usecase.ErrCommentNotFound) || errors.Is(err, usecase.ErrArticleNotFound) {
+            c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, comment)
+}
+
+// DeleteComment handles DELETE /articles/:id/comments/:commentId and decrements
+// the article's comment count.
+// NOTE: author-only enforcement is pending auth middleware (README issue #6).
+func (h *ArticleHandler) DeleteComment(c *gin.Context) {
+    articleID := c.Param("id")
+    commentID := c.Param("commentId")
+
+    if err := h.uc.DeleteComment(articleID, commentID); err != nil {
+        if errors.Is(err, usecase.ErrCommentNotFound) || errors.Is(err, usecase.ErrArticleNotFound) {
+            c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.Status(http.StatusNoContent)
 }
