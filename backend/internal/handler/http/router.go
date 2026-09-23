@@ -67,7 +67,7 @@ func NewServer() *Server {
 	paymentRepo := repository.NewDynamoDBPaymentRepository("eu-north-1", "payment")
 	pageViewRepo := repository.NewPageViewDynamoRepository("eu-north-1", "pageviews")
 	articleRepo := repository.NewArticleDynamoRepository("eu-north-1", "articles")
-	commentRepo  := repository.NewCommentDynamoRepository("eu-north-1", "comments")
+	commentRepo := repository.NewCommentDynamoRepository("eu-north-1", "comments")
 
 	// --- Initialize Feedback Repositories ---
 	feedbackQuestionRepo := repository.NewFeedbackQuestionDynamoRepository("eu-north-1", "feedback_questions")
@@ -81,14 +81,14 @@ func NewServer() *Server {
 	submissionUsecase := usecase.NewSubmissionUsecase(submissionRepo, contestUsecase, questionRepo, studentRepo)
 	adminUsecase := usecase.NewAdminUsecase(adminRepo, studentRepo, contestRepo, submissionRepo, contestRegistrationRepo, paymentRepo, pageViewRepo)
 	pageViewUsecase := usecase.NewPageViewUsecase(pageViewRepo)
-	articleUsecase := usecase.NewArticleUsecase(articleRepo,commentRepo)
+	articleUsecase := usecase.NewArticleUsecase(articleRepo, commentRepo)
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo, contestRepo, studentRepo)
 	achievementUsecase := usecase.NewAchievementUsecase(achievementRepo)
 	bankUsecase := usecase.NewBankUsecase(bankRepo)
 	contestRegistrationUsecase := usecase.NewContestRegistrationUsecase(contestRegistrationRepo)
 	paymentUsecase := usecase.NewPaymentUsecases(paymentRepo)
 	aiUsecase := usecase.NewAiUsecase(submissionRepo)
-	telegramUsecase := usecase.NewTelegramUsecase(bot)
+	telegramUsecase := usecase.NewTelegramUsecase(bot, studentRepo)
 
 	// --- Initialize Contest Statistics Use Case ---
 	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil)

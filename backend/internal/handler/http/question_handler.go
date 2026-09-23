@@ -113,6 +113,7 @@ func (h *QuestionHandler) AddMultipleQuestions(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, gin.H{"message": "Questions added successfully"})
 }
 
 func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {

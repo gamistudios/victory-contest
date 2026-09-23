@@ -9,11 +9,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/google/uuid"
+	"victor-contest-go/internal/domain"
 )
 
 type TelegramUsecase interface {
@@ -23,13 +25,36 @@ type TelegramUsecase interface {
 	SavePreparedInlineMessage(userID int64, result json.RawMessage) (json.RawMessage, error)
 }
 type telegramUsecase struct {
-	bot *tgbotapi.BotAPI
+	bot         *tgbotapi.BotAPI
+	studentRepo StudentRepository
 }
 
 // StartCommand implements TelegramUsecase.
+//
+// userId is the Telegram user id of the student who sent /start. It is used to
+// look up (and, on first contact, register) the corresponding student profile,
+// so the contest WebApp opened from the welcome message has a row to attach to.
 func (t *telegramUsecase) HandleStartCommand(chatId, userId int64) error {
+	if userId != 0 && t.studentRepo != nil {
+		telegramID := strconv.FormatInt(userId, 10)
+		student, err := t.studentRepo.GetStudentByTelegramID(telegramID)
+		if err != nil {
+			return fmt.Errorf("lookup student %s: %w", telegramID, err)
+		}
+		if student == nil {
+			student = &domain.Student{TelegramID: telegramID}
+			if err := t.studentRepo.AddStudent(*student); err != nil {
+				return fmt.Errorf("register student %s: %w", telegramID, err)
+			}
+			log.Printf("telegram: registered new student %s for /start", telegramID)
+		} else {
+			log.Printf("telegram: found existing student %s (%s) for /start", student.ID, telegramID)
+		}
+	}
+
 	if t.bot == nil {
-		return errors.New("telegram bot is not configured")
+		log.Printf("telegram bot is not configured; skipping welcome message for chat %d", chatId)
+		return nil
 	}
 	photoUrl := "https://firebasestorage.googleapis.com/v0/b/rent-ffb49.appspot.com/o/photos%2Fvictory-contest-log.png?alt=media&token=477e8229-07ad-4447-9ffa-3e16835b5d2a"
 	message := "<b>Welcome! 👋 </b>\nPress the button below and take one step to the journey"
@@ -47,11 +72,25 @@ func (t *telegramUsecase) HandleStartCommand(chatId, userId int64) error {
 }
 
 // TakeUpdate implements TelegramUsecase.
+//
+// Non-message updates (callback_query, edited_message, inline_query, ...) are
+// acknowledged and ignored; only plain messages are handled. Nil guards on
+// Message/Chat/From prevent the nil-pointer panic from #17.
 func (t *telegramUsecase) TakeUpdate(update tgbotapi.Update) error {
-	message := update.Message
-	chatID := message.Chat.ID
-	userID := message.From.ID
-	text := message.Text
+	if update.Message == nil {
+		log.Printf("telegram: ignoring non-message update %d", update.UpdateID)
+		return nil
+	}
+	if update.Message.Chat == nil {
+		log.Printf("telegram: ignoring message without chat in update %d", update.UpdateID)
+		return nil
+	}
+	chatID := update.Message.Chat.ID
+	userID := int64(0)
+	if update.Message.From != nil {
+		userID = update.Message.From.ID
+	}
+	text := update.Message.Text
 
 	if text == "/start" {
 		err := t.HandleStartCommand(chatID, userID)
@@ -153,6 +192,6 @@ func (t *telegramUsecase) SavePreparedInlineMessage(userID int64, result json.Ra
 	})
 }
 
-func NewTelegramUsecase(bot *tgbotapi.BotAPI) TelegramUsecase {
-	return &telegramUsecase{bot: bot}
+func NewTelegramUsecase(bot *tgbotapi.BotAPI, studentRepo StudentRepository) TelegramUsecase {
+	return &telegramUsecase{bot: bot, studentRepo: studentRepo}
 }
