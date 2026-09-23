@@ -8,6 +8,9 @@ type PaymentRequest struct {
 	FullName          string        `json:"fullName" dynamodbav:"full_name"`
 	BankName          string        `json:"bankName" dynamodbav:"bank_name"`
 	BillScreenshotURL string        `json:"billScreenshotUrl" dynamodbav:"bill_screenshot_url"`
+	// Amount is the transferred value in ETB (Ethiopian bank transfer);
+	// rows written before issue #37 carry no attribute and read back as 0.
+	Amount            float64       `json:"amount,omitempty" dynamodbav:"amount,omitempty"`
 	Status            PaymentStatus `json:"status" dynamodbav:"status"`
 	RejectionReason   string        `json:"rejectionReason,omitempty" dynamodbav:"rejection_reason"`
 	LegacyReason      string        `json:"-" dynamodbav:"reason,omitempty"` // obsolete `reason` attr written by older UpdateStatus builds (README #43); read-only fallback into RejectionReason, never written

@@ -230,8 +230,8 @@ Feedback: admin questions + score-range poll options (require contact info above
 34. ~~**Comment counter incremented on wrong ID** — `article_usecase.go:95-104`: passes comment ID instead of `ArticleID`; UpdateItem also **creates phantom items**.~~ **FIXED 2026-09-23** — increment now targets `comment.ArticleID` with `attribute_exists(id)` condition; non-existent articles return 404 instead of creating phantom items.
 35. **AI error-handling order** — `ai_usecase.go:55-67`: API error checked only after JSON slicing → misleading "could not find JSON object"; prose containing `[` mis-slices.
 36. ~~**Negative-slice panic** — `article_handler.go:54-57`: `?number=-1` → `items[:n]` panic.~~ **FIXED 2026-09-23** — `ListPublished` clamps `n <= 0` (and `n > len`) — no negative-slice panic; returns `[]` not nil.
-37. **Fake dashboard numbers** — `admin_usecase.go:143` registrations = submissions count; revenue hardcoded `$100.0` per approved payment (`:368-378,513`).
-38. **Contest status time-format inconsistency** — `admin_usecase.go:256-271` skips unparseable formats while `:469-474` accepts four.
+37. ~~**Fake dashboard numbers**~~ **FIXED 2026-09-23** — registrations now count real `ContestRegistration` rows (by `RegisteredAt`); revenue sums `PaymentRequest.Amount` on approved payments (new optional `amount` attribute, ETB — old placeholder `$` label dropped). ⚠️ Follow-up: `POST /api/payment/` doesn't accept `amount` yet, so new rows carry 0 until the payment-create slice wires it; legacy rows without the attribute count 0.
+38. ~~**Contest status time-format inconsistency**~~ **FIXED 2026-09-23** — one shared `parseContestTime` (RFC3339 + legacy layouts) used by status distribution, contest trend, and recent activity; unparseable schedules are uniformly classified "upcoming" / shown "N/A" instead of being silently dropped or dated "now".
 39. **`AnnounceContest` discards its payload** — `contest_handler.go:226-246`.
 40. **`Submission.Error() { panic(...) }`** — `domain/submission.go:20-22`: implements `error` as a landmine.
 
@@ -260,7 +260,7 @@ Feedback: admin questions + score-range poll options (require contact info above
 4. Auth middleware: verify Telegram `initData` HMAC for student routes; shared JWT middleware for admin/CRUD; RBAC split.
 5. bcrypt/argon2 admin passwords; strip from JSON; implement password comparison; gate `POST /admin/register`; honor `IsApproved`.
 6. Server-side scoring: accept `question_id → selected` answers, grade against stored answers; never expose answers before contest close.
-7. Explicit CORS allowlist; drop wildcard localhost/devtunnels when using credentials.
+7. ~~Explicit CORS allowlist; drop wildcard localhost/devtunnels when using credentials~~ **FIXED 2026-09-23** (see #10).
 8. Telegram webhook secret token; rate-limit `/api/ai/*` and `/api/payment/update`.
 
 **Architecture / data**

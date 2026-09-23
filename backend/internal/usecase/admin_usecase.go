@@ -16,6 +16,36 @@ import (
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
+// contestTimeLayouts is the superset of timestamp layouts observed in stored
+// contest start/end times (issue #38): RFC 3339 (with Z or numeric offset)
+// plus the legacy layouts — no-offset ISO, minute precision, and date only.
+var contestTimeLayouts = []string{
+	time.RFC3339,           // 2006-01-02T15:04:05Z07:00 (also covers ...Z)
+	"2006-01-02T15:04:05",  // no timezone
+	"2006-01-02T15:04",     // minute precision
+	"2006-01-02",           // date only
+}
+
+// parseContestTime parses a contest timestamp against every layout in
+// contestTimeLayouts. It is the SINGLE parsing path used by all dashboard
+// computations so status classification can no longer disagree with itself
+// (issue #38). ok is false when the value is empty or unparseable; callers
+// must apply the same fallback everywhere: an unparseable contest is treated
+// as "upcoming" (never reported as active/completed) and is excluded from
+// date-bucketed trend series, since it has no trustworthy date.
+func parseContestTime(value string) (t time.Time, ok bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	for _, layout := range contestTimeLayouts {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
+}
+
 type AdminUsecase interface {
 	AddAdmin(admin domain.Admin) (string, error)
 	UpdateAdmin(id string, update domain.Admin) error
@@ -134,8 +164,15 @@ func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, erro
 		return nil, err
 	}
 
+	// Real contest registrations (issue #37): the repository has no
+	// list-all method, so we fan out per contest via GetRegistrationsByContest.
+	registrations, err := u.fetchRegistrations(contests)
+	if err != nil {
+		return nil, err
+	}
+
 	// Calculate overview stats
-	overviewStats := u.calculateOverviewStats(students, contests, submissions, payments)
+	overviewStats := u.calculateOverviewStats(students, contests, registrations, payments)
 
 	// Calculate user stats
 	userStats := u.calculateUserStats(students)
@@ -168,7 +205,23 @@ func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, erro
 	}, nil
 }
 
-func (u *adminUsecase) calculateOverviewStats(students []domain.Student, contests []domain.Contest, submissions []domain.Submission, payments []domain.PaymentRequest) domain.OverviewStats {
+// fetchRegistrations returns every contest registration row across all
+// contests. Both active and pending-approval (IsActive=false) rows count as
+// registrations. ContestRegistrationRepository has no list-all method, so this
+// is one query per contest (N+1) — noted as a follow-up for the repo layer.
+func (u *adminUsecase) fetchRegistrations(contests []domain.Contest) ([]domain.ContestRegistration, error) {
+	var all []domain.ContestRegistration
+	for _, contest := range contests {
+		regs, err := u.contestRegistrationRepo.GetRegistrationsByContest(contest.ID)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, regs...)
+	}
+	return all, nil
+}
+
+func (u *adminUsecase) calculateOverviewStats(students []domain.Student, contests []domain.Contest, registrations []domain.ContestRegistration, payments []domain.PaymentRequest) domain.OverviewStats {
 	// Calculate total users with trend
 	totalUsers := len(students)
 	userTrendData := u.calculateUserTrendData(students)
@@ -185,8 +238,8 @@ func (u *adminUsecase) calculateOverviewStats(students []domain.Student, contest
 	revenueTrend, revenueChange := u.calculateTrend(revenueTrendData)
 
 	// Calculate registrations with trend
-	registrations := len(submissions)
-	registrationTrendData := u.calculateRegistrationTrendData(submissions)
+	totalRegistrations := len(registrations)
+	registrationTrendData := u.calculateRegistrationTrendData(registrations)
 	registrationTrend, registrationChange := u.calculateTrend(registrationTrendData)
 
 	return domain.OverviewStats{
@@ -203,13 +256,15 @@ func (u *adminUsecase) calculateOverviewStats(students []domain.Student, contest
 			Data:   contestTrendData,
 		},
 		Revenue: domain.StatWithTrend{
-			Value:  fmt.Sprintf("$%.2f", revenue),
+			// Amounts are Ethiopian bank-transfer values stored in ETB, so the
+			// label says ETB instead of the old fake "$" (issue #37).
+			Value:  fmt.Sprintf("ETB %.2f", revenue),
 			Trend:  revenueTrend,
 			Change: revenueChange,
 			Data:   revenueTrendData,
 		},
 		Registrations: domain.StatWithTrend{
-			Value:  strconv.Itoa(registrations),
+			Value:  strconv.Itoa(totalRegistrations),
 			Trend:  registrationTrend,
 			Change: registrationChange,
 			Data:   registrationTrendData,
@@ -298,12 +353,12 @@ func (u *adminUsecase) calculateContestStats(contests []domain.Contest, submissi
 	now := time.Now()
 
 	for _, contest := range contests {
-		startTime, err := time.Parse("2006-01-02T15:04:05Z", contest.StartTime)
-		if err != nil {
-			continue
-		}
-		endTime, err := time.Parse("2006-01-02T15:04:05Z", contest.EndTime)
-		if err != nil {
+		startTime, startOK := parseContestTime(contest.StartTime)
+		endTime, endOK := parseContestTime(contest.EndTime)
+		if !startOK || !endOK {
+			// Safer classification (issue #38): an unknown schedule is shown
+			// as upcoming rather than being silently dropped or miscounted.
+			statusMap["upcoming"]++
 			continue
 		}
 
@@ -361,10 +416,14 @@ func (u *adminUsecase) getRecentActivity(contests []domain.Contest, submissions 
 	// Convert contests to recent activity format
 	recentActivity := make([]domain.RecentContest, 0, len(contests))
 	for _, contest := range contests {
-		// Parse start time for date formatting
-		startTime, err := time.Parse("2006-01-02T15:04:05Z", contest.StartTime)
-		if err != nil {
-			startTime = time.Now()
+		// Parse start time through the shared helper (issue #38): an
+		// unparseable schedule yields "N/A" rather than a fabricated "now".
+		startTime, startOK := parseContestTime(contest.StartTime)
+		endTime, endOK := parseContestTime(contest.EndTime)
+
+		date := "N/A"
+		if startOK {
+			date = startTime.Format("2006-01-02")
 		}
 
 		// Determine status
@@ -373,10 +432,9 @@ func (u *adminUsecase) getRecentActivity(contests []domain.Contest, submissions 
 			status = "Online"
 		}
 
-		// Calculate total time (assuming it's duration between start and end)
-		endTime, err := time.Parse("2006-01-02T15:04:05Z", contest.EndTime)
+		// Calculate total time (duration between start and end)
 		totalTime := "N/A"
-		if err == nil {
+		if startOK && endOK {
 			duration := endTime.Sub(startTime)
 			hours := int(duration.Hours())
 			minutes := int(duration.Minutes()) % 60
@@ -391,7 +449,7 @@ func (u *adminUsecase) getRecentActivity(contests []domain.Contest, submissions 
 			Subject:       contest.Subject,
 			QuestionCount: len(contest.Questions),
 			TotalTime:     totalTime,
-			Date:          startTime.Format("2006-01-02"),
+			Date:          date,
 		})
 	}
 
@@ -411,12 +469,13 @@ func (u *adminUsecase) getRecentActivity(contests []domain.Contest, submissions 
 }
 
 func (u *adminUsecase) calculateRevenue(payments []domain.PaymentRequest) float64 {
+	// Revenue is the sum of real approved amounts on bank-transfer payment
+	// requests (ETB); Telegram Stars payments are not persisted per-payment in
+	// this data model, so only bank payments contribute.
 	var totalRevenue float64
 	for _, payment := range payments {
 		if payment.Status == domain.StatusApproved {
-			// Assuming a fixed amount per approved payment
-			// This should be adjusted based on actual payment amounts in the system
-			totalRevenue += 100.0 // Placeholder amount
+			totalRevenue += payment.Amount
 		}
 	}
 	return totalRevenue
@@ -507,24 +566,12 @@ func (u *adminUsecase) calculateContestTrendData(contests []domain.Contest) []in
 		count := 0
 
 		for _, contest := range contests {
-			var startTime time.Time
-			var err error
-
-			// Try multiple date formats to handle inconsistent data
-			formats := []string{
-				"2006-01-02T15:04:05Z", // Full format with timezone
-				"2006-01-02T15:04:05",  // Full format without timezone
-				"2006-01-02T15:04",     // Format without seconds
-				"2006-01-02",           // Date only
-			}
-
-			for _, format := range formats {
-				if startTime, err = time.Parse(format, contest.StartTime); err == nil {
-					break // Successfully parsed
-				}
-			}
-
-			if err != nil {
+			// Shared parser (issue #38): same layout set as status
+			// classification; contests with unparseable start times have no
+			// date to bucket and are excluded here (and shown as "upcoming"
+			// in the status distribution).
+			startTime, ok := parseContestTime(contest.StartTime)
+			if !ok {
 				continue
 			}
 
@@ -549,24 +596,27 @@ func (u *adminUsecase) calculateRevenueTrendData(payments []domain.PaymentReques
 	for i := 0; i < 30; i++ {
 		// Go back i days from current day
 		targetDate := now.AddDate(0, 0, -29+i)
-		revenue := 0
+		revenue := 0.0
 
 		for _, payment := range payments {
+			// Real approved bank-transfer amounts (ETB), not a per-payment
+			// placeholder (issue #37).
 			if payment.Status == domain.StatusApproved &&
 				payment.UpdatedAt.Year() == targetDate.Year() &&
 				payment.UpdatedAt.YearDay() == targetDate.YearDay() {
-				revenue += 100 // Placeholder amount
+				revenue += payment.Amount
 			}
 		}
 
-		trendData[i] = revenue
+		trendData[i] = int(revenue)
 	}
 
 	return trendData
 }
 
-func (u *adminUsecase) calculateRegistrationTrendData(submissions []domain.Submission) []int {
-	// Generate 30-day registration trend data (daily data)
+func (u *adminUsecase) calculateRegistrationTrendData(registrations []domain.ContestRegistration) []int {
+	// Generate 30-day registration trend data (daily data) from real
+	// contest-registration timestamps, not submissions (issue #37).
 	now := time.Now()
 	trendData := make([]int, 30)
 
@@ -575,9 +625,13 @@ func (u *adminUsecase) calculateRegistrationTrendData(submissions []domain.Submi
 		targetDate := now.AddDate(0, 0, -29+i)
 		count := 0
 
-		for _, submission := range submissions {
-			if submission.SubmissionTime.Year() == targetDate.Year() &&
-				submission.SubmissionTime.YearDay() == targetDate.YearDay() {
+		for _, registration := range registrations {
+			registeredAt := registration.RegisteredAt
+			if registeredAt.IsZero() {
+				continue
+			}
+			if registeredAt.Year() == targetDate.Year() &&
+				registeredAt.YearDay() == targetDate.YearDay() {
 				count++
 			}
 		}
