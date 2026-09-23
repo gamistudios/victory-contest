@@ -272,6 +272,9 @@ const Home: React.FC = () => {
               ))}
           </div>
         )}
+        {!loading && contestError === null && previousContests.length === 0 && (
+          <NoContests type="past" />
+        )}
       </div>
 
       {/* Previous Contest Modal */}
