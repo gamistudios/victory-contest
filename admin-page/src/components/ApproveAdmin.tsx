@@ -198,7 +198,7 @@ export default function ApproveAdmin() {
         }}
       >
         {status === "success" ? (
-          <Table sx={{ minWidth: { xs: 600, md: 0 } }}>
+          <Table>
             <TableHead>
               <TableRow>
                 {headers.map((header, index) => (
@@ -207,6 +207,12 @@ export default function ApproveAdmin() {
                     sx={{
                       fontFamily: "'Public Sans',sans-serif",
                       fontSize: "0.9rem",
+                      // Email is the widest column and the least useful at a
+                      // glance; hiding it below sm keeps the table inside the
+                      // viewport instead of forcing a horizontal scroll.
+                      ...(header === "Email" && {
+                        display: { xs: "none", sm: "table-cell" },
+                      }),
                     }}
                     align={header === "Name" ? "left" : "right"}
                   >
@@ -268,18 +274,37 @@ function Row({ student, onApprove }: RowProps) {
             <IconButton aria-label="expand row" size="small" sx={{ flexShrink: 0 }}>
               <Avatar src={student.imgurl} />
             </IconButton>
-            <Typography
-              sx={{
-                fontFamily: "'Public Sans',sans-serif",
-                minWidth: 0,
-                overflowWrap: "anywhere",
-              }}
-            >
-              {student.name}
-            </Typography>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                sx={{
+                  fontFamily: "'Public Sans',sans-serif",
+                  minWidth: 0,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {student.name}
+              </Typography>
+              {/* The Email column is hidden below sm, so put the address under
+                  the name instead — the row stays identifiable without a
+                  horizontal scroll. */}
+              <Typography
+                sx={{
+                  display: { xs: "block", sm: "none" },
+                  fontFamily: "'Public Sans',sans-serif",
+                  fontSize: "0.75rem",
+                  color: "rgb(145, 158, 171)",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {student.email}
+              </Typography>
+            </Box>
           </Box>
         </StyledTableCell>
-        <StyledTableCell align="right">
+        <StyledTableCell
+          align="right"
+          sx={{ display: { xs: "none", sm: "table-cell" } }}
+        >
           <Box component="p" sx={{ overflowWrap: "anywhere" }}>
             {student.email}
           </Box>
