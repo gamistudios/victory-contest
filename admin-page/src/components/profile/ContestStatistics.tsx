@@ -1,4 +1,4 @@
-import { User, SubjectAnalysis, GradeAnalysis } from "@/types/user";
+import { SubjectAnalysis, GradeAnalysis, UserStats } from "@/types/user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -23,19 +23,18 @@ import {
 } from "lucide-react";
 
 interface ContestStatisticsProps {
-  user: User;
+  // From GET /api/submission/statistics/:id; undefined while loading or when
+  // the request failed — every chart then renders its empty state.
+  stat?: UserStats;
 }
-export function ContestStatistics({ user }: ContestStatisticsProps) {
+export function ContestStatistics({ stat }: ContestStatisticsProps) {
   // ## Refactored Data Transformation Functions ##
 
-  /**
-   * Transforms subject statistics from the User model into the format
-   * required by the component's charts and tables.
-   */
+  // Transforms subject statistics into the chart/table format.
   const getSubjectAnalysis = (): SubjectAnalysis[] => {
-    if (!user.stat?.subjects) return [];
+    if (!stat?.subjects) return [];
 
-    return Object.entries(user.stat.subjects).map(([subject, data]) => ({
+    return Object.entries(stat.subjects).map(([subject, data]) => ({
       subject,
       totalQuestions: data.total,
       correctAnswers: data.correct,
@@ -44,14 +43,11 @@ export function ContestStatistics({ user }: ContestStatisticsProps) {
     }));
   };
 
-  /**
-   * Transforms grade statistics from the User model into the format
-   * required by the component's charts.
-   */
+  // Transforms grade statistics into the chart format.
   const getGradeAnalysis = (): GradeAnalysis[] => {
-    if (!user.stat?.grades) return [];
+    if (!stat?.grades) return [];
 
-    return Object.entries(user.stat.grades).map(([grade, data]) => ({
+    return Object.entries(stat.grades).map(([grade, data]) => ({
       grade: Number(grade),
       totalQuestions: data.total,
       correctAnswers: data.correct,
@@ -82,7 +78,7 @@ export function ContestStatistics({ user }: ContestStatisticsProps) {
 
   // Data for the 'Performance Trends' line chart
   const performanceTrendData =
-    user.stat?.performance_trend?.map((trend) => ({
+    stat?.performance_trend?.map((trend) => ({
       month: trend.month.substring(0, 3), // Abbreviate month name
       accuracy: Math.round(trend.accuracy || 0),
     })) || [];

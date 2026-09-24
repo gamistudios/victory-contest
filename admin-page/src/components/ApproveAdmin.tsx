@@ -22,10 +22,6 @@ import { approveAdmin, getAllAdmins } from "@/lib/utils";
 
 const headers = ["Name", "Email", "Status"];
 
-// The backend returns every admin with its DynamoDB primary key `id`; the
-// shared Admin model does not carry it yet, so extend it locally here.
-type AdminRow = Admin & { id?: string };
-
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   [`&.${tableCellClasses.head}`]: {
     backgroundColor: theme.palette.action.hover,
@@ -46,7 +42,7 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
 }));
 
 export default function ApproveAdmin() {
-  const [admins, setAdmins] = useState<AdminRow[]>([]);
+  const [admins, setAdmins] = useState<Admin[]>([]);
   const [status, setStatus] = useState("pending");
   const [search, setSearch] = useState("");
 
@@ -55,7 +51,7 @@ export default function ApproveAdmin() {
       const response = await getAllAdmins();
       // getAllAdmins() already unwraps the {admins:[...]} envelope from
       // GET /api/admin/; every row carries its backend `id`.
-      const fetchedAdmins: AdminRow[] = response || [];
+      const fetchedAdmins: Admin[] = response || [];
 
       setAdmins(fetchedAdmins);
       setStatus("success");
@@ -221,7 +217,7 @@ export default function ApproveAdmin() {
 }
 
 interface RowProps {
-  student: AdminRow;
+  student: Admin;
   onApprove: (id: string, isApproved: boolean) => void;
 }
 

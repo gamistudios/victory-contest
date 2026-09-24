@@ -2,7 +2,8 @@ export interface Student {
   id?: string;
   name: string;
   telegram_id: string;
-  sex: string;
+  /** Backend domain.Student serializes this as `gender`. */
+  gender?: string;
   age: number;
   grade: number;
   school?: string;
@@ -14,14 +15,14 @@ export interface Student {
   payment?: Payment;
 }
 export interface Admin {
+  /** Backend domain.Admin row key; GET /api/admin/ always includes it. */
+  id?: string;
   name: string;
   password?: string;
   email: string;
   imgurl?: string;
   is_approved?: boolean;
 }
-export interface ExtendedContestSubmission extends Student { }
-
 export interface Contest {
   id?: string;
   title: string;

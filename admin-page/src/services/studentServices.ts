@@ -1,4 +1,4 @@
-import { User } from "@/types/user";
+import { User, UserStats } from "@/types/user";
 import api from "./api";
 import { Student } from "@/types/models";
 
@@ -31,10 +31,8 @@ export interface StudentProfileStats {
   accuracy: number;
 }
 
-// Student row as the backend actually serializes domain.Student: the gender
-// key is `gender` (the frontend Student type historically declared `sex`).
-export type StudentRow = Student & { gender?: string };
-
+// Student rows as the backend serializes domain.Student (gender key etc.).
+export type StudentRow = Student;
 export async function getUserProfile(userId: string): Promise<User> {
   const res = await api.get(`/api/student/profile-admin/${userId}`);
 
@@ -72,6 +70,20 @@ export async function getStudentStats(studentId: string): Promise<StudentProfile
     correctAnswers,
     accuracy,
   };
+}
+
+// Detailed per-subject/grade analytics for the profile charts.
+// GET /api/submission/statistics/:id — public route returning
+// {"statistics": domain.UserStatistics}, whose JSON matches UserStats.
+export async function getStudentDetailStats(
+  studentId: string
+): Promise<UserStats> {
+  const res = await api.get(`/api/submission/statistics/${studentId}`);
+  const statistics: UserStats | undefined = res.data?.statistics;
+  if (!statistics) {
+    throw new Error("statistics response is missing the statistics object");
+  }
+  return statistics;
 }
 
 // PUT /api/student/:id — the backend (student_handler.UpdateStudent) binds the

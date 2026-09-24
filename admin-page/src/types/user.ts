@@ -12,7 +12,6 @@ export interface User {
   telegram_id: string;
   totalPoints: number;
   payment: Payment;
-  stat: UserStats;
 }
 export interface UserStats {
   total_contests: number;

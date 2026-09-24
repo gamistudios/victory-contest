@@ -7,10 +7,11 @@ import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { Toaster } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { User } from "@/types/user";
+import { User, UserStats } from "@/types/user";
 import {
   StudentProfileStats,
   deleteStudent,
+  getStudentDetailStats,
   getStudentStats,
   getUserProfile,
   sendStudentNotification,
@@ -21,6 +22,7 @@ import { toast } from "@/hooks/use-toast";
 function Profile() {
   const [user, setUser] = useState<User | null>(null);
   const [stats, setStats] = useState<StudentProfileStats | null>(null);
+  const [detailStats, setDetailStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isNotifying, setIsNotifying] = useState(false);
@@ -31,12 +33,13 @@ function Profile() {
     const loadUserData = async () => {
       setIsLoading(true);
       setLoadError(null);
-      // The profile payload and the stats payload come from two endpoints;
-      // a quickstat failure must only degrade the stats cards, never blank
-      // the profile, so each call settles independently.
-      const [profileResult, statsResult] = await Promise.allSettled([
+      // The profile, quickstat and detail-stats payloads come from three
+      // endpoints; a stats failure must only degrade its own section, never
+      // blank the profile, so each call settles independently.
+      const [profileResult, statsResult, detailResult] = await Promise.allSettled([
         getUserProfile(id),
         getStudentStats(id),
+        getStudentDetailStats(id),
       ]);
 
       if (profileResult.status === "fulfilled") {
@@ -56,6 +59,14 @@ function Profile() {
         // Stats cards render "—" in this state.
         console.error("Error loading student stats:", statsResult.reason);
         setStats(null);
+      }
+
+      if (detailResult.status === "fulfilled") {
+        setDetailStats(detailResult.value);
+      } else {
+        // Charts show their empty state in this case.
+        console.error("Error loading student detail stats:", detailResult.reason);
+        setDetailStats(null);
       }
 
       setIsLoading(false);
@@ -183,7 +194,7 @@ function Profile() {
               />
             </div>
             <div className="lg:col-span-2">
-              <ContestStatistics user={user} />
+              <ContestStatistics stat={detailStats ?? undefined} />
             </div>
           </div>
         </div>
