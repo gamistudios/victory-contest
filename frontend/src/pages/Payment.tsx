@@ -39,6 +39,7 @@ interface FormErrors {
   fullName?: string;
   bankName?: string;
   otherBankName?: string;
+  amount?: string;
   billScreenshot?: string;
 }
 
@@ -46,6 +47,7 @@ const Payment: FC = () => {
   const [fullName, setFullName] = useState<string>("");
   const [bankName, setBankName] = useState<string>("");
   const [otherBankName, setOtherBankName] = useState<string>("");
+  const [amount, setAmount] = useState<string>("");
   const [billScreenshot, setBillScreenshot] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -144,6 +146,9 @@ const Payment: FC = () => {
     if (!bankName) newErrors.bankName = "Please select a bank.";
     if (bankName === "Other" && !otherBankName.trim())
       newErrors.otherBankName = "Please specify the bank name.";
+    const parsedAmount = Number(amount);
+    if (!amount.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0)
+      newErrors.amount = "Enter the transferred amount in ETB (greater than 0).";
     if (!billScreenshot)
       newErrors.billScreenshot = "A bill screenshot is required.";
     setErrors(newErrors);
@@ -163,7 +168,11 @@ const Payment: FC = () => {
       setIsSubmitting(true);
       formData.append("user_id", user.id.toString());
       formData.append("fullName", fullName);
-      formData.append("bankName", bankName);
+      formData.append(
+        "bankName",
+        bankName === "Other" ? otherBankName.trim() : bankName
+      );
+      formData.append("amount", amount.trim());
       formData.append("img", billScreenshot!);
 
       await sendPaymentInfo(formData);
@@ -203,6 +212,7 @@ const Payment: FC = () => {
     setFullName("");
     setBankName("");
     setOtherBankName("");
+    setAmount("");
     setBillScreenshot(null);
     if (imagePreviewUrl) {
       URL.revokeObjectURL(imagePreviewUrl);
@@ -366,6 +376,21 @@ const Payment: FC = () => {
               />
               {errors.fullName && (
                 <p className="text-sm text-destructive">{errors.fullName}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount Paid (ETB)</Label>
+              <Input
+                id="amount"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                placeholder="e.g. 300"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              {errors.amount && (
+                <p className="text-sm text-destructive">{errors.amount}</p>
               )}
             </div>
             <div className="space-y-2">

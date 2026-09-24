@@ -3,6 +3,8 @@ package http
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 	"victor-contest-go/internal/domain"
 	"victor-contest-go/internal/repository"
@@ -82,6 +84,21 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		return
 	}
 
+	// Optional `amount` in ETB (README #37 follow-up): the dashboard revenue
+	// sums this, so the create path must accept it. Absent/empty = 0 (legacy
+	// clients), anything unparsable or non-positive is a client error.
+	// Validated BEFORE the screenshot upload so bad input never reaches
+	// Cloudinary.
+	var amount float64
+	if raw := strings.TrimSpace(c.Request.PostFormValue("amount")); raw != "" {
+		parsed, err := strconv.ParseFloat(raw, 64)
+		if err != nil || parsed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid 'amount'. Must be a positive number (ETB)."})
+			return
+		}
+		amount = parsed
+	}
+
 	file, err := c.FormFile("img")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bill screenshot ('img' field) is required"})
@@ -94,7 +111,18 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		return
 	}
 	defer openedFile.Close()
-	img_url, _ := h.imgRepo.UploadImage(openedFile, "payments")
+	img_url, uploadErr := h.imgRepo.UploadImage(openedFile, "payments")
+	if uploadErr != nil {
+		// A payment without its screenshot is unauditable; fail instead of
+		// storing an empty URL (previously the error was discarded).
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload bill screenshot: " + uploadErr.Error()})
+		return
+	}
+	if img_url == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "bill screenshot upload returned no URL"})
+		return
+	}
+
 	now := time.Now().UTC()
 	// ExpirationDate is owned by PaymentUsecase.AddPayment (created_at + 1 month);
 	// the handler must not compute it (see README #16).
@@ -104,6 +132,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		UserID:            userID,
 		BillScreenshotURL: img_url,
 		Status:            domain.StatusPending,
+		Amount:            amount,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		RejectionReason:   "",
