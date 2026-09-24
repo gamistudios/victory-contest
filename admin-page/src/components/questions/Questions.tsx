@@ -65,15 +65,24 @@ export default function QuestionsPage() {
     });
   };
 
+  // Stored subjects are lowercase slugs ("math") while the filter list shows
+  // display labels ("Mathematics"); normalize both sides before comparing.
+  const subjectKey = (s: string) => {
+    const k = s.toLowerCase().replace(/[^a-z]/g, "");
+    return k.startsWith("math") ? "math" : k;
+  };
+  // Grades are stored as ranges ("9-10"); a filter matches any token.
+  const gradeKeys = (g: string) => g.split(/[^0-9]+/).filter(Boolean);
+
   // Memoize the filtered results for performance
   const filteredQuestions = React.useMemo(() => {
     return questions.filter((question) => {
       const subjectMatch =
         filters.subjects.length === 0 ||
-        filters.subjects.includes(question.subject);
+        filters.subjects.some((f) => subjectKey(f) === subjectKey(question.subject));
       const gradeMatch =
         filters.grades.length === 0 ||
-        filters.grades.some((g) => g.split(" ")[1] === question.grade);
+        filters.grades.some((g) => gradeKeys(question.grade).includes(g));
 
       return subjectMatch && gradeMatch;
     });

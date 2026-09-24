@@ -12,7 +12,6 @@ export const Subjects = [
   "Geography",
   "Computer Science",
   "Aptitude",
-  "Math", // Keep the original "Math" for backward compatibility
 ];
 
 export const chapters = Array.from({ length: 5 }, (_, index) => {
