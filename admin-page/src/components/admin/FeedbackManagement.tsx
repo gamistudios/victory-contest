@@ -627,6 +627,7 @@ export default function FeedbackManagement() {
                         }}
                       >
                         <Edit className="h-4 w-4" />
+                        <span className="sr-only">Edit question</span>
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -636,6 +637,7 @@ export default function FeedbackManagement() {
                             onClick={() => confirmDelete(question.id, 'question')}
                           >
                             <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Delete question</span>
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
