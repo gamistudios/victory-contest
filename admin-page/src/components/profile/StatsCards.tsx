@@ -1,18 +1,19 @@
-import { User } from "@/types/user";
+import { StudentProfileStats } from "@/services/studentServices";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trophy, Target, TrendingUp, Award } from "lucide-react";
 
 interface StatsCardsProps {
-  user: User;
+  /** Aggregated quickstat numbers; null while unavailable or on failure. */
+  stats: StudentProfileStats | null;
 }
 
-export function StatsCards({ user }: StatsCardsProps) {
-  // Directly use the pre-calculated stats from the user object
-  const stats = [
+export function StatsCards({ stats }: StatsCardsProps) {
+  // Values degrade to "—" when the quickstat call failed or is pending —
+  // a stats outage must never crash the profile page.
+  const cards = [
     {
       title: "Total Points",
-      // This value comes from the root of the user object
-      value: user.stat.total_questions,
+      value: stats ? stats.totalPoints : "—",
       icon: Trophy,
       color: "text-yellow-600",
       bgColor: "bg-yellow-50",
@@ -20,8 +21,7 @@ export function StatsCards({ user }: StatsCardsProps) {
     },
     {
       title: "Contests Participated",
-      // This value now comes from user.stat
-      value: user.stat?.total_contests ?? "0",
+      value: stats ? stats.totalContests : "—",
       icon: Award,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
@@ -29,8 +29,7 @@ export function StatsCards({ user }: StatsCardsProps) {
     },
     {
       title: "Questions Answered",
-      // This value now comes from user.stat
-      value: user.stat?.total_questions ?? "0",
+      value: stats ? stats.totalQuestions : "—",
       icon: Target,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
@@ -38,8 +37,7 @@ export function StatsCards({ user }: StatsCardsProps) {
     },
     {
       title: "Overall Accuracy",
-      // This value now comes from user.stat
-      value: `${Math.round(user.stat?.accuracy || 0)}%`,
+      value: stats ? `${stats.accuracy}%` : "—",
       icon: TrendingUp,
       color: "text-emerald-600",
       bgColor: "bg-emerald-50",
@@ -49,21 +47,21 @@ export function StatsCards({ user }: StatsCardsProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      {stats.map((stat, index) => (
+      {cards.map((card, index) => (
         <Card
           key={index}
-          className={`bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 border-l-4 ${stat.borderColor}`}
+          className={`bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 border-l-4 ${card.borderColor}`}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="text-sm font-medium text-gray-600">
-              {stat.title}
+              {card.title}
             </CardTitle>
-            <div className={`${stat.bgColor} p-2.5 rounded-lg`}>
-              <stat.icon className={`w-5 h-5 ${stat.color}`} />
+            <div className={`${card.bgColor} p-2.5 rounded-lg`}>
+              <card.icon className={`w-5 h-5 ${card.color}`} />
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-bold text-gray-900">{stat.value}</div>
+            <div className="text-3xl font-bold text-gray-900">{card.value}</div>
           </CardContent>
         </Card>
       ))}

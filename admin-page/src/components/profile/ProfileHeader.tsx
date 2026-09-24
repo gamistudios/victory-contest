@@ -1,4 +1,5 @@
 import { User } from "@/types/user";
+import { StudentProfileStats } from "@/services/studentServices";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   MapPin,
@@ -13,9 +14,11 @@ import {
 
 interface ProfileHeaderProps {
   user: User;
+  /** Aggregated quickstat numbers; null while unavailable. */
+  stats: StudentProfileStats | null;
 }
 
-export function ProfileHeader({ user }: ProfileHeaderProps) {
+export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -73,7 +76,7 @@ export function ProfileHeader({ user }: ProfileHeaderProps) {
                 <div className="flex items-center space-x-2">
                   <Trophy className="w-4 h-4 text-amber-300" />
                   <span className="text-white font-semibold">
-                    {user.stat.correct_answers} Points
+                    {stats ? `${stats.totalPoints} Points` : "—"}
                   </span>
                 </div>
               </div>

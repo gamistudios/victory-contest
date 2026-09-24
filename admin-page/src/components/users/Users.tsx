@@ -202,7 +202,7 @@ export default function UserListPage() {
           </TableCell>
           <TableCell>{student.grade}</TableCell>
           <TableCell>{student.city}</TableCell>
-          <TableCell>{student.sex}</TableCell>
+          <TableCell>{student.gender}</TableCell>
           <TableCell>
             <Badge variant={payment.variant}>{payment.label}</Badge>
           </TableCell>

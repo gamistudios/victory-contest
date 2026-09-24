@@ -29,16 +29,21 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useParams } from "react-router-dom";
 import { useState } from "react";
-import { updateUserInfo } from "@/services/studentServices";
+import {
+  sendStudentNotification,
+  updateUserInfo,
+} from "@/services/studentServices";
 
 interface PaymentManagementProps {
   user: User;
+  isNotifying: boolean;
   onDeleteUser: () => void;
-  onNotifyUser: () => void;
+  onNotifyUser: () => void | Promise<void>;
 }
 
 export function PaymentManagement({
   user,
+  isNotifying,
   onDeleteUser,
   onNotifyUser,
 }: PaymentManagementProps) {
@@ -111,23 +116,23 @@ export function PaymentManagement({
   };
 
   const handleNotifyUser = () => {
+    // Profile owns the request, success/error toast and loading flag.
     onNotifyUser();
-    toast({
-      title: "Payment Reminder Sent",
-      description: `Payment notification has been sent to ${user.name}.`,
-    });
   };
 
   const handleSuspendAccount = async () => {
     try {
       setLoading({ ...loading, suspend: true });
-      await updateUserInfo({ telegram_id: id, isSuspended: true });
+      // PUT /api/student/:id — the backend reads the row key from the URL and
+      // binds the body directly into domain.Student (only non-zero fields are
+      // written), so the patch goes un-wrapped.
+      await updateUserInfo(user.id || id, { isSuspended: true });
       toast({
         title: "Account Suspended",
         description: `${user.name}'s account has been temporarily suspended due to unpaid fees.`,
         variant: "default",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: `Failed to suspend ${user.name}'s account. Please try again later.`,
@@ -146,7 +151,6 @@ export function PaymentManagement({
   };
 
   const handleSendFinalNotice = async () => {
-    const BOT_TOKEN = import.meta.env.VITE_BOT;
     setLoading({ ...loading, notice: true });
     try {
       const dateObj = new Date(user.payment.expirationDate);
@@ -156,19 +160,15 @@ export function PaymentManagement({
         day: "numeric",
       });
 
-      const message = `Your next payment is due on ${formattedDate}.`;
+      const message = `Final notice: your next payment is due on ${formattedDate}. Please complete your payment to keep your account active.`;
 
-      const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-
-      await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          chat_id: id,
-          text: message,
-        }),
+      // The backend owns Telegram/in-app delivery; the browser must never
+      // hold the bot token or call api.telegram.org directly.
+      await sendStudentNotification({
+        recipientId: user.id || id,
+        title: "Final Payment Notice",
+        message,
+        type: "payment_reminder",
       });
 
       toast({
@@ -271,11 +271,12 @@ export function PaymentManagement({
               </Button>
               <Button
                 onClick={handleNotifyUser}
+                disabled={isNotifying}
                 variant="outline"
                 className="border-gray-300 text-gray-600 hover:bg-gray-50 text-sm py-2"
               >
                 <Bell className="w-4 h-4 mr-2" />
-                Contact Student
+                {isNotifying ? "Sending" : "Contact Student"}
               </Button>
             </div>
           </div>
@@ -295,10 +296,11 @@ export function PaymentManagement({
             <div className="flex flex-col space-y-2">
               <Button
                 onClick={handleNotifyUser}
+                disabled={isNotifying}
                 className="bg-red-600 hover:bg-red-700 text-white text-sm py-2"
               >
                 <Bell className="w-4 h-4 mr-2" />
-                Send Urgent Reminder
+                {isNotifying ? "Sending" : "Send Urgent Reminder"}
               </Button>
             </div>
           </div>

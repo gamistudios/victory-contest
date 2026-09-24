@@ -5,31 +5,60 @@ import { PaymentManagement } from "@/components/profile/PaymentManagement";
 import { ContestStatistics } from "@/components/profile/ContestStatistics";
 import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { Toaster } from "@/components/ui/toaster";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { User } from "@/types/user";
-import { getUserProfile, deleteStudent } from "@/services/studentServices";
+import {
+  StudentProfileStats,
+  deleteStudent,
+  getStudentStats,
+  getUserProfile,
+  sendStudentNotification,
+} from "@/services/studentServices";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
 function Profile() {
   const [user, setUser] = useState<User | null>(null);
+  const [stats, setStats] = useState<StudentProfileStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isNotifying, setIsNotifying] = useState(false);
   const { id } = useParams() as { id: string }; // Assuming the user ID is passed as a URL parameter
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadUserData = async () => {
-      try {
-        const res: User = await getUserProfile(id);
-        // console.log("User profile data received:", res);
-        // console.log("User ID field:", res.id);
-        // console.log("User telegram_id field:", res.telegram_id);
-        // console.log("Full user object:", JSON.stringify(res, null, 2));
-        setUser(res);
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Error loading user profile:", error);
-        setIsLoading(false);
+      setIsLoading(true);
+      setLoadError(null);
+      // The profile payload and the stats payload come from two endpoints;
+      // a quickstat failure must only degrade the stats cards, never blank
+      // the profile, so each call settles independently.
+      const [profileResult, statsResult] = await Promise.allSettled([
+        getUserProfile(id),
+        getStudentStats(id),
+      ]);
+
+      if (profileResult.status === "fulfilled") {
+        setUser(profileResult.value);
+      } else {
+        console.error("Error loading user profile:", profileResult.reason);
+        setLoadError(
+          profileResult.reason instanceof Error
+            ? profileResult.reason.message
+            : "Failed to load user profile."
+        );
       }
+
+      if (statsResult.status === "fulfilled") {
+        setStats(statsResult.value);
+      } else {
+        // Stats cards render "—" in this state.
+        console.error("Error loading student stats:", statsResult.reason);
+        setStats(null);
+      }
+
+      setIsLoading(false);
     };
 
     loadUserData();
@@ -45,25 +74,15 @@ function Profile() {
       return;
     }
 
-    console.log("Attempting to delete user:", {
-      id: user.id,
-      telegram_id: user.telegram_id,
-      name: user.name,
-    });
-
     try {
       // Use the student's telegram_id as the primary identifier for deletion
       const studentId = user.telegram_id;
       if (!studentId) {
-        // console.error("User object:", user);
-        // console.error("User telegram_id is undefined or null");
         throw new Error(
           "No valid telegram_id found for user. Please check the user data."
         );
       }
 
-      // console.log("Deleting student with telegram_id:", studentId);
-      // console.log("Making DELETE request to:", `/api/student/${studentId}`);
       await deleteStudent(studentId);
       toast({
         title: "User deleted",
@@ -72,11 +91,6 @@ function Profile() {
       navigate("/users");
     } catch (error) {
       console.error("Delete error:", error);
-      console.error("Error details:", {
-        message: error instanceof Error ? error.message : "Unknown error",
-        user: user,
-        telegramId: user?.telegram_id,
-      });
       toast({
         title: "Error deleting user",
         description:
@@ -86,32 +100,90 @@ function Profile() {
     }
   };
 
-  const handleNotifyUser = () => {
-    console.log("Notifying user:", user?.id);
+  const handleNotifyUser = async () => {
+    const recipientId = user?.id || id;
+    if (!recipientId) {
+      toast({
+        title: "Error",
+        description: "No student identifier available to notify.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsNotifying(true);
+    try {
+      await sendStudentNotification({
+        recipientId,
+        title: "Payment Reminder",
+        message: `Hello ${user?.name ?? "student"}, this is a reminder from Victory Contest: please review your subscription status so you can keep participating in contests.`,
+        type: "payment_reminder",
+      });
+      toast({
+        title: "Reminder Sent",
+        description: `A notification has been sent to ${user?.name ?? "the student"}.`,
+      });
+    } catch (error) {
+      console.error("Notify error:", error);
+      toast({
+        title: "Error Sending Reminder",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to send the notification.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsNotifying(false);
+    }
   };
 
   if (isLoading) {
     return <ProfileSkeleton />;
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen font-sans">
+        <div className="max-w-3xl px-8 py-16">
+          <Card>
+            <CardContent className="p-8 space-y-4">
+              <h1 className="text-xl font-bold text-gray-900">
+                Profile could not be loaded
+              </h1>
+              <p className="text-sm text-gray-600">
+                {loadError ?? "The student profile is unavailable."}
+              </p>
+              <Button variant="outline" onClick={() => navigate("/users")}>
+                Back to Users
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+        <Toaster />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen font-sans">
       <div className="max-w-7xl">
-        <ProfileHeader user={user!} />
+        <ProfileHeader user={user} stats={stats} />
 
         <div className="px-8 pb-8">
-          <StatsCards user={user!} />
+          <StatsCards stats={stats} />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1">
               <PaymentManagement
-                user={user!}
+                user={user}
+                isNotifying={isNotifying}
                 onDeleteUser={handleDeleteUser}
                 onNotifyUser={handleNotifyUser}
               />
             </div>
             <div className="lg:col-span-2">
-              <ContestStatistics user={user!} />
+              <ContestStatistics user={user} />
             </div>
           </div>
         </div>
