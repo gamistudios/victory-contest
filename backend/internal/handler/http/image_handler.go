@@ -32,6 +32,11 @@ func (h *ImageHandler) Upload(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
         return
     }
+    // Size/type guard before the upload (README §9 #50).
+    if err := validateImageUpload(fileHeader); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
     file, err := fileHeader.Open()
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open file"})

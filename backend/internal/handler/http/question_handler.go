@@ -55,6 +55,13 @@ func (h *QuestionHandler) AddQuestion(c *gin.Context) {
 		return
 	}
 
+	// Range/shape check before any upload so a bad question never spends a
+	// Cloudinary slot (README §9 #50).
+	if err := usecase.ValidateQuestion(question); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	fileHeader, err := c.FormFile("question_image")
 	if err != nil && err != http.ErrMissingFile {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to get image from form"})
@@ -62,6 +69,10 @@ func (h *QuestionHandler) AddQuestion(c *gin.Context) {
 	}
 
 	if fileHeader != nil {
+		if err := validateImageUpload(fileHeader); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		file, err := fileHeader.Open()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open uploaded file"})
@@ -85,6 +96,10 @@ func (h *QuestionHandler) AddQuestion(c *gin.Context) {
 	}
 
 	if explanationFileHeader != nil {
+		if err := validateImageUpload(explanationFileHeader); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		file, err := explanationFileHeader.Open()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open explanation image file"})
@@ -102,6 +117,10 @@ func (h *QuestionHandler) AddQuestion(c *gin.Context) {
 
 	id, err := h.usecase.AddQuestion(question)
 	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidQuestion) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -115,6 +134,10 @@ func (h *QuestionHandler) AddMultipleQuestions(c *gin.Context) {
 		return
 	}
 	if err := h.usecase.AddMultipleQuestions(questions.Questions); err != nil {
+		if errors.Is(err, usecase.ErrInvalidQuestion) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -162,6 +185,9 @@ func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 			if err != nil {
 				return "", nil // no file under this key: field not provided
 			}
+			if err := validateImageUpload(fileHeader); err != nil {
+				return "", err
+			}
 			file, err := fileHeader.Open()
 			if err != nil {
 				return "", err
@@ -170,13 +196,13 @@ func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 			return h.imageRepo.UploadImage(file, "questions")
 		}
 		if url, err := upload("question_image"); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(uploadStatus(err), gin.H{"error": err.Error()})
 			return
 		} else if url != "" {
 			patch.QuestionImg = &url
 		}
 		if url, err := upload("explanation_image"); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(uploadStatus(err), gin.H{"error": err.Error()})
 			return
 		} else if url != "" {
 			patch.ExplanationImg = &url
@@ -193,6 +219,10 @@ func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, usecase.ErrQuestionNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, usecase.ErrInvalidQuestion) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		log.Printf("UpdateQuestion(id=%s) failed: %v", id, err)

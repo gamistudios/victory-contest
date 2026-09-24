@@ -1,10 +1,34 @@
 package usecase
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"victor-contest-go/internal/domain"
 )
+
+// ErrInvalidContest marks contest input the client must fix (README §9 #50:
+// contest times were free-form strings). Handlers map it to HTTP 400.
+var ErrInvalidContest = errors.New("invalid contest")
+
+// ValidateContestTimes checks provided start/end times against the same
+// layouts the dashboard parses with, and that the window is ordered.
+// Empty values are allowed (create may omit start; PATCH leaves them unset).
+func ValidateContestTimes(startTime, endTime string) error {
+	st, sok := parseContestTime(startTime)
+	et, eok := parseContestTime(endTime)
+	if strings.TrimSpace(startTime) != "" && !sok {
+		return fmt.Errorf("%w: 'start_time' %q is not a valid timestamp (use RFC3339, e.g. 2026-09-23T12:00:00Z)", ErrInvalidContest, startTime)
+	}
+	if strings.TrimSpace(endTime) != "" && !eok {
+		return fmt.Errorf("%w: 'end_time' %q is not a valid timestamp (use RFC3339, e.g. 2026-09-23T14:00:00Z)", ErrInvalidContest, endTime)
+	}
+	if sok && eok && !et.After(st) {
+		return fmt.Errorf("%w: 'end_time' must be after 'start_time'", ErrInvalidContest)
+	}
+	return nil
+}
 
 // ContestHasEnded reports whether a contest has provably finished: its
 // end_time is set, parseable (same layouts as the dashboard, issue #38) and
@@ -74,6 +98,9 @@ func (u *contestUsecase) GetContestByID(id string) (*domain.ContestTypeWithQuest
 	return resultContest, nil
 }
 func (u *contestUsecase) AddContest(contest domain.Contest) (string, error) {
+	if err := ValidateContestTimes(contest.StartTime, contest.EndTime); err != nil {
+		return "", err
+	}
 	contest.ID = GenerateUniqueId()
 	return u.contestRepo.AddContest(contest)
 }

@@ -104,6 +104,11 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bill screenshot ('img' field) is required"})
 		return
 	}
+	// Size/type guard before the upload (README §9 #50).
+	if err := validateImageUpload(file); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	openedFile, openErr := file.Open()
 	if openErr != nil {

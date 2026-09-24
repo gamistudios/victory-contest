@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -46,6 +47,10 @@ func (h *ContestHandler) AddContest(c *gin.Context) {
 	}
 	id, err := h.usecase.AddContest(contest)
 	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidContest) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -178,9 +183,26 @@ func (h *ContestHandler) UpdateContest(c *gin.Context) {
 		update.Questions = currentContest.Contest.Questions
 	}
 
+	// Times became real timestamps (#50): when a PATCH touches either one,
+	// the EFFECTIVE pair (provided value or stored value) must parse and be
+	// ordered. A contest whose stored legacy time is garbage is not blocked
+	// from unrelated patches — only from touching the time fields.
+	_, startProvided := rawData["start_time"]
+	_, endProvided := rawData["end_time"]
+	if (startProvided || endProvided) && (update.StartTime != "" || update.EndTime != "") {
+		if err := usecase.ValidateContestTimes(update.StartTime, update.EndTime); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	// Perform the update
 	err = h.usecase.UpdateContest(id, update)
 	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidContest) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update contest: " + err.Error()})
 		return
 	}

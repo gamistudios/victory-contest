@@ -2,12 +2,34 @@ package usecase
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 
 	"victor-contest-go/internal/domain"
 )
 
 var ErrQuestionNotFound = errors.New("question not found")
+
+// ErrInvalidQuestion marks client-side question validation failures
+// (README §9 #50: answers were never range-checked against the options).
+// Handlers map it to HTTP 400.
+var ErrInvalidQuestion = errors.New("invalid question")
+
+// validateQuestion enforces the wire convention the grader relies on: at
+// least two options and a 1-based correct answer inside that range.
+func validateQuestion(q domain.Question) error {
+	if len(q.MultipleChoice) < 2 {
+		return fmt.Errorf("%w: 'multiple_choice' needs at least 2 options", ErrInvalidQuestion)
+	}
+	if q.Answer < 1 || q.Answer > len(q.MultipleChoice) {
+		return fmt.Errorf("%w: 'answer' must be between 1 and %d (1-based option index), got %d", ErrInvalidQuestion, len(q.MultipleChoice), q.Answer)
+	}
+	return nil
+}
+
+// ValidateQuestion is the exported form handlers use to reject bad input
+// before spending an upload on it.
+func ValidateQuestion(q domain.Question) error { return validateQuestion(q) }
 
 type QuestionUsecase interface {
 	AddQuestion(question domain.Question) (string, error)
@@ -40,6 +62,9 @@ func NewQuestionUsecase(repo QuestionRepository) QuestionUsecase {
 }
 
 func (u *questionUsecase) AddQuestion(question domain.Question) (string, error) {
+	if err := validateQuestion(question); err != nil {
+		return "", err
+	}
 	question.ID = GenerateUniqueId()
 	return u.repo.AddQuestion(question)
 }
@@ -82,6 +107,14 @@ func (u *questionUsecase) UpdateQuestion(id string, patch domain.QuestionPatch) 
 	if patch.MultipleChoice != nil {
 		updated.MultipleChoice = *patch.MultipleChoice
 	}
+	// Only patches that touch the answer/options need the range check —
+	// legacy rows without options stay editable (e.g. to fix the text) so
+	// this validation cannot lock them out (README §9 #50).
+	if patch.Answer != nil || patch.MultipleChoice != nil {
+		if err := validateQuestion(updated); err != nil {
+			return err
+		}
+	}
 	return u.repo.UpdateQuestion(id, updated)
 }
 func (u *questionUsecase) DeleteQuestion(id string) error {
@@ -115,6 +148,11 @@ func (u *questionUsecase) GetAllQuestions() ([]domain.Question, error) {
 }
 
 func (u *questionUsecase) AddMultipleQuestions(questions []domain.Question) error {
+	for i, q := range questions {
+		if err := validateQuestion(q); err != nil {
+			return fmt.Errorf("question %d: %w", i+1, err)
+		}
+	}
 	err := u.repo.AddMultipleQuestions(questions)
 	return err
 }
