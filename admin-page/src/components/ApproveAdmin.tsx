@@ -182,9 +182,12 @@ export default function ApproveAdmin() {
                 </InputAdornment>
               ),
             },
-          }}
-          inputProps={{
-            style: { fontFamily: '"Public Sans",sans-serif' },
+            // MUI 9 dropped the top-level `inputProps`; passing it there logged
+            // "React does not recognize the inputProps prop" and silently lost
+            // the font override.
+            htmlInput: {
+              style: { fontFamily: '"Public Sans",sans-serif' },
+            },
           }}
         />
       </Box>
