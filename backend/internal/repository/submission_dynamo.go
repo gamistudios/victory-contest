@@ -74,14 +74,16 @@ func (r *SubmissionDynamoRepository) GetSubmissionByID(id string) (*domain.Submi
 func (r *SubmissionDynamoRepository) GetAllSubmissions() ([]domain.Submission, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): feeds leaderboard/statistics aggregation, so
+	// it must see every row, not just the first 1 MB page.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var submissions []domain.Submission
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &submissions)
+	err = attributevalue.UnmarshalListOfMaps(items, &submissions)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +98,9 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByContest(contestID string) (
 		return nil, err // It's good practice to handle this marshal error
 	}
 
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41): a popular contest's submission partition can
+	// exceed one 1 MB page.
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		IndexName:              aws.String("contest_id-index"),
 		KeyConditionExpression: aws.String("contest_id = :contest_id"),
@@ -110,7 +114,7 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByContest(contestID string) (
 	}
 
 	var submissions []domain.Submission
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &submissions)
+	err = attributevalue.UnmarshalListOfMaps(items, &submissions)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +130,8 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudent(studentID string) (
 		return nil, err
 	}
 
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41).
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("student_id-index"),
 		KeyConditionExpression: aws.String("student_id = :sid"),
@@ -139,7 +144,7 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudent(studentID string) (
 	}
 
 	var submissions []domain.Submission
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &submissions)
+	err = attributevalue.UnmarshalListOfMaps(items, &submissions)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +163,9 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudentAndContest(conId, st
 		return nil, err
 	}
 
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41): the "newest submission" pick below is only
+	// correct over the full result set, not a single page.
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("contest_id-student_id-index"),
 		KeyConditionExpression: aws.String("contest_id = :cId AND student_id = :sid"),
@@ -170,7 +177,7 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudentAndContest(conId, st
 	if err != nil {
 		return nil, err
 	}
-	if len(out.Items) == 0 {
+	if len(items) == 0 {
 		return nil, nil
 	}
 
@@ -179,7 +186,7 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudentAndContest(conId, st
 	// editorial must reflect their LATEST attempt, not whichever row the
 	// index happens to return first.
 	var submissions []domain.Submission
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &submissions); err != nil {
+	if err := attributevalue.UnmarshalListOfMaps(items, &submissions); err != nil {
 		return nil, err
 	}
 	newest := submissions[0]

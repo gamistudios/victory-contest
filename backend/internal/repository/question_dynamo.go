@@ -171,7 +171,9 @@ func (r *QuestionDynamoRepository) GetQuestionByID(id string) (*domain.Question,
 func (r *QuestionDynamoRepository) GetAllQuestions() ([]domain.Question, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): the question bank is the largest table in
+	// practice (long HTML content), so a single-page Scan truncates.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -179,7 +181,7 @@ func (r *QuestionDynamoRepository) GetAllQuestions() ([]domain.Question, error) 
 	}
 
 	var questions []domain.Question
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &questions)
+	err = attributevalue.UnmarshalListOfMaps(items, &questions)
 	if err != nil {
 		return nil, err
 	}

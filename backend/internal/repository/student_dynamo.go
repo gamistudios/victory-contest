@@ -204,7 +204,10 @@ func (r *StudentDynamoRepository) GetStudentByTelegramID(telegramID string) (*do
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
 	teleIDVal, _ := attributevalue.Marshal(telegramID)
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): with a filter there is no key guarantee, so
+	// the student's row can live on any page; first match wins (the
+	// uniqueness guard in AddStudent keeps at most one).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("telegram_id = :tele_id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -214,12 +217,12 @@ func (r *StudentDynamoRepository) GetStudentByTelegramID(telegramID string) (*do
 	if err != nil {
 		return nil, err
 	}
-	if len(out.Items) == 0 {
+	if len(items) == 0 {
 		return nil, nil // Student not found
 	}
 
 	var student domain.Student
-	err = attributevalue.UnmarshalMap(out.Items[0], &student)
+	err = attributevalue.UnmarshalMap(items[0], &student)
 	if err != nil {
 		return nil, err
 	}
@@ -229,14 +232,15 @@ func (r *StudentDynamoRepository) GetStudentByTelegramID(telegramID string) (*do
 func (r *StudentDynamoRepository) GetStudents() ([]domain.Student, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var students []domain.Student
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &students)
+	err = attributevalue.UnmarshalListOfMaps(items, &students)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +269,10 @@ func (r *StudentDynamoRepository) VerifyStudentPaid(telegramID string) (bool, er
 	defer cancel()
 	teleIDVal, _ := attributevalue.Marshal(telegramID)
 	premiumVal, _ := attributevalue.Marshal(true)
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): the matching premium row can live past the
+	// first page, so the whole table must be examined before answering
+	// false.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("telegram_id = :tele_id AND is_premium = :premium"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -276,7 +283,7 @@ func (r *StudentDynamoRepository) VerifyStudentPaid(telegramID string) (bool, er
 	if err != nil {
 		return false, err
 	}
-	return len(out.Items) > 0, nil
+	return len(items) > 0, nil
 }
 
 // GetPaidStudents returns students whose subscription is active, i.e. the
@@ -287,7 +294,8 @@ func (r *StudentDynamoRepository) GetPaidStudents() ([]domain.Student, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
 	premiumVal, _ := attributevalue.Marshal(true)
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("is_premium = :premium"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -298,7 +306,7 @@ func (r *StudentDynamoRepository) GetPaidStudents() ([]domain.Student, error) {
 		return nil, err
 	}
 	var students []domain.Student
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &students)
+	err = attributevalue.UnmarshalListOfMaps(items, &students)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +316,9 @@ func (r *StudentDynamoRepository) GetPaidStudents() ([]domain.Student, error) {
 func (r *StudentDynamoRepository) GetGradesAndSchools() (map[string][]string, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): the aggregation must see every student row,
+	// not just the first page.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:            &r.tableName,
 		ProjectionExpression: aws.String("grade, school"),
 	})
@@ -317,7 +327,7 @@ func (r *StudentDynamoRepository) GetGradesAndSchools() (map[string][]string, er
 	}
 	gradesSet := make(map[string]struct{})
 	schoolsSet := make(map[string]struct{})
-	for _, item := range out.Items {
+	for _, item := range items {
 		var student domain.Student
 		err := attributevalue.UnmarshalMap(item, &student)
 		if err != nil {

@@ -53,7 +53,9 @@ func (r *PageViewDynamoRepository) GetPageViewsByDateRange(startDate, endDate ti
 	startDateStr := startDate.Format(time.RFC3339)
 	endDateStr := endDate.Format(time.RFC3339)
 
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): pageviews accumulate quickly, so a date range
+	// over a busy period easily exceeds one 1 MB page.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("viewed_at BETWEEN :start_date AND :end_date"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -66,7 +68,7 @@ func (r *PageViewDynamoRepository) GetPageViewsByDateRange(startDate, endDate ti
 	}
 
 	var pageViews []domain.PageView
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &pageViews)
+	err = attributevalue.UnmarshalListOfMaps(items, &pageViews)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +79,8 @@ func (r *PageViewDynamoRepository) GetPageViewsByDateRange(startDate, endDate ti
 func (r *PageViewDynamoRepository) GetAllPageViews() ([]domain.PageView, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -85,7 +88,7 @@ func (r *PageViewDynamoRepository) GetAllPageViews() ([]domain.PageView, error) 
 	}
 
 	var pageViews []domain.PageView
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &pageViews)
+	err = attributevalue.UnmarshalListOfMaps(items, &pageViews)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +99,8 @@ func (r *PageViewDynamoRepository) GetAllPageViews() ([]domain.PageView, error) 
 func (r *PageViewDynamoRepository) GetPageViewsByUserID(userID string) ([]domain.PageView, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41): an active user's partition can exceed 1 MB.
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		IndexName:              aws.String("user_id-index"),
 		KeyConditionExpression: aws.String("user_id = :uid"),
@@ -109,7 +113,7 @@ func (r *PageViewDynamoRepository) GetPageViewsByUserID(userID string) ([]domain
 	}
 
 	var pageViews []domain.PageView
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &pageViews)
+	err = attributevalue.UnmarshalListOfMaps(items, &pageViews)
 	if err != nil {
 		return nil, err
 	}

@@ -53,7 +53,9 @@ func (r *dynamoDBPaymentRepository) ListAll() ([]domain.PaymentRequest, error) {
 		return nil, err
 	}
 
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41): the single GSI1PK partition holds every
+	// payment row and grows past 1 MB.
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-user_id-index"),
 		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk"),
@@ -64,7 +66,7 @@ func (r *dynamoDBPaymentRepository) ListAll() ([]domain.PaymentRequest, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &payments); err != nil {
+	if err := attributevalue.UnmarshalListOfMaps(items, &payments); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payments: %w", err)
 	}
 	normalizeReasons(payments)
@@ -219,7 +221,9 @@ func (r *dynamoDBPaymentRepository) ListByStatus(status domain.PaymentStatus) ([
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal GSI PK: %w", err)
 	}
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41): a status bucket (e.g. "pending") can exceed
+	// one page.
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-status-index"),
 		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk AND #st = :status"),
@@ -235,7 +239,7 @@ func (r *dynamoDBPaymentRepository) ListByStatus(status domain.PaymentStatus) ([
 		return nil, fmt.Errorf("failed to query by status: %w", err)
 	}
 
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &payments); err != nil {
+	if err := attributevalue.UnmarshalListOfMaps(items, &payments); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payments: %w", err)
 	}
 	normalizeReasons(payments)
@@ -254,7 +258,8 @@ func (r *dynamoDBPaymentRepository) ListByUser(userID string) ([]domain.PaymentR
 		return nil, err
 	}
 
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41).
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-user_id-index"),
 		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk AND #st = :user_id"),
@@ -269,7 +274,7 @@ func (r *dynamoDBPaymentRepository) ListByUser(userID string) ([]domain.PaymentR
 	if err != nil {
 		return nil, err
 	}
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &payments); err != nil {
+	if err := attributevalue.UnmarshalListOfMaps(items, &payments); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payments: %w", err)
 	}
 	normalizeReasons(payments)
@@ -291,7 +296,8 @@ func (r *dynamoDBPaymentRepository) ListExpired(now time.Time) ([]domain.Payment
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal GSI PK: %w", err)
 	}
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41): the expired range can span many pages.
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-expirationDate-index"),
 		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk AND expirationDate < :now"),
@@ -304,7 +310,7 @@ func (r *dynamoDBPaymentRepository) ListExpired(now time.Time) ([]domain.Payment
 		return nil, fmt.Errorf("failed to query for expired payments: %w", err)
 	}
 
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &payments); err != nil {
+	if err := attributevalue.UnmarshalListOfMaps(items, &payments); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal expired payments: %w", err)
 	}
 	normalizeReasons(payments)

@@ -132,15 +132,16 @@ func (r *ArticleDynamoRepository) GetByID(id string) (*domain.Article, error) {
 func (r *ArticleDynamoRepository) List() ([]domain.Article, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{TableName: &r.tableName})
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{TableName: &r.tableName})
 	if err != nil {
 		return nil, err
 	}
-	var items []domain.Article
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &items); err != nil {
+	var list []domain.Article
+	if err := attributevalue.UnmarshalListOfMaps(items, &list); err != nil {
 		return nil, err
 	}
-	return items, nil
+	return list, nil
 }
 
 func (r *ArticleDynamoRepository) ListPublished() ([]domain.Article, error) {
@@ -155,7 +156,8 @@ func (r *ArticleDynamoRepository) ListPublished() ([]domain.Article, error) {
 func (r *ArticleDynamoRepository) GetByStatus(status domain.ArticleStatus) ([]domain.Article, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41): a status partition can exceed one 1 MB page.
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		IndexName:              aws.String("status-index"),
 		KeyConditionExpression: aws.String("#st = :status"),
@@ -170,11 +172,11 @@ func (r *ArticleDynamoRepository) GetByStatus(status domain.ArticleStatus) ([]do
 	if err != nil {
 		return nil, err
 	}
-	var items []domain.Article
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &items); err != nil {
+	var list []domain.Article
+	if err := attributevalue.UnmarshalListOfMaps(items, &list); err != nil {
 		return nil, err
 	}
-	return items, nil
+	return list, nil
 }
 
 func (r *ArticleDynamoRepository) IncrementView(id string) error {

@@ -116,14 +116,15 @@ func (r *FeedbackQuestionDynamoRepository) GetFeedbackQuestionByID(id string) (*
 func (r *FeedbackQuestionDynamoRepository) GetAllFeedbackQuestions() ([]domain.FeedbackQuestion, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var questions []domain.FeedbackQuestion
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &questions)
+	err = attributevalue.UnmarshalListOfMaps(items, &questions)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,9 @@ func (r *FeedbackQuestionDynamoRepository) GetActiveFeedbackQuestions() ([]domai
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
 	isActiveVal, _ := attributevalue.Marshal(true)
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): FilterExpression runs per page, so active rows
+	// can live past the first 1 MB page.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("is_active = :is_active"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -145,7 +148,7 @@ func (r *FeedbackQuestionDynamoRepository) GetActiveFeedbackQuestions() ([]domai
 		return nil, err
 	}
 	var questions []domain.FeedbackQuestion
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &questions)
+	err = attributevalue.UnmarshalListOfMaps(items, &questions)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +159,8 @@ func (r *FeedbackQuestionDynamoRepository) GetFeedbackQuestionsByAdmin(adminID s
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
 	adminIDVal, _ := attributevalue.Marshal(adminID)
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("admin_id = :admin_id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -167,7 +171,7 @@ func (r *FeedbackQuestionDynamoRepository) GetFeedbackQuestionsByAdmin(adminID s
 		return nil, err
 	}
 	var questions []domain.FeedbackQuestion
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &questions)
+	err = attributevalue.UnmarshalListOfMaps(items, &questions)
 	if err != nil {
 		return nil, err
 	}

@@ -101,14 +101,15 @@ func (r *BankDynamoRepository) GetBankByID(id string) (*domain.Bank, error) {
 func (r *BankDynamoRepository) GetAllBanks() ([]domain.Bank, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var banks []domain.Bank
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &banks)
+	err = attributevalue.UnmarshalListOfMaps(items, &banks)
 	if err != nil {
 		return nil, err
 	}

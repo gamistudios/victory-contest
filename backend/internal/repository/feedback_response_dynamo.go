@@ -141,14 +141,16 @@ func (r *FeedbackResponseDynamoRepository) GetFeedbackResponseByID(id string) (*
 func (r *FeedbackResponseDynamoRepository) GetAllFeedbackResponses() ([]domain.FeedbackResponse, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41). GetFeedbackAnalytics and
+	// DeleteContactByPhoneNumber build on this, so they inherit the fix.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var responses []domain.FeedbackResponse
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &responses)
+	err = attributevalue.UnmarshalListOfMaps(items, &responses)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +161,8 @@ func (r *FeedbackResponseDynamoRepository) GetFeedbackResponsesByStudent(student
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
 	studentIDVal, _ := attributevalue.Marshal(studentID)
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): filtered matches can live past the first page.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("student_id = :student_id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -170,7 +173,7 @@ func (r *FeedbackResponseDynamoRepository) GetFeedbackResponsesByStudent(student
 		return nil, err
 	}
 	var responses []domain.FeedbackResponse
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &responses)
+	err = attributevalue.UnmarshalListOfMaps(items, &responses)
 	if err != nil {
 		return nil, err
 	}
@@ -182,14 +185,15 @@ func (r *FeedbackResponseDynamoRepository) GetFeedbackResponsesByQuestion(questi
 	defer cancel()
 	// This is a more complex query since question_responses is a map
 	// We'll need to scan and filter in application code
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var allResponses []domain.FeedbackResponse
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &allResponses)
+	err = attributevalue.UnmarshalListOfMaps(items, &allResponses)
 	if err != nil {
 		return nil, err
 	}

@@ -60,13 +60,15 @@ func (r *CommentDynamoRepository) ListByArticleID(articleID string) ([]domain.Co
 		ScanIndexForward: aws.Bool(false), // Sort by createdAt descending (newest first)
 	}
 
-	result, err := r.db.Query(ctx, input)
+	// Paged Query (issue #41): a popular article's comment partition can
+	// exceed one 1 MB page; newest-first order is preserved across pages.
+	items, err := queryPages(ctx, r.db, input)
 	if err != nil {
 		return nil, err
 	}
 
 	var comments []domain.Comment
-	err = attributevalue.UnmarshalListOfMaps(result.Items, &comments)
+	err = attributevalue.UnmarshalListOfMaps(items, &comments)
 	if err != nil {
 		return nil, err
 	}
@@ -137,13 +139,14 @@ func (r *CommentDynamoRepository) ListByArticleIDScan(articleID string) ([]domai
 		},
 	}
 
-	result, err := r.db.Scan(ctx, input)
+	// Paged Scan (issue #41): filtered matches can live past the first page.
+	items, err := scanPages(ctx, r.db, input)
 	if err != nil {
 		return nil, err
 	}
 
 	var comments []domain.Comment
-	err = attributevalue.UnmarshalListOfMaps(result.Items, &comments)
+	err = attributevalue.UnmarshalListOfMaps(items, &comments)
 	if err != nil {
 		return nil, err
 	}

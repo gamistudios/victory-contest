@@ -126,14 +126,15 @@ func (r *AdminDynamoRepository) GetAdminByEmail(email string) (*domain.Admin, er
 func (r *AdminDynamoRepository) GetAllAdmins() ([]domain.Admin, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): the old single Scan silently truncated at 1 MB.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var admins []domain.Admin
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &admins)
+	err = attributevalue.UnmarshalListOfMaps(items, &admins)
 	if err != nil {
 		return nil, err
 	}

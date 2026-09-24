@@ -98,14 +98,15 @@ func (r *PollOptionDynamoRepository) GetPollOptionByID(id string) (*domain.PollO
 func (r *PollOptionDynamoRepository) GetAllPollOptions() ([]domain.PollOption, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var options []domain.PollOption
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &options)
+	err = attributevalue.UnmarshalListOfMaps(items, &options)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +117,8 @@ func (r *PollOptionDynamoRepository) GetPollOptionByScore(score int) (*domain.Po
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
 	scoreVal, _ := attributevalue.Marshal(score)
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): the matching band can live past the first page.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("min_score <= :score AND max_score >= :score"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -126,11 +128,11 @@ func (r *PollOptionDynamoRepository) GetPollOptionByScore(score int) (*domain.Po
 	if err != nil {
 		return nil, err
 	}
-	if len(out.Items) == 0 {
+	if len(items) == 0 {
 		return nil, nil
 	}
 	var option domain.PollOption
-	err = attributevalue.UnmarshalMap(out.Items[0], &option)
+	err = attributevalue.UnmarshalMap(items[0], &option)
 	if err != nil {
 		return nil, err
 	}

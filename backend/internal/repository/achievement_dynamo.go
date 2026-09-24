@@ -98,14 +98,15 @@ func (r *AchievementDynamoRepository) GetAchievementByID(id string) (*domain.Ach
 func (r *AchievementDynamoRepository) GetAllAchievements() ([]domain.Achievement, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var achievements []domain.Achievement
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &achievements)
+	err = attributevalue.UnmarshalListOfMaps(items, &achievements)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +117,9 @@ func (r *AchievementDynamoRepository) GetAchievementsByStudent(studentID string)
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
 	studentVal, _ := attributevalue.Marshal(studentID)
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41): FilterExpression runs server-side per page, so
+	// matches can live past the first 1 MB page.
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("student_id = :student_id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -127,7 +130,7 @@ func (r *AchievementDynamoRepository) GetAchievementsByStudent(studentID string)
 		return nil, err
 	}
 	var achievements []domain.Achievement
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &achievements)
+	err = attributevalue.UnmarshalListOfMaps(items, &achievements)
 	if err != nil {
 		return nil, err
 	}

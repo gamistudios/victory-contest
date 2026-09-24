@@ -99,14 +99,15 @@ func (r *NotificationDynamoRepository) GetNotificationByID(id string) (*domain.N
 func (r *NotificationDynamoRepository) GetAllNotifications() ([]domain.Notification, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var notifications []domain.Notification
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &notifications)
+	err = attributevalue.UnmarshalListOfMaps(items, &notifications)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +126,9 @@ func (r *NotificationDynamoRepository) GetNotificationsByRecipient(recipientID s
 		},
 	}
 
-	userOut, err := r.db.Query(ctx, userQueryInput)
+	// Paged Queries (issue #41): recipient partitions (especially "all")
+	// grow past the 1 MB single-page limit.
+	userItems, err := queryPages(ctx, r.db, userQueryInput)
 	if err != nil {
 		return nil, fmt.Errorf("error querying user notifications: %w", err)
 	}
@@ -139,18 +142,18 @@ func (r *NotificationDynamoRepository) GetNotificationsByRecipient(recipientID s
 		},
 	}
 
-	allOut, err := r.db.Query(ctx, allQueryInput)
+	allItems, err := queryPages(ctx, r.db, allQueryInput)
 	if err != nil {
 		return nil, fmt.Errorf("error querying 'all' notifications: %w", err)
 	}
 
 	var notifications []domain.Notification
-	if err = attributevalue.UnmarshalListOfMaps(userOut.Items, &notifications); err != nil {
+	if err = attributevalue.UnmarshalListOfMaps(userItems, &notifications); err != nil {
 		return nil, fmt.Errorf("error unmarshalling user notifications: %w", err)
 	}
 
 	var allNotifications []domain.Notification
-	if err = attributevalue.UnmarshalListOfMaps(allOut.Items, &allNotifications); err != nil {
+	if err = attributevalue.UnmarshalListOfMaps(allItems, &allNotifications); err != nil {
 		return nil, fmt.Errorf("error unmarshalling 'all' notifications: %w", err)
 	}
 

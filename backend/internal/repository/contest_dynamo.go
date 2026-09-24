@@ -46,14 +46,15 @@ func (r *ContestDynamoRepository) AddContest(contest domain.Contest) (string, er
 func (r *ContestDynamoRepository) GetAllContests() ([]domain.Contest, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	// Paged Scan (issue #41).
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var contests []domain.Contest
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &contests)
+	err = attributevalue.UnmarshalListOfMaps(items, &contests)
 	if err != nil {
 		return nil, err
 	}

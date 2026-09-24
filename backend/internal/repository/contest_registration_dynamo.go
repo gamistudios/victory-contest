@@ -155,7 +155,9 @@ func (r *ContestRegistrationDynamoRepository) GetRegistrationsByContest(contest_
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+	// Paged Query (issue #41): a contest partition with many registrations
+	// can exceed one 1 MB page.
+	items, err := queryPages(ctx, r.db, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		KeyConditionExpression: aws.String("contest_id = :contestId"),
 		IndexName:              aws.String("contest_id-student_id-index"),
@@ -167,33 +169,34 @@ func (r *ContestRegistrationDynamoRepository) GetRegistrationsByContest(contest_
 		return nil, err
 	}
 
-	if len(out.Items) == 0 {
+	if len(items) == 0 {
 		return nil, nil
 	}
 	var registerations []domain.ContestRegistration
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &registerations)
+	err = attributevalue.UnmarshalListOfMaps(items, &registerations)
 	if err != nil {
 		return nil, err
 	}
 	return registerations, nil
 }
 
-// ListAll returns every contest registration row with a single table Scan
+// ListAll returns every contest registration row via a paged table Scan
 // (issue #3): the admin dashboard used to issue one GetRegistrationsByContest
 // GSI query per contest (N+1). Same plain-Scan recipe as the other repos
-// (e.g. AchievementDynamoRepository.GetAllAchievements) — acceptable at the
-// current table size.
+// (e.g. AchievementDynamoRepository.GetAllAchievements), paged until
+// LastEvaluatedKey is nil so large tables are no longer truncated at 1 MB
+// (issue #41).
 func (r *ContestRegistrationDynamoRepository) ListAll() ([]domain.ContestRegistration, error) {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
 		return nil, err
 	}
 	var registrations []domain.ContestRegistration
-	err = attributevalue.UnmarshalListOfMaps(out.Items, &registrations)
+	err = attributevalue.UnmarshalListOfMaps(items, &registrations)
 	if err != nil {
 		return nil, err
 	}
