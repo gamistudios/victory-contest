@@ -102,8 +102,14 @@ func (h *BankHandler) AddBank(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	// A payment method without an account number would render as an unusable
+	// dropdown entry on the student page (it shows exactly this field).
 	if input.Name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	if input.AccountNumber == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "account_number is required"})
 		return
 	}
 	id, err := h.usecase.AddBank(input.toBank(true))
@@ -123,6 +129,10 @@ func (h *BankHandler) UpdateBank(c *gin.Context) {
 	}
 	if input.Name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	if input.AccountNumber == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "account_number is required"})
 		return
 	}
 	isActive := true

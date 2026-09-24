@@ -1,4 +1,4 @@
-import React, { useState, useEffect, FC, useCallback } from "react";
+import React, { useState, useEffect, useMemo, FC, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { Upload, CheckCircle, Loader2, HelpCircle, Send } from "lucide-react";
+import { Upload, CheckCircle, Loader2, HelpCircle, Send, Copy } from "lucide-react";
 import { useTelegram } from "../hooks/useTelegram";
 import { toast } from "sonner";
 import { sendPaymentInfo, getPaymentSettings } from "../services/paymentServices";
@@ -38,7 +38,6 @@ import { useNavigate } from "react-router-dom";
 interface FormErrors {
   fullName?: string;
   bankName?: string;
-  otherBankName?: string;
   amount?: string;
   billScreenshot?: string;
 }
@@ -46,7 +45,6 @@ interface FormErrors {
 const Payment: FC = () => {
   const [fullName, setFullName] = useState<string>("");
   const [bankName, setBankName] = useState<string>("");
-  const [otherBankName, setOtherBankName] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [billScreenshot, setBillScreenshot] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>("");
@@ -59,6 +57,24 @@ const Payment: FC = () => {
   const [allowStars, setAllowStars] = useState<boolean>(false);
   const { user, openInvoice, showBackButton } = useTelegram();
   const navigate = useNavigate();
+
+  // The admin-managed method currently picked from the "Pay using" dropdown;
+  // drives the account-number box the student transfers to.
+  const selectedMethod = useMemo(
+    () => banks.find((b) => b.name === bankName),
+    [banks, bankName]
+  );
+
+  const copyAccountNumber = async () => {
+    const account = selectedMethod?.account_number;
+    if (!account) return;
+    try {
+      await navigator.clipboard.writeText(account);
+      toast.success("Account number copied.");
+    } catch {
+      toast.error("Could not copy — please select the number manually.");
+    }
+  };
 
   const loadBanks = useCallback(async () => {
     setBanksLoading(true);
@@ -164,9 +180,7 @@ const Payment: FC = () => {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
     if (!fullName.trim()) newErrors.fullName = "Full name is required.";
-    if (!bankName) newErrors.bankName = "Please select a bank.";
-    if (bankName === "Other" && !otherBankName.trim())
-      newErrors.otherBankName = "Please specify the bank name.";
+    if (!bankName) newErrors.bankName = "Please select a payment method.";
     const parsedAmount = Number(amount);
     if (!amount.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0)
       newErrors.amount = "Enter the transferred amount in ETB (greater than 0).";
@@ -185,14 +199,10 @@ const Payment: FC = () => {
     }
     const formData = new FormData();
     try {
-      console.log(fullName, bankName);
       setIsSubmitting(true);
       formData.append("user_id", user.id.toString());
       formData.append("fullName", fullName);
-      formData.append(
-        "bankName",
-        bankName === "Other" ? otherBankName.trim() : bankName
-      );
+      formData.append("bankName", bankName);
       formData.append("amount", amount.trim());
       formData.append("img", billScreenshot!);
 
@@ -232,7 +242,6 @@ const Payment: FC = () => {
   const resetForm = () => {
     setFullName("");
     setBankName("");
-    setOtherBankName("");
     setAmount("");
     setBillScreenshot(null);
     if (imagePreviewUrl) {
@@ -343,10 +352,10 @@ const Payment: FC = () => {
 
               <DrawerContent>
                 <DrawerHeader>
-                  <DrawerTitle>Bank Transfer Details</DrawerTitle>
+                  <DrawerTitle>Payment Methods</DrawerTitle>
                   <DrawerDescription>
-                    Please use one of the following bank accounts to complete
-                    your payment.
+                    Please use one of the following accounts to complete your
+                    payment.
                   </DrawerDescription>
                 </DrawerHeader>
 
@@ -354,15 +363,15 @@ const Payment: FC = () => {
                   <div className="space-y-4">
                     {banksLoading ? (
                       <p className="text-sm text-muted-foreground">
-                        Loading bank details...
+                        Loading payment methods...
                       </p>
                     ) : banksError ? (
                       <p className="text-sm text-destructive">
-                        Could not load bank details. Please try again.
+                        Could not load payment methods. Please try again.
                       </p>
                     ) : banks.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        No bank accounts are currently available.
+                        No payment methods are currently available.
                       </p>
                     ) : (
                       banks.map((bank) => (
@@ -403,6 +412,76 @@ const Payment: FC = () => {
               )}
             </div>
             <div className="space-y-2">
+              <Label htmlFor="bankName">Pay using</Label>
+              <Select onValueChange={setBankName} value={bankName} disabled={banksLoading || banks.length === 0}>
+                <SelectTrigger id="bankName">
+                  <SelectValue placeholder="Select a payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {banks.map((bank) => (
+                    <SelectItem key={bank.id} value={bank.name}>
+                      {bank.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {banksError && (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-destructive">
+                    Could not load the payment methods.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={loadBanks}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
+              {!banksLoading && !banksError && banks.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No payment methods are available right now. Please check
+                  back soon.
+                </p>
+              )}
+              {errors.bankName && (
+                <p className="text-sm text-destructive">{errors.bankName}</p>
+              )}
+            </div>
+            {selectedMethod?.account_number && (
+              <div className="animate-in fade-in duration-300 rounded-xl border-2 border-amber-400 bg-amber-50 p-3 dark:border-amber-500/60 dark:bg-amber-500/10">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                      Transfer to this account
+                    </p>
+                    <p className="font-mono text-base font-semibold break-all text-gray-900 dark:text-gray-100">
+                      {selectedMethod.account_number}
+                    </p>
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                      {selectedMethod.account_holder || selectedMethod.name}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={copyAccountNumber}
+                    aria-label="Copy account number"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+                {selectedMethod.description && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                    {selectedMethod.description}
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="space-y-2">
               <Label htmlFor="amount">Amount Paid (ETB)</Label>
               <Input
                 id="amount"
@@ -417,56 +496,6 @@ const Payment: FC = () => {
                 <p className="text-sm text-destructive">{errors.amount}</p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="bankName">Bank Name</Label>
-              <Select onValueChange={setBankName} value={bankName} disabled={banksLoading}>
-                <SelectTrigger id="bankName">
-                  <SelectValue placeholder="Select a bank" />
-                </SelectTrigger>
-                <SelectContent>
-                  {banks.map((bank) => (
-                    <SelectItem key={bank.id} value={bank.name}>
-                      {bank.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-              {banksError && (
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-destructive">
-                    Could not load the bank list.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={loadBanks}
-                  >
-                    Retry
-                  </Button>
-                </div>
-              )}
-              {errors.bankName && (
-                <p className="text-sm text-destructive">{errors.bankName}</p>
-              )}
-            </div>
-            {bankName === "Other" && (
-              <div className="space-y-2 animate-in fade-in duration-300">
-                <Label htmlFor="otherBankName">Please Specify Bank</Label>
-                <Input
-                  id="otherBankName"
-                  placeholder="Your Bank Name"
-                  value={otherBankName}
-                  onChange={(e) => setOtherBankName(e.target.value)}
-                />
-                {errors.otherBankName && (
-                  <p className="text-sm text-destructive">
-                    {errors.otherBankName}
-                  </p>
-                )}
-              </div>
-            )}
             <div className="space-y-2">
               <Label htmlFor="billScreenshot">Bill Screenshot</Label>
               <div className="relative">
