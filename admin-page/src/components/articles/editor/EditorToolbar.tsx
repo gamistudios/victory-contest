@@ -23,7 +23,7 @@ import {
   Link,
   Unlink,
   Image,
-  Youtube,
+  PlayCircle,
   Undo,
   Redo,
 } from "lucide-react";
@@ -364,7 +364,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           onClick={() => setIsVideoModalOpen(true)}
           title="Insert YouTube Video"
         >
-          <Youtube className="w-4 h-4" />
+          <PlayCircle className="w-4 h-4" />
         </Button>
 
         <Separator orientation="vertical" className="h-6" />

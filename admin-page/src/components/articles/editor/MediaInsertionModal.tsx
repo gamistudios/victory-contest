@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
-import { Image as ImageIcon, Youtube, X, Video } from "lucide-react";
+import { Image as ImageIcon, PlayCircle, X, Video } from "lucide-react";
 import { MediaItem } from "@/types/article";
 import { toast } from "sonner";
 
@@ -173,7 +173,7 @@ const MediaInsertionModal: React.FC<MediaInsertionModalProps> = ({
             <CardContent className="pt-4">
               <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
                 <div className="text-center">
-                  <Youtube className="w-12 h-12 text-red-500 mx-auto mb-2" />
+                  <PlayCircle className="w-12 h-12 text-red-500 mx-auto mb-2" />
                   <p className="text-sm text-gray-600">YouTube Video Preview</p>
                   <p className="text-xs text-gray-500 mt-1">
                     {extractYouTubeId(url)

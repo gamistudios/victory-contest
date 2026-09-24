@@ -11,9 +11,9 @@ import {
   Share2,
   Bookmark,
   ArrowLeft,
-  Facebook,
-  Twitter,
-  Linkedin,
+  ThumbsUp,
+  Bird,
+  Briefcase,
   Copy,
 } from "lucide-react";
 import { Article } from "@/types/article";
@@ -152,7 +152,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({
                 onClick={() => handleShare("facebook")}
                 className="text-blue-600 hover:text-blue-700"
               >
-                <Facebook className="w-4 h-4" />
+                <ThumbsUp className="w-4 h-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -160,7 +160,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({
                 onClick={() => handleShare("twitter")}
                 className="text-blue-400 hover:text-blue-500"
               >
-                <Twitter className="w-4 h-4" />
+                <Bird className="w-4 h-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -168,7 +168,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({
                 onClick={() => handleShare("linkedin")}
                 className="text-blue-700 hover:text-blue-800"
               >
-                <Linkedin className="w-4 h-4" />
+                <Briefcase className="w-4 h-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -230,7 +230,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({
               size="sm"
               onClick={() => handleShare("facebook")}
             >
-              <Facebook className="w-4 h-4 mr-2" />
+              <ThumbsUp className="w-4 h-4 mr-2" />
               Facebook
             </Button>
             <Button
@@ -238,7 +238,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({
               size="sm"
               onClick={() => handleShare("twitter")}
             >
-              <Twitter className="w-4 h-4 mr-2" />
+              <Bird className="w-4 h-4 mr-2" />
               Twitter
             </Button>
             <Button
@@ -246,7 +246,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({
               size="sm"
               onClick={() => handleShare("linkedin")}
             >
-              <Linkedin className="w-4 h-4 mr-2" />
+              <Briefcase className="w-4 h-4 mr-2" />
               LinkedIn
             </Button>
           </div>
