@@ -135,13 +135,14 @@ Everything below has a working, gated backend API but **no screen in this panel*
 
 ## 7. PWA / installable-app status
 
-- **None today**: no `manifest`, no service worker, no `vite-plugin-pwa`; `public/` holds the new `favicon.ico` (`ef62376`) and nothing else.
-- Agreed approach (from the client's "make it a PWA" ask):
-  1. viewport ✅ (`ebd786d`) — still to do: `theme-color` (`#00AB55`) + iOS apple tags;
-  2. `manifest.webmanifest` with `start_url: "/dashboard"` (root renders Login), icons at 192/512/maskable — to be generated from repo-root `logo.png` (favicon already done, `ef62376`);
-  3. `vite-plugin-pwa` `generateSW`, **shell-only precache** — deliberately **no offline caching of API data**: an admin acting on stale approval/payment state is how you double-approve payments;
-  4. iOS standalone caveats documented (no push, cookie under ITP).
-- Fix-order progress: **M1 viewport ✅ → M3 mobile nav (vaul already installed) → M6 input/button sizes → M8 tables → M9/M10 charts & nested tabs → PWA shell (§7) → §6 missing pages → remaining §3 items** (A6 product decision, A12, A21–A23).
+- ✅ **Done** (`fecd163` + install banner, this commit). Chrome never fired `beforeinstallprompt` during automated testing (engagement heuristics), so the app now captures the event itself: `src/lib/pwa.ts` stashes the deferred prompt (init from `main.tsx`) and `InstallPromptBanner` shows an in-app Install card on the dashboard.
+  - `vite-plugin-pwa@1.3.0` (`generateSW`, `registerType: autoUpdate`, `devOptions.enabled` so localhost behaves like prod; dev output `dev-dist/` gitignored).
+  - **Shell-only precache** — deliberately **no offline caching of API data**: an admin acting on stale approval/payment state is how you double-approve payments; `navigateFallbackDenylist: [/^\/api\//]`; `maximumFileSizeToCacheInBytes` raised to 6 MiB because the unsplit main chunk is ~3 MB.
+  - Manifest: name `Victory Contest Admin` (renamed `940b58f`), `start_url: "/dashboard"` (root renders Login), `display: standalone`, `theme_color #00AB55`, `background_color #faf9f7`; icons 192/512 + maskable generated from repo-root `logo.png` (one-off `sharp` script, dep removed after).
+  - `index.html`: `theme-color` + apple-touch-icon + `apple-mobile-web-app-*` tags.
+  - Verified against dev server: `/manifest.webmanifest` served, `<link rel=manifest>` injected, dev SW active at scope `/`.
+- Remaining: iOS standalone caveats (no push, cookie under ITP) — document when wiring push; install prompt itself needs a real user browser to fire.
+- Fix-order progress: **M1 viewport ✅ → M3 mobile nav ✅ (`0cff049`) → M6 input/button sizes ✅ (`0cff049` base rules) → M8 tables → M9/M10 charts & nested tabs → §6 missing pages → remaining §3 items** (A6 product decision, A12, A21–A23).
 
 ---
 

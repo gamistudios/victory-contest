@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 
 import Appbar from "../components/common/Appbar.js";
 import MobileNav from "../components/common/MobileNav.tsx";
+import InstallPromptBanner from "../components/common/InstallPromptBanner.tsx";
 import { useAuth } from "@/context/AuthContext.tsx";
 import { useEffect, useState } from "react";
 import { Loading } from "../components/common/Stauts.tsx";
@@ -43,6 +44,7 @@ export default function Dashboard() {
         <main className="flex-1 overflow-y-auto px-4 pb-10 sm:px-6 lg:px-8">
           <Outlet />
         </main>
+        <InstallPromptBanner />
       </div>
     </div>
   );
