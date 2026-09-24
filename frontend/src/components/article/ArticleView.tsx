@@ -26,7 +26,7 @@ import {
 } from "../ui/drawer";
 import { useTelegram } from "../../hooks/useTelegram";
 import { Input } from "../ui/input";
-import ErrorMessage from "../ErrorComponent";
+import ErrorState from "../ErrorState";
 import { InlineQueryResultArticle } from "../../types";
 
 // Helper functions (unchanged)
@@ -567,8 +567,9 @@ export function ArticleView() {
                   <CommentSkeleton key={i} />
                 ))
               ) : commentError ? (
-                <ErrorMessage
-                  message="Failed to load comments."
+                <ErrorState
+                  variant="inline"
+                  title="Failed to load comments."
                   onRetry={fetchComments}
                 />
               ) : (comments ?? []).length === 0 ? (

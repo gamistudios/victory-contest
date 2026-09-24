@@ -8,7 +8,7 @@ import { getArticles } from "../../services/articleService";
 import { toast } from "sonner";
 import { ArticleListSkeletonMobile } from "./ArticleSkeleton";
 import { useTelegram } from "../../hooks/useTelegram";
-import ErrorMessage from "../ErrorComponent";
+import ErrorState from "../ErrorState";
 
 export function ArticleList() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -255,7 +255,14 @@ export function ArticleListForHome() {
   }
 
   if (err != null) {
-    return <ErrorMessage message={err} onRetry={fetchArticles} />;
+    return (
+      <ErrorState
+        variant="inline"
+        title="Failed to load articles"
+        description={err}
+        onRetry={fetchArticles}
+      />
+    );
   }
 
   return (

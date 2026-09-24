@@ -17,7 +17,7 @@ import {
 } from "../lib/utils";
 import { ArticleListForHome } from "../components/article/ArticleList";
 import { useAuth } from "../context/AuthContext";
-import ErrorMessage from "../components/ErrorComponent";
+import ErrorState from "../components/ErrorState";
 import { isAbortedRequest } from "../services/api";
 
 const Home: React.FC = () => {
@@ -123,8 +123,10 @@ const Home: React.FC = () => {
         {loading ? (
           <ContestCardSkeleton />
         ) : contestError !== null ? (
-          <ErrorMessage
-            message="Something Went wrong. please try again!"
+          <ErrorState
+            variant="inline"
+            title="Failed to load contests"
+            description="Something went wrong. Please try again!"
             onRetry={() => setTriggerLoading((prev) => !prev)}
           />
         ) : (
@@ -149,8 +151,10 @@ const Home: React.FC = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         ) : contestError !== null ? (
-          <ErrorMessage
-            message="Unable to load the previous contests. please try again!"
+          <ErrorState
+            variant="inline"
+            title="Failed to load previous contests"
+            description="Unable to load the previous contests. Please try again!"
             onRetry={() => setTriggerLoading((prev) => !prev)}
           />
         ) : (
