@@ -29,7 +29,7 @@ From `package.json`:
 - **Forms:** `react-hook-form` ^7.54.2 + `zod` ^4.1.13 + `@hookform/resolvers` (typed via `useForm<z.input<S>, unknown, z.output<S>>` — no `as any` resolvers).
 - **UI:** shadcn/ui ("new-york", `components.json`) over Radix primitives, Tailwind 3.4 + `tailwind-merge` + CVA, `lucide-react`, `framer-motion` ^12, `recharts` ^3.2, `sonner` ^2 (toasts), `vaul` (drawer), `date-fns` ^4.
 - **Sanitization:** `dompurify` ^3.4 — all article HTML goes through it before `dangerouslySetInnerHTML`.
-- **SDKs via `<script>` in `index.html`:** `telegram-web-app.js` and Adsgram `sad.min.js` (typed in `src/types/adsgram.d.ts`) — not npm deps.
+- **SDKs via `<script>` in `index.html`:** `telegram-web-app.js` — not npm deps. (Adsgram `sad.min.js` removed 2026-09-24; see B8.)
 - **Quality gates:** `npm run build` = `tsc -b && vite build`; `npm run lint` = `eslint .` (flat config, currently clean). **No tests, no CI, no `.env.example` yet.**
 - Oddities left: `@types/react-router-dom` and `caniuse-lite` sit in `dependencies`; `next-themes` and `@radix-ui/react-collapsible` were dropped with the dead components that needed them.
 
@@ -42,9 +42,9 @@ src/
 ├── pages/            13 route components (see §5)
 ├── components/       feature components + article/ + payment-history/ + ui/ (shadcn)
 ├── context/          AuthContext.tsx, NotificationContext.tsx
-├── hooks/            useTelegram (memoized), useAdsgram, useContestTimer, useScreenshotProtection
+├── hooks/            useTelegram (memoized), useContestTimer, useScreenshotProtection
 ├── services/         api.ts (axios instance) + per-feature service modules + telegramServices.ts (backend proxies)
-├── types/            index.ts, article.ts, adsgram.d.ts, svg.d.ts
+├── types/            index.ts, article.ts, svg.d.ts
 ├── lib/              utils.ts (cn), data.ts (static badge catalog)
 └── assets/           SVG illustrations/icons only
 ```
@@ -113,7 +113,7 @@ Endpoints per service:
 5. **Profile** — edit student form (grade/school/phone/timezone), badge grid from static `lib/data.ts` (fake `earnedDate`s removed; date row renders only for a real date — B20 ✅), PUT `/student/:id`.
 6. **ContestStudentRegistration** — contest info + register; the form's grade/subjects/experience are now actually sent; participants rendered as a real count (was an array assigned to a `number` field); guarded against missing `contestInfo.id`.
 7. **ContestEditorial** — post-contest review via `?contest_id`; answer index convention conflict remains (⚠️ B6). Fixed 2026-09-23 (2nd-round client report): the page showed a red "Invalid editorial data." toast whenever the API returned no items — now `GET /submission/editorial` sends `{editorial, participated, message}` and the page renders a clear "Editorial unavailable" card with the reason (contest removed, contest has no questions, link missing its id) or a blue banner above the walkthrough when the student never participated.
-8. **AIPractice** — full practice UI (timer, settings) still **unreachable**: `return <ComingSoon/>` (product decision pending).
+8. **AIPractice** — reachable since 2026-09-24: the `return <ComingSoon/>` gate was removed (#49). Questions/recommendations now flow through `/api/ai/*`, which serves whichever provider an admin configured under `/api/ai-admin/providers` (OpenAI-compatible / Anthropic / Gemini protocols, table `ai_providers`), falling back to legacy `GOOGLE_API_KEY` Gemini when none are enabled.
 9. **Articles** — wrapper over `ArticleList` + `ArticleFilters`; `ArticleView` renders article HTML **sanitized with DOMPurify**; view/like/bookmark flows use array-shaped CloudStorage keys with stable callbacks.
 10. **StudentRegisteration** *(sic)* — RHF+zod signup (photo URL, name, phone, grade "1".."13"; city/region now default empty and region is validation-required — B20 ✅), then client-side `navigate("/")` instead of a full-page reload.
 11. **Payment** — bank-transfer screenshot upload (10MB validated client-side); the bank dropdown **and** the "Bank Transfer Details" drawer are fetched live from `/api/banks` (admin-managed; loading/error+retry states, "Other" free-text entry kept); the `"112pay"` debug user-id fallback is gone — submitting without `user.id` is blocked with a toast. Telegram Stars `openInvoice` path still submits `status:"Approved"` from the client (⚠️ S4).
@@ -123,7 +123,7 @@ Endpoints per service:
 ## 6. Key hooks & mechanics
 
 - **`useTelegram.ts`** — reads `window.Telegram.WebApp` once; sets header/background; ~25 wrappers (haptics, CloudStorage+fallback, MainButton/BackButton, `openInvoice`, `shareMessage`). **All callbacks are memoized**; `getCloudData<T>` is generic so callers get typed payloads without `any`.
-- **`useAdsgram.ts`** — SDK init with `debug: import.meta.env.DEV` (no more debug in prod). **No content is ad-gated**: `<AdTrigger>` is still commented out in `Layout.tsx:40` (product decision pending).
+- **Ads integration** — **removed 2026-09-24** (#49 decision): `useAdsgram.ts`, `AdTrigger.tsx`, `adsgram.d.ts`, the `sad.min.js` script tag and the `@adsgram/react` dep are gone; no content was ever ad-gated.
 - **`useContestTimer.ts`** — 1s tick → UPCOMING/ACTIVE/ENDED; misses exact `=== startTime` boundary; clears interval on ENDED.
 - **Anti-cheat** — `useScreenshotProtection.tsx` + `ScreenProtection.tsx`: still **dead** (only consumer import commented at `App.tsx:20`); keep-or-delete is an open decision.
 - **`NotificationCenter.tsx`** — drawer from TopNavigation; uses `notificationService` for real delete; `markAllAsRead` no longer clobbers the `read_notifications` map; no in-place mutation. Newest notifications now appear at the **top** (fixed 2026-09-23 in the backend: the `recipient_id-index` GSI returned oldest-first; the usecase sorts by parsed `sent_at` instant, so mixed `Z`/`+03:00` timestamps order correctly).
@@ -181,9 +181,9 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 - **B23. tsconfig gap** — ✅ fixed (`@/*` paths added; `tsc -b` now part of build and green).
 
 ### Dead code / duplication
-- **B3. Two error-UI conventions** — ❌ open (unifying `ErrorComponent`/`ErrorState` was deferred deliberately).
+- **B3. Two error-UI conventions** — ✅ fixed 2026-09-24: `ErrorComponent.tsx` deleted; `ErrorState` is the single error UI with `variant: "page" | "inline"` (role="alert", aria-hidden icons, retry button). All call sites (Home, ArticleList/ArticleView, AuthContext) migrated.
 - **B4. Two collapsibles** — ✅ fixed (Radix `ui/collapsible.tsx` deleted, its orphan keyframes removed from `index.html`, `@radix-ui/react-collapsible` dep dropped).
-- **B8. Dead code** — ✅ mostly fixed: `ProTips.tsx`, `payment-history/payment-timeline.tsx`, `ui/sonner.tsx` (+`next-themes`), FeedBack `if (false)` block, Statistics mock block, dead Contest error block and registration skeleton all deleted; `deleteNotification` wired up. 🟡 still present by decision: screenshot-protection system (dead), AIPractice unreachable UI (`ComingSoon`), `AdTrigger` commented out.
+- **B8. Dead code** — ✅ mostly fixed: `ProTips.tsx`, `payment-history/payment-timeline.tsx`, `ui/sonner.tsx` (+`next-themes`), FeedBack `if (false)` block, Statistics mock block, dead Contest error block and registration skeleton all deleted; `deleteNotification` wired up. 2026-09-24: ads stack (`AdTrigger`/`useAdsgram`/`adsgram.d.ts`/`sad.min.js`/`@adsgram/react`) deleted and AIPractice `ComingSoon` gate removed. 🟡 still present by decision: screenshot-protection system (dead — keep-or-delete pending).
 - ✅ `useContestTimer` exact-boundary miss — **fixed 2026-09-24**: status transitions now use plain millisecond comparisons (start inclusive, end exclusive), so a tick landing exactly on `start_time` goes ACTIVE instead of latching a permanent "ENDED" (the old `isAfter`/`isBefore` pair matched neither); the first tick also runs immediately instead of after a second of "Loading…". Browser-checked on the dev home page.
 
 ### UX / hygiene
@@ -206,7 +206,7 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 6. Make `updateStudentDefaultScoreRange` race-safe server-side (conditional update). (B12 remainder)
 
 **P2 — Decisions to make (currently parked)**
-7. AIPractice: ship the existing UI or delete it; screenshot protection: enable or remove; Adsgram: gate content or remove `AdTrigger`; unify `ErrorComponent`/`ErrorState` and `UserStats` vs `user_stats`. (B3/B8)
+7. Screenshot protection: enable or remove; unify `UserStats` vs `user_stats`. (B8, dual-stats note §6) ~~AIPractice~~ shipped 2026-09-24, ~~Adsgram~~ removed 2026-09-24, ~~`ErrorComponent`/`ErrorState`~~ unified 2026-09-24 (B3 ✅).
 
 **P3 — Performance & product**
 8. `React.lazy` + `Suspense` for the 13 routes (bundle is ~1.5 MB / 466 kB gzipped; vite warns at build).
