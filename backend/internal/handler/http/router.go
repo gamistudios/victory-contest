@@ -32,6 +32,7 @@ type Server struct {
 	feedbackResponseHandler    *FeedbackResponseHandler
 	paymentHandler             *PaymentHandler
 	aiHandler                  *AiHandler
+	aiAdminHandler             *AiAdminHandler
 	telegramHandler            *telegramHandler
 	telegramAuthHandler        *telegramAuthHandler
 	pageViewHandler            *PageViewHandler
@@ -87,6 +88,7 @@ func NewServer() *Server {
 	pageViewRepo := repository.NewPageViewDynamoRepository(ddb, "pageviews")
 	articleRepo := repository.NewArticleDynamoRepository(ddb, "articles")
 	commentRepo := repository.NewCommentDynamoRepository(ddb, "comments")
+	aiProviderRepo := repository.NewAiProviderDynamoRepository(ddb, "ai_providers")
 
 	// --- Initialize Feedback Repositories ---
 	feedbackQuestionRepo := repository.NewFeedbackQuestionDynamoRepository(ddb, "feedback_questions")
@@ -106,7 +108,8 @@ func NewServer() *Server {
 	bankUsecase := usecase.NewBankUsecase(bankRepo)
 	contestRegistrationUsecase := usecase.NewContestRegistrationUsecase(contestRegistrationRepo)
 	paymentUsecase := usecase.NewPaymentUsecases(paymentRepo)
-	aiUsecase := usecase.NewAiUsecase(submissionRepo)
+	aiUsecase := usecase.NewAiUsecase(submissionRepo, aiProviderRepo)
+	aiProviderUsecase := usecase.NewAiProviderUsecase(aiProviderRepo)
 	telegramUsecase := usecase.NewTelegramUsecase(bot, studentRepo)
 
 	// --- Initialize Contest Statistics Use Case ---
@@ -133,6 +136,7 @@ func NewServer() *Server {
 		feedbackResponseHandler:    NewFeedbackResponseHandler(feedbackResponseUsecase, notificationUsecase),
 		paymentHandler:             NewPaymentHandler(paymentUsecase, *imgRepo),
 		aiHandler:                  NewAiHandler(aiUsecase),
+		aiAdminHandler:             NewAiAdminHandler(aiProviderUsecase),
 		telegramHandler:            NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")),
 		pageViewHandler:            NewPageViewHandler(pageViewUsecase),
 		articleHandler:             NewArticleHandler(articleUsecase),
@@ -260,6 +264,9 @@ func (s *Server) NewRouter() *gin.Engine {
 	// them per client (issue #9). /api/payment/update needed no limiter —
 	// it is admin-gated since #6.
 	s.aiHandler.RegisterRoutes(api.Group("/ai", rateLimitByClientIP(s.aiRequestsPerMinute, float64(s.aiRequestsPerMinute))))
+	// Admin-managed AI providers (table ai_providers): CRUD + connection
+	// test, gated by the same adminAuth cookie the external admin panel uses.
+	s.aiAdminHandler.RegisterRoutes(api.Group("/ai-admin"), adminAuthMw)
 	s.telegramHandler.RegisterRoutes(api.Group("/telegram"))
 	s.telegramAuthHandler.RegisterRoutes(api.Group("/telegram"))
 	s.pageViewHandler.RegisterRoutes(api.Group("/pageview"), adminAuthMw)

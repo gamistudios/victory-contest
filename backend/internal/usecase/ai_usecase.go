@@ -8,13 +8,20 @@ import (
 	"os"
 	"strings"
 	"victor-contest-go/internal/domain"
+)
 
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
+// envFallbackProvider mirrors the pre-provider-setup deployment: a Gemini
+// generateContent call against gemini-2.5-flash keyed by GOOGLE_API_KEY. It
+// is used only when the ai_providers table has no enabled rows, so existing
+// installs keep working untouched.
+const (
+	envFallbackBaseURL = "https://generativelanguage.googleapis.com"
+	envFallbackModel   = "gemini-2.5-flash"
 )
 
 type aiUsecase struct {
-	subRepo SubmissionRepository
+	subRepo      SubmissionRepository
+	providerRepo AiProviderRepository
 }
 
 func (a *aiUsecase) GenerateRecommendations(input domain.RecommendationInput) (*domain.Recommendations, error) {
@@ -23,7 +30,7 @@ func (a *aiUsecase) GenerateRecommendations(input domain.RecommendationInput) (*
 		return nil, fmt.Errorf("failed to marshal input data: %w", err)
 	}
 
-	// 2. Craft a detailed prompt for the Gemini API.
+	// 2. Craft a detailed prompt for the provider API.
 	prompt := fmt.Sprintf(`
 	You are an expert academic tutor creating a study plan for a mobile app.
 	Your response MUST be optimized for a mobile view: be concise, structured, and easy to read.
@@ -52,7 +59,7 @@ func (a *aiUsecase) GenerateRecommendations(input domain.RecommendationInput) (*
 	]
 	}
 	`, string(inputJSON), input.Subject)
-	rawText, err := generateContentFromAPI(prompt)
+	rawText, err := a.generate(prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +100,7 @@ Each object must have these exact keys: "question_text", "multiple_choice", "ans
 `, setting.Subject, setting.Topic, setting.Difficulty)
 
 	// 2. Call the API to get the raw text response.
-	rawText, err := generateContentFromAPI(prompt)
+	rawText, err := a.generate(prompt)
 	if err != nil {
 		return nil, fmt.Errorf("API call failed: %w", err)
 	}
@@ -117,41 +124,58 @@ Each object must have these exact keys: "question_text", "multiple_choice", "ans
 	return &questions, nil
 
 }
-func generateContentFromAPI(prompt string) (string, error) {
+
+// selectProvider resolves the provider row every AI call goes through:
+// the oldest enabled ai_providers row wins; with no enabled rows we fall
+// back to the legacy GOOGLE_API_KEY Gemini setup so existing deployments
+// keep working. A repository read failure also degrades to the env fallback
+// when a key is present (the AI surface must not hard-depend on the new
+// table), and only errors when neither path can serve a request.
+func (a *aiUsecase) selectProvider() (*domain.AIProvider, string, error) {
+	var providers []domain.AIProvider
+	if a.providerRepo != nil {
+		list, err := a.providerRepo.GetAllProviders()
+		if err != nil {
+			if fb := a.envFallbackProvider(); fb != nil {
+				return fb, fb.Models[0], nil
+			}
+			return nil, "", fmt.Errorf("list ai providers: %w", err)
+		}
+		providers = list
+	}
+	if p := pickEnabledProvider(providers); p != nil {
+		return p, p.Models[0], nil
+	}
+	if fb := a.envFallbackProvider(); fb != nil {
+		return fb, fb.Models[0], nil
+	}
+	return nil, "", errors.New("no enabled AI provider configured and GOOGLE_API_KEY is not set")
+}
+
+func (a *aiUsecase) envFallbackProvider() *domain.AIProvider {
 	apiKey := os.Getenv("GOOGLE_API_KEY")
 	if apiKey == "" {
-		return "", errors.New("GOOGLE_API_KEY environment variable not set")
+		return nil
 	}
+	return &domain.AIProvider{
+		Name:     "env:GOOGLE_API_KEY",
+		BaseURL:  envFallbackBaseURL,
+		APIKey:   apiKey,
+		Protocol: domain.AIProtocolGemini,
+		Models:   []string{envFallbackModel},
+		Enabled:  true,
+	}
+}
 
-	ctx := context.Background()
-
-	// 1. Create a new Gemini client.
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+// generate is the single prompt-to-text entry point for both AI surfaces.
+func (a *aiUsecase) generate(prompt string) (string, error) {
+	provider, model, err := a.selectProvider()
 	if err != nil {
-		return "", fmt.Errorf("error creating gemini client: %w", err)
+		return "", err
 	}
-	defer client.Close()
-
-	// 2. Select the model.
-	model := client.GenerativeModel("gemini-2.5-flash")
-
-	// 3. Generate the content. The SDK handles all the HTTP and JSON work.
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
-	if err != nil {
-		return "", fmt.Errorf("error generating content: %w", err)
-	}
-	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", errors.New("no content found in gemini response")
-	}
-
-	var responseText strings.Builder
-	for _, part := range resp.Candidates[0].Content.Parts {
-		if txt, ok := part.(genai.Text); ok {
-			responseText.WriteString(string(txt))
-		}
-	}
-
-	return responseText.String(), nil
+	ctx, cancel := context.WithTimeout(context.Background(), aiCallTimeout)
+	defer cancel()
+	return completeProvider(ctx, *provider, model, completionRequest{prompt: prompt})
 }
 
 type AiUsecase interface {
@@ -159,6 +183,6 @@ type AiUsecase interface {
 	GenerateRecommendations(input domain.RecommendationInput) (*domain.Recommendations, error)
 }
 
-func NewAiUsecase(subRepo SubmissionRepository) AiUsecase {
-	return &aiUsecase{subRepo: subRepo}
+func NewAiUsecase(subRepo SubmissionRepository, providerRepo AiProviderRepository) AiUsecase {
+	return &aiUsecase{subRepo: subRepo, providerRepo: providerRepo}
 }

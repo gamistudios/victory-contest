@@ -36,7 +36,6 @@ import { getAiGeneratedQuestions } from "../services/aiService";
 import { toast } from "sonner";
 import { useTelegram } from "../hooks/useTelegram";
 import { Input } from "../components/ui/input";
-import ComingSoon from "../components/ComingSoon";
 // import { Skeleton } from "@/components/ui/skeleton";
 // NOTE: QuestionNavigationDropdown is a placeholder for your custom component
 // import QuestionNavigationDropdown from "../components/QuestionNavigationDropdown";
@@ -222,7 +221,7 @@ export function AIPracticePage() {
           </div>
           <div className="w-full bg-muted rounded-full h-2">
             <div
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+              className="bg-purple-500 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
@@ -299,7 +298,7 @@ export function AIPracticePage() {
             <CardFooter className="flex-col items-start gap-4 mt-4 p-4 bg-muted/50 rounded-b-lg">
               <div>
                 <h4 className="flex items-center text-base font-bold text-gray-800 dark:text-white mb-2">
-                  <Brain className="w-5 h-5 text-blue-500 mr-2" />
+                  <Brain className="w-5 h-5 text-purple-500 mr-2" />
                   Explanation
                 </h4>
                 <p className="text-sm dark:text-white">
@@ -324,8 +323,6 @@ export function AIPracticePage() {
       </div>
     );
   }
-  return <ComingSoon />;
-
   // Initial Settings View
   return (
     <div className="w-full max-w-3xl space-y-8 p-3">
