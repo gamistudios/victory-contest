@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { parseISO, isAfter, isBefore } from "date-fns";
+import { parseISO } from "date-fns";
 
 // Define the possible states for our timer
 export type ContestStatus = "LOADING" | "UPCOMING" | "ACTIVE" | "ENDED";
@@ -57,20 +57,24 @@ export const useContestTimer = (
     const startTime = parseISO(startTimeISO);
     const endTime = parseISO(endTimeISO);
 
-    const intervalId = setInterval(() => {
-      const now = new Date();
+    const tick = () => {
+      const now = Date.now();
+      const start = startTime.getTime();
+      const end = endTime.getTime();
 
       // State 1: Contest is upcoming
-      if (isAfter(startTime, now)) {
-        const distance = startTime.getTime() - now.getTime();
+      if (now < start) {
+        const distance = start - now;
         setTimerState({
           timeLeft: formatDistance(distance),
           status: "UPCOMING",
         });
       }
-      // State 2: Contest is active
-      else if (isBefore(startTime, now) && isAfter(endTime, now)) {
-        const distance = endTime.getTime() - now.getTime();
+      // State 2: Contest is active — inclusive of the exact start instant
+      // (the old date-fns isAfter/isBefore pair classified now == start as
+      // neither upcoming nor active, latching a permanent "ENDED").
+      else if (now < end) {
+        const distance = end - now;
         setTimerState({
           timeLeft: formatDistance(distance),
           status: "ACTIVE",
@@ -84,7 +88,10 @@ export const useContestTimer = (
         });
         clearInterval(intervalId); // Stop the interval once the contest is over
       }
-    }, 1000);
+    };
+
+    const intervalId = setInterval(tick, 1000);
+    tick(); // Don't sit in LOADING for a full second before the first update
 
     // Cleanup function to clear the interval when the component unmounts
     return () => clearInterval(intervalId);

@@ -184,7 +184,7 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 - **B3. Two error-UI conventions** — ❌ open (unifying `ErrorComponent`/`ErrorState` was deferred deliberately).
 - **B4. Two collapsibles** — ✅ fixed (Radix `ui/collapsible.tsx` deleted, its orphan keyframes removed from `index.html`, `@radix-ui/react-collapsible` dep dropped).
 - **B8. Dead code** — ✅ mostly fixed: `ProTips.tsx`, `payment-history/payment-timeline.tsx`, `ui/sonner.tsx` (+`next-themes`), FeedBack `if (false)` block, Statistics mock block, dead Contest error block and registration skeleton all deleted; `deleteNotification` wired up. 🟡 still present by decision: screenshot-protection system (dead), AIPractice unreachable UI (`ComingSoon`), `AdTrigger` commented out.
-- 🟡 `useContestTimer` exact-boundary miss — minor, open.
+- ✅ `useContestTimer` exact-boundary miss — **fixed 2026-09-24**: status transitions now use plain millisecond comparisons (start inclusive, end exclusive), so a tick landing exactly on `start_time` goes ACTIVE instead of latching a permanent "ENDED" (the old `isAfter`/`isBefore` pair matched neither); the first tick also runs immediately instead of after a second of "Loading…". Browser-checked on the dev home page.
 
 ### UX / hygiene
 - **B14. Invalid classes/constants** — ✅ fixed (`--success`/`--warning` vars defined, `pt-30`/`z-100` corrected, hex-as-class fixed).
