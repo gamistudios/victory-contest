@@ -11,14 +11,13 @@ import (
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 )
 
-
 type ImageRepository struct{}
 
 func NewImageRepository() *ImageRepository {
 	return &ImageRepository{}
 }
 
-func(r *ImageRepository) UploadImage(file multipart.File,folderName string)(string, error) {
+func (r *ImageRepository) UploadImage(file multipart.File, folderName string) (string, error) {
 	cld, err := cloudinary.New()
 	if err != nil {
 		return "", fmt.Errorf("failed to initialize cloudinary: %w", err)

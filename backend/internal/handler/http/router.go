@@ -1,7 +1,9 @@
 package http
 
 import (
+	"context"
 	"net/url"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/repository"
 	"victor-contest-go/internal/usecase"
 
@@ -63,25 +65,33 @@ func NewServer() *Server {
 	}
 
 	// --- Initialize Repositories ---
+	// One AWS config + one DynamoDB client for the whole process (issue #45),
+	// built in internal/awsconfig and injected into every repository.
+	awsCfg, err := awsconfig.Load(context.Background())
+	if err != nil {
+		log.Fatalf("unable to load AWS SDK config: %v", err)
+	}
+	ddb := awsconfig.DynamoClient(awsCfg)
+
 	imgRepo := repository.NewImageRepository()
-	questionRepo := repository.NewQuestionDynamoRepository("eu-north-1", "question")
-	contestRepo := repository.NewContestDynamoRepository("eu-north-1", "contests")
-	studentRepo := repository.NewStudentDynamoRepository("eu-north-1", "student")
-	submissionRepo := repository.NewSubmissionDynamoRepository("eu-north-1", "submissions")
-	adminRepo := repository.NewAdminDynamoRepository("eu-north-1", "admin")
-	notificationRepo := repository.NewNotificationDynamoRepository("eu-north-1", "notification")
-	achievementRepo := repository.NewAchievementDynamoRepository("eu-north-1", "achievement")
-	bankRepo := repository.NewBankDynamoRepository("eu-north-1", "banks")
-	contestRegistrationRepo := repository.NewContestRegistrationDynamoRepository("eu-north-1", "contest_registeration")
-	paymentRepo := repository.NewDynamoDBPaymentRepository("eu-north-1", "payment")
-	pageViewRepo := repository.NewPageViewDynamoRepository("eu-north-1", "pageviews")
-	articleRepo := repository.NewArticleDynamoRepository("eu-north-1", "articles")
-	commentRepo := repository.NewCommentDynamoRepository("eu-north-1", "comments")
+	questionRepo := repository.NewQuestionDynamoRepository(ddb, "question")
+	contestRepo := repository.NewContestDynamoRepository(ddb, "contests")
+	studentRepo := repository.NewStudentDynamoRepository(ddb, "student")
+	submissionRepo := repository.NewSubmissionDynamoRepository(ddb, "submissions")
+	adminRepo := repository.NewAdminDynamoRepository(ddb, "admin")
+	notificationRepo := repository.NewNotificationDynamoRepository(ddb, "notification")
+	achievementRepo := repository.NewAchievementDynamoRepository(ddb, "achievement")
+	bankRepo := repository.NewBankDynamoRepository(ddb, "banks")
+	contestRegistrationRepo := repository.NewContestRegistrationDynamoRepository(ddb, "contest_registeration")
+	paymentRepo := repository.NewDynamoDBPaymentRepository(ddb, "payment")
+	pageViewRepo := repository.NewPageViewDynamoRepository(ddb, "pageviews")
+	articleRepo := repository.NewArticleDynamoRepository(ddb, "articles")
+	commentRepo := repository.NewCommentDynamoRepository(ddb, "comments")
 
 	// --- Initialize Feedback Repositories ---
-	feedbackQuestionRepo := repository.NewFeedbackQuestionDynamoRepository("eu-north-1", "feedback_questions")
-	pollOptionRepo := repository.NewPollOptionDynamoRepository("eu-north-1", "poll_options")
-	feedbackResponseRepo := repository.NewFeedbackResponseDynamoRepository("eu-north-1", "feedback_responses")
+	feedbackQuestionRepo := repository.NewFeedbackQuestionDynamoRepository(ddb, "feedback_questions")
+	pollOptionRepo := repository.NewPollOptionDynamoRepository(ddb, "poll_options")
+	feedbackResponseRepo := repository.NewFeedbackResponseDynamoRepository(ddb, "feedback_responses")
 
 	// --- Initialize Use Cases ---
 	contestUsecase := usecase.NewContestUsecase(contestRepo, questionRepo)

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -18,20 +18,13 @@ type QuestionDynamoRepository struct {
 	tableName string
 }
 
-func NewQuestionDynamoRepository(region string, tablename string) *QuestionDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &QuestionDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewQuestionDynamoRepository(db *dynamodb.Client, table string) *QuestionDynamoRepository {
+	return &QuestionDynamoRepository{db: db, tableName: table}
 }
 
 func (r *QuestionDynamoRepository) AddQuestion(question domain.Question) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if question.ID == "" {
 		question.ID = uuid.New().String()
 	}
@@ -39,7 +32,7 @@ func (r *QuestionDynamoRepository) AddQuestion(question domain.Question) (string
 	if err != nil {
 		return "", err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -50,12 +43,14 @@ func (r *QuestionDynamoRepository) AddQuestion(question domain.Question) (string
 }
 
 func (r *QuestionDynamoRepository) UpdateQuestion(id string, update domain.Question) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	update.ID = id
 	item, err := attributevalue.MarshalMap(update)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -63,11 +58,13 @@ func (r *QuestionDynamoRepository) UpdateQuestion(id string, update domain.Quest
 }
 
 func (r *QuestionDynamoRepository) DeleteQuestion(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -78,6 +75,8 @@ func (r *QuestionDynamoRepository) DeleteQuestion(id string) error {
 // chunked to the 25-request-per-call limit. It returns the ids that were
 // deleted and a map of id -> error message for the ones that failed.
 func (r *QuestionDynamoRepository) DeleteQuestions(ids []string) ([]string, map[string]string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	const maxBatchSize = 25
 
 	deleted := []string{}
@@ -90,7 +89,7 @@ func (r *QuestionDynamoRepository) DeleteQuestions(ids []string) ([]string, map[
 		if len(chunk) == 0 {
 			return
 		}
-		out, err := r.db.BatchWriteItem(context.TODO(), &dynamodb.BatchWriteItemInput{
+		out, err := r.db.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
 			RequestItems: map[string][]types.WriteRequest{
 				r.tableName: chunk,
 			},
@@ -145,11 +144,13 @@ func (r *QuestionDynamoRepository) DeleteQuestions(ids []string) ([]string, map[
 }
 
 func (r *QuestionDynamoRepository) GetQuestionByID(id string) (*domain.Question, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -168,7 +169,9 @@ func (r *QuestionDynamoRepository) GetQuestionByID(id string) (*domain.Question,
 }
 
 func (r *QuestionDynamoRepository) GetAllQuestions() ([]domain.Question, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -185,6 +188,8 @@ func (r *QuestionDynamoRepository) GetAllQuestions() ([]domain.Question, error) 
 }
 
 func (r *QuestionDynamoRepository) AddMultipleQuestions(questions []domain.Question) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	var writeRequests []types.WriteRequest
 	for _, question := range questions {
 		question.ID = strings.Join(strings.Split(uuid.NewString(), "-"), "")
@@ -199,7 +204,7 @@ func (r *QuestionDynamoRepository) AddMultipleQuestions(questions []domain.Quest
 			},
 		})
 	}
-	output, err := r.db.BatchWriteItem(context.TODO(), &dynamodb.BatchWriteItemInput{
+	output, err := r.db.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
 		RequestItems: map[string][]types.WriteRequest{
 			r.tableName: writeRequests,
 		},

@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/joho/godotenv"
+	"victor-contest-go/internal/awsconfig"
 )
 
 type gsi struct {
@@ -74,11 +74,14 @@ var tables = []table{
 
 func main() {
 	_ = godotenv.Load()
-	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion("eu-north-1"))
+	// Single shared AWS config (issue #45): same loader/region/retry policy
+	// the HTTP server uses. CreateTable below already runs under a bounded
+	// per-call context (issue #46).
+	cfg, err := awsconfig.Load(context.Background())
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
-	client := dynamodb.NewFromConfig(cfg)
+	client := awsconfig.DynamoClient(cfg)
 
 	for _, t := range tables {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

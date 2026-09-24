@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 	"time"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -18,15 +18,13 @@ type CommentDynamoRepository struct {
 	tableName string
 }
 
-func NewCommentDynamoRepository(region, table string) *CommentDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &CommentDynamoRepository{db: dynamodb.NewFromConfig(cfg), tableName: table}
+func NewCommentDynamoRepository(db *dynamodb.Client, table string) *CommentDynamoRepository {
+	return &CommentDynamoRepository{db: db, tableName: table}
 }
 
 func (r *CommentDynamoRepository) Create(comment domain.Comment) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	comment.ID = uuid.New().String()
 	comment.CreatedAt = time.Now().UTC()
 	comment.UpdatedAt = time.Now().UTC()
@@ -41,7 +39,7 @@ func (r *CommentDynamoRepository) Create(comment domain.Comment) (string, error)
 		return "", err
 	}
 
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(r.tableName),
 		Item:      item,
 	})
@@ -50,17 +48,19 @@ func (r *CommentDynamoRepository) Create(comment domain.Comment) (string, error)
 }
 
 func (r *CommentDynamoRepository) ListByArticleID(articleID string) ([]domain.Comment, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	input := &dynamodb.QueryInput{
-		TableName: aws.String(r.tableName),// Assuming you have a GSI on articleId
+		TableName:              aws.String(r.tableName), // Assuming you have a GSI on articleId
 		KeyConditionExpression: aws.String("articleId = :articleId"),
-		IndexName: aws.String("articleId-index"),
+		IndexName:              aws.String("articleId-index"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":articleId": &types.AttributeValueMemberS{Value: articleID},
 		},
 		ScanIndexForward: aws.Bool(false), // Sort by createdAt descending (newest first)
 	}
 
-	result, err := r.db.Query(context.TODO(), input)
+	result, err := r.db.Query(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,9 @@ func (r *CommentDynamoRepository) ListByArticleID(articleID string) ([]domain.Co
 
 // GetByID returns the comment with the given id, or nil when it does not exist.
 func (r *CommentDynamoRepository) GetByID(id string) (*domain.Comment, error) {
-	result, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	result, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(r.tableName),
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: id},
@@ -97,11 +99,13 @@ func (r *CommentDynamoRepository) GetByID(id string) (*domain.Comment, error) {
 
 // Update overwrites the comment item (read-modify-write done by the caller/usecase).
 func (r *CommentDynamoRepository) Update(comment domain.Comment) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	item, err := attributevalue.MarshalMap(comment)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(r.tableName),
 		Item:      item,
 	})
@@ -110,7 +114,9 @@ func (r *CommentDynamoRepository) Update(comment domain.Comment) error {
 
 // Delete removes the comment item by id.
 func (r *CommentDynamoRepository) Delete(id string) error {
-	_, err := r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	_, err := r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(r.tableName),
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: id},
@@ -121,15 +127,17 @@ func (r *CommentDynamoRepository) Delete(id string) error {
 
 // Fallback method if GSI is not available - scans the table (less efficient)
 func (r *CommentDynamoRepository) ListByArticleIDScan(articleID string) ([]domain.Comment, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	input := &dynamodb.ScanInput{
-		TableName: aws.String(r.tableName),
+		TableName:        aws.String(r.tableName),
 		FilterExpression: aws.String("articleId = :articleId"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":articleId": &types.AttributeValueMemberS{Value: articleID},
 		},
 	}
 
-	result, err := r.db.Scan(context.TODO(), input)
+	result, err := r.db.Scan(ctx, input)
 	if err != nil {
 		return nil, err
 	}

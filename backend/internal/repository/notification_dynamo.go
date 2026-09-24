@@ -3,11 +3,11 @@ package repository
 import (
 	"context"
 	"fmt"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 	"victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -18,20 +18,13 @@ type NotificationDynamoRepository struct {
 	tableName string
 }
 
-func NewNotificationDynamoRepository(region string, tablename string) *NotificationDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &NotificationDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewNotificationDynamoRepository(db *dynamodb.Client, table string) *NotificationDynamoRepository {
+	return &NotificationDynamoRepository{db: db, tableName: table}
 }
 
 func (r *NotificationDynamoRepository) AddNotification(notification domain.Notification) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if notification.ID == "" {
 		notification.ID = usecase.GenerateUniqueId()
 	}
@@ -39,7 +32,7 @@ func (r *NotificationDynamoRepository) AddNotification(notification domain.Notif
 	if err != nil {
 		return "", err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -50,12 +43,14 @@ func (r *NotificationDynamoRepository) AddNotification(notification domain.Notif
 }
 
 func (r *NotificationDynamoRepository) UpdateNotification(id string, update domain.Notification) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	update.ID = id
 	item, err := attributevalue.MarshalMap(update)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -63,11 +58,13 @@ func (r *NotificationDynamoRepository) UpdateNotification(id string, update doma
 }
 
 func (r *NotificationDynamoRepository) DeleteNotification(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -75,11 +72,13 @@ func (r *NotificationDynamoRepository) DeleteNotification(id string) error {
 }
 
 func (r *NotificationDynamoRepository) GetNotificationByID(id string) (*domain.Notification, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -98,7 +97,9 @@ func (r *NotificationDynamoRepository) GetNotificationByID(id string) (*domain.N
 }
 
 func (r *NotificationDynamoRepository) GetAllNotifications() ([]domain.Notification, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -113,44 +114,46 @@ func (r *NotificationDynamoRepository) GetAllNotifications() ([]domain.Notificat
 }
 
 func (r *NotificationDynamoRepository) GetNotificationsByRecipient(recipientID string) ([]domain.Notification, error) {
-    userQueryInput := &dynamodb.QueryInput{
-        TableName:              aws.String(r.tableName),
-        IndexName:              aws.String("recipient_id-index"),
-        KeyConditionExpression: aws.String("recipient_id = :rid"),
-        ExpressionAttributeValues: map[string]types.AttributeValue{
-            ":rid": &types.AttributeValueMemberS{Value: recipientID},
-        },
-    }
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	userQueryInput := &dynamodb.QueryInput{
+		TableName:              aws.String(r.tableName),
+		IndexName:              aws.String("recipient_id-index"),
+		KeyConditionExpression: aws.String("recipient_id = :rid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":rid": &types.AttributeValueMemberS{Value: recipientID},
+		},
+	}
 
-    userOut, err := r.db.Query(context.TODO(), userQueryInput)
-    if err != nil {
-        return nil, fmt.Errorf("error querying user notifications: %w", err)
-    }
+	userOut, err := r.db.Query(ctx, userQueryInput)
+	if err != nil {
+		return nil, fmt.Errorf("error querying user notifications: %w", err)
+	}
 
-    allQueryInput := &dynamodb.QueryInput{
-        TableName:              aws.String(r.tableName),
-        IndexName:              aws.String("recipient_id-index"),
-        KeyConditionExpression: aws.String("recipient_id = :allvalue"),
-        ExpressionAttributeValues: map[string]types.AttributeValue{
-            ":allvalue": &types.AttributeValueMemberS{Value: "all"},
-        },
-    }
-    
-    allOut, err := r.db.Query(context.TODO(), allQueryInput)
-    if err != nil {
-        return nil, fmt.Errorf("error querying 'all' notifications: %w", err)
-    }
+	allQueryInput := &dynamodb.QueryInput{
+		TableName:              aws.String(r.tableName),
+		IndexName:              aws.String("recipient_id-index"),
+		KeyConditionExpression: aws.String("recipient_id = :allvalue"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":allvalue": &types.AttributeValueMemberS{Value: "all"},
+		},
+	}
 
-    var notifications []domain.Notification
-    if err = attributevalue.UnmarshalListOfMaps(userOut.Items, &notifications); err != nil {
-        return nil, fmt.Errorf("error unmarshalling user notifications: %w", err)
-    }
+	allOut, err := r.db.Query(ctx, allQueryInput)
+	if err != nil {
+		return nil, fmt.Errorf("error querying 'all' notifications: %w", err)
+	}
 
-    var allNotifications []domain.Notification
-    if err = attributevalue.UnmarshalListOfMaps(allOut.Items, &allNotifications); err != nil {
-        return nil, fmt.Errorf("error unmarshalling 'all' notifications: %w", err)
-    }
+	var notifications []domain.Notification
+	if err = attributevalue.UnmarshalListOfMaps(userOut.Items, &notifications); err != nil {
+		return nil, fmt.Errorf("error unmarshalling user notifications: %w", err)
+	}
 
-    notifications = append(notifications, allNotifications...)  
-    return notifications, nil
+	var allNotifications []domain.Notification
+	if err = attributevalue.UnmarshalListOfMaps(allOut.Items, &allNotifications); err != nil {
+		return nil, fmt.Errorf("error unmarshalling 'all' notifications: %w", err)
+	}
+
+	notifications = append(notifications, allNotifications...)
+	return notifications, nil
 }

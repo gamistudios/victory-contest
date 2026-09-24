@@ -3,11 +3,11 @@ package repository
 import (
 	"context"
 	"errors"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 	usecase "victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -19,20 +19,13 @@ type SubmissionDynamoRepository struct {
 	tableName string
 }
 
-func NewSubmissionDynamoRepository(region string, tablename string) *SubmissionDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &SubmissionDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewSubmissionDynamoRepository(db *dynamodb.Client, table string) *SubmissionDynamoRepository {
+	return &SubmissionDynamoRepository{db: db, tableName: table}
 }
 
 func (r *SubmissionDynamoRepository) AddSubmission(submission domain.Submission) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if submission.ID == "" {
 		submission.ID = uuid.New().String()
 	}
@@ -40,7 +33,7 @@ func (r *SubmissionDynamoRepository) AddSubmission(submission domain.Submission)
 	if err != nil {
 		return "", err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -51,13 +44,15 @@ func (r *SubmissionDynamoRepository) AddSubmission(submission domain.Submission)
 }
 
 func (r *SubmissionDynamoRepository) GetSubmissionByID(id string) (*domain.Submission, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{
 		"id": id,
 	})
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -77,7 +72,9 @@ func (r *SubmissionDynamoRepository) GetSubmissionByID(id string) (*domain.Submi
 }
 
 func (r *SubmissionDynamoRepository) GetAllSubmissions() ([]domain.Submission, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -92,12 +89,14 @@ func (r *SubmissionDynamoRepository) GetAllSubmissions() ([]domain.Submission, e
 }
 
 func (r *SubmissionDynamoRepository) GetSubmissionsByContest(contestID string) ([]domain.Submission, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	contestIDVal, err := attributevalue.Marshal(contestID)
 	if err != nil {
 		return nil, err // It's good practice to handle this marshal error
 	}
 
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		IndexName:              aws.String("contest_id-index"),
 		KeyConditionExpression: aws.String("contest_id = :contest_id"),
@@ -120,12 +119,14 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByContest(contestID string) (
 }
 
 func (r *SubmissionDynamoRepository) GetSubmissionsByStudent(studentID string) ([]domain.Submission, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	studentIDVal, err := attributevalue.Marshal(studentID)
 	if err != nil {
 		return nil, err
 	}
 
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("student_id-index"),
 		KeyConditionExpression: aws.String("student_id = :sid"),
@@ -146,6 +147,8 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudent(studentID string) (
 	return submissions, nil
 }
 func (r *SubmissionDynamoRepository) GetSubmissionsByStudentAndContest(conId, studentID string) (*domain.Submission, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	studentIDVal, err := attributevalue.Marshal(studentID)
 	if err != nil {
 		return nil, err
@@ -155,7 +158,7 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudentAndContest(conId, st
 		return nil, err
 	}
 
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("contest_id-student_id-index"),
 		KeyConditionExpression: aws.String("contest_id = :cId AND student_id = :sid"),
@@ -195,11 +198,13 @@ func (r *SubmissionDynamoRepository) GetSubmissionsByStudentAndContest(conId, st
 // answer 404 without a separate Get round-trip (GetSubmissionByID returns
 // nil, nil for missing rows, so a pre-check would double-read).
 func (r *SubmissionDynamoRepository) DeleteSubmission(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName:                aws.String(r.tableName),
 		Key:                      key,
 		ConditionExpression:      aws.String("attribute_exists(#id)"),

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 	usecase "victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -45,13 +45,15 @@ func normalizeReasons(payments []domain.PaymentRequest) {
 // user_id range key to a hardcoded debug value ("112pay"), so the endpoint
 // returned nothing meaningful (issue #19).
 func (r *dynamoDBPaymentRepository) ListAll() ([]domain.PaymentRequest, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	var payments []domain.PaymentRequest
 	gsi1PK, err := attributevalue.Marshal("PAYMENT_REQUEST")
 	if err != nil {
 		return nil, err
 	}
 
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-user_id-index"),
 		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk"),
@@ -69,20 +71,13 @@ func (r *dynamoDBPaymentRepository) ListAll() ([]domain.PaymentRequest, error) {
 	return payments, nil
 }
 
-func NewDynamoDBPaymentRepository(region string, tableName string) usecase.PaymentRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &dynamoDBPaymentRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tableName,
-	}
+func NewDynamoDBPaymentRepository(db *dynamodb.Client, table string) usecase.PaymentRepository {
+	return &dynamoDBPaymentRepository{db: db, tableName: table}
 }
 
 func (r *dynamoDBPaymentRepository) Create(req *domain.PaymentRequest) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if req.ID == "" {
 		req.ID = uuid.New().String()
 	}
@@ -92,7 +87,7 @@ func (r *dynamoDBPaymentRepository) Create(req *domain.PaymentRequest) error {
 		return fmt.Errorf("failed to marshal payment request: %w", err)
 	}
 
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(r.tableName),
 		Item:      item,
 	})
@@ -103,12 +98,14 @@ func (r *dynamoDBPaymentRepository) Create(req *domain.PaymentRequest) error {
 }
 
 func (r *dynamoDBPaymentRepository) GetByID(id string) (*domain.PaymentRequest, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
 	}
 
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(r.tableName),
 		Key:       key,
 	})
@@ -133,11 +130,13 @@ func (r *dynamoDBPaymentRepository) GetByID(id string) (*domain.PaymentRequest, 
 // middleware exists in this codebase yet (README #6); this matches the
 // unauthenticated style of the other delete endpoints.
 func (r *dynamoDBPaymentRepository) DeletePayment(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return fmt.Errorf("failed to marshal key: %w", err)
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName:                aws.String(r.tableName),
 		Key:                      key,
 		ConditionExpression:      aws.String("attribute_exists(#id)"),
@@ -154,6 +153,8 @@ func (r *dynamoDBPaymentRepository) DeletePayment(id string) error {
 }
 
 func (r *dynamoDBPaymentRepository) UpdateStatus(id string, newStatus domain.PaymentStatus, reason string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	// ✅ Use the full composite key
 	key, err := attributevalue.MarshalMap(map[string]string{
 		"id": id,
@@ -189,7 +190,7 @@ func (r *dynamoDBPaymentRepository) UpdateStatus(id string, newStatus domain.Pay
 		expressionAttributeValues[":rejectionReason"] = reasonValue
 	}
 
-	_, err = r.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+	_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                 aws.String(r.tableName),
 		Key:                       key,
 		UpdateExpression:          aws.String(updateExpression),
@@ -207,6 +208,8 @@ func (r *dynamoDBPaymentRepository) UpdateStatus(id string, newStatus domain.Pay
 // GSI Name: 'StatusIndex'
 // Partition Key: 'status'
 func (r *dynamoDBPaymentRepository) ListByStatus(status domain.PaymentStatus) ([]domain.PaymentRequest, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	var payments []domain.PaymentRequest
 	st, err := attributevalue.Marshal(status)
 	if err != nil {
@@ -216,7 +219,7 @@ func (r *dynamoDBPaymentRepository) ListByStatus(status domain.PaymentStatus) ([
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal GSI PK: %w", err)
 	}
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-status-index"),
 		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk AND #st = :status"),
@@ -243,13 +246,15 @@ func (r *dynamoDBPaymentRepository) ListByStatus(status domain.PaymentStatus) ([
 // GSI Name: 'UserIndex'
 // Partition Key: 'user_id'
 func (r *dynamoDBPaymentRepository) ListByUser(userID string) ([]domain.PaymentRequest, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	var payments []domain.PaymentRequest
 	gsi1PK, err := attributevalue.Marshal("PAYMENT_REQUEST")
 	if err != nil {
 		return nil, err
 	}
 
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-user_id-index"),
 		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk AND #st = :user_id"),
@@ -275,6 +280,8 @@ func (r *dynamoDBPaymentRepository) ListByUser(userID string) ([]domain.PaymentR
 // GSI Name: 'ExpirationIndex'
 // Partition Key: 'expirationDate'
 func (r *dynamoDBPaymentRepository) ListExpired(now time.Time) ([]domain.PaymentRequest, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	var payments []domain.PaymentRequest
 	nowStr, err := attributevalue.Marshal(now)
 	if err != nil {
@@ -284,7 +291,7 @@ func (r *dynamoDBPaymentRepository) ListExpired(now time.Time) ([]domain.Payment
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal GSI PK: %w", err)
 	}
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
 		IndexName:              aws.String("GSI1PK-expirationDate-index"),
 		KeyConditionExpression: aws.String("GSI1PK = :gsi1pk AND expirationDate < :now"),

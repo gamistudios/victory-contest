@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -17,20 +17,13 @@ type AchievementDynamoRepository struct {
 	tableName string
 }
 
-func NewAchievementDynamoRepository(region string, tablename string) *AchievementDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &AchievementDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewAchievementDynamoRepository(db *dynamodb.Client, table string) *AchievementDynamoRepository {
+	return &AchievementDynamoRepository{db: db, tableName: table}
 }
 
 func (r *AchievementDynamoRepository) AddAchievement(achievement domain.Achievement) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if achievement.ID == "" {
 		achievement.ID = uuid.New().String()
 	}
@@ -38,7 +31,7 @@ func (r *AchievementDynamoRepository) AddAchievement(achievement domain.Achievem
 	if err != nil {
 		return "", err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -49,12 +42,14 @@ func (r *AchievementDynamoRepository) AddAchievement(achievement domain.Achievem
 }
 
 func (r *AchievementDynamoRepository) UpdateAchievement(id string, update domain.Achievement) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	update.ID = id
 	item, err := attributevalue.MarshalMap(update)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -62,11 +57,13 @@ func (r *AchievementDynamoRepository) UpdateAchievement(id string, update domain
 }
 
 func (r *AchievementDynamoRepository) DeleteAchievement(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -74,11 +71,13 @@ func (r *AchievementDynamoRepository) DeleteAchievement(id string) error {
 }
 
 func (r *AchievementDynamoRepository) GetAchievementByID(id string) (*domain.Achievement, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -97,7 +96,9 @@ func (r *AchievementDynamoRepository) GetAchievementByID(id string) (*domain.Ach
 }
 
 func (r *AchievementDynamoRepository) GetAllAchievements() ([]domain.Achievement, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -112,8 +113,10 @@ func (r *AchievementDynamoRepository) GetAllAchievements() ([]domain.Achievement
 }
 
 func (r *AchievementDynamoRepository) GetAchievementsByStudent(studentID string) ([]domain.Achievement, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	studentVal, _ := attributevalue.Marshal(studentID)
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("student_id = :student_id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -129,4 +132,4 @@ func (r *AchievementDynamoRepository) GetAchievementsByStudent(studentID string)
 		return nil, err
 	}
 	return achievements, nil
-} 
+}

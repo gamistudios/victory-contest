@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 	usecase "victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -23,20 +23,13 @@ type StudentDynamoRepository struct {
 	tableName string
 }
 
-func NewStudentDynamoRepository(region string, tablename string) *StudentDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &StudentDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewStudentDynamoRepository(db *dynamodb.Client, table string) *StudentDynamoRepository {
+	return &StudentDynamoRepository{db: db, tableName: table}
 }
 
 func (r *StudentDynamoRepository) AddStudent(student domain.Student) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if student.TelegramID == "" {
 		return fmt.Errorf("telegram_id is required and cannot be empty")
 	}
@@ -68,7 +61,7 @@ func (r *StudentDynamoRepository) AddStudent(student domain.Student) error {
 		return err
 	}
 
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -84,6 +77,8 @@ func (r *StudentDynamoRepository) AddStudent(student domain.Student) error {
 // overwritten with a real value. updated_at is stamped RFC3339 on every write;
 // it is an audit-only attribute outside domain.Student (unmarshal ignores it).
 func (r *StudentDynamoRepository) UpdateStudent(student domain.Student) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if student.ID == "" {
 		return fmt.Errorf("student id is required and cannot be empty")
 	}
@@ -122,7 +117,7 @@ func (r *StudentDynamoRepository) UpdateStudent(student domain.Student) error {
 	if err != nil {
 		return err
 	}
-	_, err = r.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+	_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                 &r.tableName,
 		Key:                       key,
 		UpdateExpression:          aws.String("SET " + strings.Join(parts, ", ")),
@@ -158,11 +153,13 @@ func isZeroAttributeValue(av types.AttributeValue) bool {
 // delete removed. A ConditionalCheckFailedException is mapped to
 // usecase.ErrConditionalCheckFailed so the caller can re-read and retry once.
 func (r *StudentDynamoRepository) UpdateStudentIfExist(student domain.Student) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	item, err := attributevalue.MarshalMap(student)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName:           &r.tableName,
 		Item:                item,
 		ConditionExpression: aws.String("attribute_exists(id)"),
@@ -178,8 +175,10 @@ func (r *StudentDynamoRepository) UpdateStudentIfExist(student domain.Student) e
 }
 
 func (r *StudentDynamoRepository) GetStudentByID(id string) (*domain.Student, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		KeyConditionExpression: aws.String("id = :id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -202,8 +201,10 @@ func (r *StudentDynamoRepository) GetStudentByID(id string) (*domain.Student, er
 }
 
 func (r *StudentDynamoRepository) GetStudentByTelegramID(telegramID string) (*domain.Student, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	teleIDVal, _ := attributevalue.Marshal(telegramID)
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("telegram_id = :tele_id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -226,7 +227,9 @@ func (r *StudentDynamoRepository) GetStudentByTelegramID(telegramID string) (*do
 }
 
 func (r *StudentDynamoRepository) GetStudents() ([]domain.Student, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -258,9 +261,11 @@ func (r *StudentDynamoRepository) GetStructuredStudents() (map[string]domain.Stu
 // filtered on a nonexistent `paid` attribute, so it always failed with a
 // ValidationException (issue #20).
 func (r *StudentDynamoRepository) VerifyStudentPaid(telegramID string) (bool, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	teleIDVal, _ := attributevalue.Marshal(telegramID)
 	premiumVal, _ := attributevalue.Marshal(true)
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("telegram_id = :tele_id AND is_premium = :premium"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -279,8 +284,10 @@ func (r *StudentDynamoRepository) VerifyStudentPaid(telegramID string) (bool, er
 // is true. Scan + FilterExpression is used because the student table defines no
 // GSI on is_premium (see cmd/setup-tables); acceptable at this scale.
 func (r *StudentDynamoRepository) GetPaidStudents() ([]domain.Student, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	premiumVal, _ := attributevalue.Marshal(true)
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("is_premium = :premium"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -299,7 +306,9 @@ func (r *StudentDynamoRepository) GetPaidStudents() ([]domain.Student, error) {
 }
 
 func (r *StudentDynamoRepository) GetGradesAndSchools() (map[string][]string, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName:            &r.tableName,
 		ProjectionExpression: aws.String("grade, school"),
 	})
@@ -361,7 +370,9 @@ func (r *StudentDynamoRepository) GetUserProfile(studentID string) (map[string]i
 // already receives those repositories.
 
 func (r *StudentDynamoRepository) DeleteStudent(id string) error {
-	_, err := r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	_, err := r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: id},

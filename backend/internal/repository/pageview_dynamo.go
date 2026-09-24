@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 	"time"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -18,20 +18,13 @@ type PageViewDynamoRepository struct {
 	tableName string
 }
 
-func NewPageViewDynamoRepository(region string, tablename string) *PageViewDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &PageViewDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewPageViewDynamoRepository(db *dynamodb.Client, table string) *PageViewDynamoRepository {
+	return &PageViewDynamoRepository{db: db, tableName: table}
 }
 
 func (r *PageViewDynamoRepository) AddPageView(pageView domain.PageView) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if pageView.ID == "" {
 		pageView.ID = uuid.New().String()
 	}
@@ -46,7 +39,7 @@ func (r *PageViewDynamoRepository) AddPageView(pageView domain.PageView) error {
 		return err
 	}
 
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -54,11 +47,13 @@ func (r *PageViewDynamoRepository) AddPageView(pageView domain.PageView) error {
 }
 
 func (r *PageViewDynamoRepository) GetPageViewsByDateRange(startDate, endDate time.Time) ([]domain.PageView, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	// Convert dates to strings for comparison
 	startDateStr := startDate.Format(time.RFC3339)
 	endDateStr := endDate.Format(time.RFC3339)
 
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("viewed_at BETWEEN :start_date AND :end_date"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -80,7 +75,9 @@ func (r *PageViewDynamoRepository) GetPageViewsByDateRange(startDate, endDate ti
 }
 
 func (r *PageViewDynamoRepository) GetAllPageViews() ([]domain.PageView, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -97,7 +94,9 @@ func (r *PageViewDynamoRepository) GetAllPageViews() ([]domain.PageView, error) 
 }
 
 func (r *PageViewDynamoRepository) GetPageViewsByUserID(userID string) ([]domain.PageView, error) {
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		IndexName:              aws.String("user_id-index"),
 		KeyConditionExpression: aws.String("user_id = :uid"),

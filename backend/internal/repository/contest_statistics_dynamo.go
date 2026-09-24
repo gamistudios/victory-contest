@@ -6,11 +6,11 @@ import (
 )
 
 type ContestStatisticsDynamo struct {
-	contestUsecase   usecase.ContestUsecase
+	contestUsecase    usecase.ContestUsecase
 	submissionUsecase usecase.SubmissionUsecase
-	studentUsecase   usecase.StudentUsecase
-	questionUsecase  usecase.QuestionUsecase
-	statsUsecase     usecase.ContestStatisticsUsecase
+	studentUsecase    usecase.StudentUsecase
+	questionUsecase   usecase.QuestionUsecase
+	statsUsecase      usecase.ContestStatisticsUsecase
 }
 
 func NewContestStatisticsDynamo(

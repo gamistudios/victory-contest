@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -20,20 +20,13 @@ type FeedbackResponseDynamoRepository struct {
 	tableName string
 }
 
-func NewFeedbackResponseDynamoRepository(region string, tablename string) *FeedbackResponseDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &FeedbackResponseDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewFeedbackResponseDynamoRepository(db *dynamodb.Client, table string) *FeedbackResponseDynamoRepository {
+	return &FeedbackResponseDynamoRepository{db: db, tableName: table}
 }
 
 func (r *FeedbackResponseDynamoRepository) AddFeedbackResponse(response domain.FeedbackResponse) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if response.ID == "" {
 		response.ID = uuid.New().String()
 	}
@@ -41,7 +34,7 @@ func (r *FeedbackResponseDynamoRepository) AddFeedbackResponse(response domain.F
 	if err != nil {
 		return "", err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -52,12 +45,14 @@ func (r *FeedbackResponseDynamoRepository) AddFeedbackResponse(response domain.F
 }
 
 func (r *FeedbackResponseDynamoRepository) UpdateFeedbackResponse(id string, update domain.FeedbackResponse) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	update.ID = id
 	item, err := attributevalue.MarshalMap(update)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -65,11 +60,13 @@ func (r *FeedbackResponseDynamoRepository) UpdateFeedbackResponse(id string, upd
 }
 
 func (r *FeedbackResponseDynamoRepository) DeleteFeedbackResponse(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -77,6 +74,8 @@ func (r *FeedbackResponseDynamoRepository) DeleteFeedbackResponse(id string) err
 }
 
 func (r *FeedbackResponseDynamoRepository) DeleteFeedbackResponseOnly(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	// First, get the response to check if it has contact info
 	response, err := r.GetFeedbackResponseByID(id)
 	if err != nil {
@@ -103,7 +102,7 @@ func (r *FeedbackResponseDynamoRepository) DeleteFeedbackResponseOnly(id string)
 		if err != nil {
 			return err
 		}
-		_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+		_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 			TableName: &r.tableName,
 			Item:      item,
 		})
@@ -115,11 +114,13 @@ func (r *FeedbackResponseDynamoRepository) DeleteFeedbackResponseOnly(id string)
 }
 
 func (r *FeedbackResponseDynamoRepository) GetFeedbackResponseByID(id string) (*domain.FeedbackResponse, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -138,7 +139,9 @@ func (r *FeedbackResponseDynamoRepository) GetFeedbackResponseByID(id string) (*
 }
 
 func (r *FeedbackResponseDynamoRepository) GetAllFeedbackResponses() ([]domain.FeedbackResponse, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -153,8 +156,10 @@ func (r *FeedbackResponseDynamoRepository) GetAllFeedbackResponses() ([]domain.F
 }
 
 func (r *FeedbackResponseDynamoRepository) GetFeedbackResponsesByStudent(studentID string) ([]domain.FeedbackResponse, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	studentIDVal, _ := attributevalue.Marshal(studentID)
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName:        &r.tableName,
 		FilterExpression: aws.String("student_id = :student_id"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
@@ -173,9 +178,11 @@ func (r *FeedbackResponseDynamoRepository) GetFeedbackResponsesByStudent(student
 }
 
 func (r *FeedbackResponseDynamoRepository) GetFeedbackResponsesByQuestion(questionID string) ([]domain.FeedbackResponse, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	// This is a more complex query since question_responses is a map
 	// We'll need to scan and filter in application code
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -231,6 +238,8 @@ func (r *FeedbackResponseDynamoRepository) GetFeedbackAnalytics(filter domain.An
 // resurrected. Errors on individual items do not stop the sweep; the first
 // error is returned after all items were attempted.
 func (r *FeedbackResponseDynamoRepository) DeleteContactByPhoneNumber(phoneNumber string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	responses, err := r.GetAllFeedbackResponses()
 	if err != nil {
 		return err
@@ -255,7 +264,7 @@ func (r *FeedbackResponseDynamoRepository) DeleteContactByPhoneNumber(phoneNumbe
 			}
 			continue
 		}
-		_, err = r.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+		_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 			TableName:           &r.tableName,
 			Key:                 key,
 			UpdateExpression:    aws.String("REMOVE contact_info"),

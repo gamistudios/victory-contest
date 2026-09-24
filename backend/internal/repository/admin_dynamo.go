@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -17,20 +17,13 @@ type AdminDynamoRepository struct {
 	tableName string
 }
 
-func NewAdminDynamoRepository(region,tableName string) *AdminDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &AdminDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tableName,
-	}
+func NewAdminDynamoRepository(db *dynamodb.Client, table string) *AdminDynamoRepository {
+	return &AdminDynamoRepository{db: db, tableName: table}
 }
 
 func (r *AdminDynamoRepository) AddAdmin(admin domain.Admin) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if admin.ID == "" {
 		admin.ID = uuid.New().String()
 	}
@@ -38,7 +31,7 @@ func (r *AdminDynamoRepository) AddAdmin(admin domain.Admin) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -49,12 +42,14 @@ func (r *AdminDynamoRepository) AddAdmin(admin domain.Admin) (string, error) {
 }
 
 func (r *AdminDynamoRepository) UpdateAdmin(id string, update domain.Admin) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	update.ID = id
 	item, err := attributevalue.MarshalMap(update)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -62,11 +57,13 @@ func (r *AdminDynamoRepository) UpdateAdmin(id string, update domain.Admin) erro
 }
 
 func (r *AdminDynamoRepository) DeleteAdmin(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -74,11 +71,13 @@ func (r *AdminDynamoRepository) DeleteAdmin(id string) error {
 }
 
 func (r *AdminDynamoRepository) GetAdminByID(id string) (*domain.Admin, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -95,19 +94,20 @@ func (r *AdminDynamoRepository) GetAdminByID(id string) (*domain.Admin, error) {
 	}
 	return &admin, nil
 }
-func (r *AdminDynamoRepository) GetAdminByEmail(email string) (*domain.Admin,error) {
-	key,err := attributevalue.Marshal(email)
+func (r *AdminDynamoRepository) GetAdminByEmail(email string) (*domain.Admin, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	key, err := attributevalue.Marshal(email)
 	if err != nil {
 		return nil, err
 	}
-	out,err := r.db.Query(context.TODO(),&dynamodb.QueryInput{
-		IndexName: aws.String("email-id-index"),
-		TableName: &r.tableName,
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+		IndexName:              aws.String("email-id-index"),
+		TableName:              &r.tableName,
 		KeyConditionExpression: aws.String("email = :email"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":email":key,
+			":email": key,
 		},
-
 	})
 	if err != nil {
 		return nil, err
@@ -116,15 +116,17 @@ func (r *AdminDynamoRepository) GetAdminByEmail(email string) (*domain.Admin,err
 		return nil, nil
 	}
 	var admin domain.Admin
-	err = attributevalue.UnmarshalMap(out.Items[0],&admin)
+	err = attributevalue.UnmarshalMap(out.Items[0], &admin)
 	if err != nil {
 		return nil, err
 	}
-	return &admin,nil
-	
+	return &admin, nil
+
 }
 func (r *AdminDynamoRepository) GetAllAdmins() ([]domain.Admin, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {

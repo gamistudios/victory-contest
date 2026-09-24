@@ -6,11 +6,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 	"victor-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -21,20 +21,13 @@ type ContestRegistrationDynamoRepository struct {
 	tableName string
 }
 
-func NewContestRegistrationDynamoRepository(region string, tablename string) *ContestRegistrationDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &ContestRegistrationDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewContestRegistrationDynamoRepository(db *dynamodb.Client, table string) *ContestRegistrationDynamoRepository {
+	return &ContestRegistrationDynamoRepository{db: db, tableName: table}
 }
 
 func (r *ContestRegistrationDynamoRepository) AddContestRegistration(registration domain.ContestRegistration) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if registration.ID == "" {
 		numBytes := 5
 		randomBytes := make([]byte, numBytes)
@@ -51,7 +44,7 @@ func (r *ContestRegistrationDynamoRepository) AddContestRegistration(registratio
 	if err != nil {
 		return "", errors.New("invalid registration data")
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -62,12 +55,14 @@ func (r *ContestRegistrationDynamoRepository) AddContestRegistration(registratio
 }
 
 func (r *ContestRegistrationDynamoRepository) UpdateContestRegistration(id string, update domain.ContestRegistration) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	update.ID = id
 	item, err := attributevalue.MarshalMap(update)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -81,11 +76,13 @@ func (r *ContestRegistrationDynamoRepository) UpdateContestRegistration(id strin
 // usecase re-reads and retries once on conflict. A
 // ConditionalCheckFailedException is mapped to usecase.ErrConditionalCheckFailed.
 func (r *ContestRegistrationDynamoRepository) UpdateContestRegistrationIfExist(registration domain.ContestRegistration) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	item, err := attributevalue.MarshalMap(registration)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName:           &r.tableName,
 		Item:                item,
 		ConditionExpression: aws.String("attribute_exists(id)"),
@@ -101,11 +98,13 @@ func (r *ContestRegistrationDynamoRepository) UpdateContestRegistrationIfExist(r
 }
 
 func (r *ContestRegistrationDynamoRepository) DeleteContestRegistration(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -113,6 +112,8 @@ func (r *ContestRegistrationDynamoRepository) DeleteContestRegistration(id strin
 }
 
 func (r *ContestRegistrationDynamoRepository) GetRegistrationsByContestAndStudent(contestID string, user_id string) (*domain.ContestRegistration, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	contestId, err := attributevalue.Marshal(contestID)
 	if err != nil {
 		return nil, err
@@ -121,7 +122,7 @@ func (r *ContestRegistrationDynamoRepository) GetRegistrationsByContestAndStuden
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		KeyConditionExpression: aws.String("contest_id = :contestId AND student_id = :studentId"),
 		IndexName:              aws.String("contest_id-student_id-index"),
@@ -148,11 +149,13 @@ func (r *ContestRegistrationDynamoRepository) GetRegistrationsByContestAndStuden
 
 }
 func (r *ContestRegistrationDynamoRepository) GetRegistrationsByContest(contest_id string) ([]domain.ContestRegistration, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	contestId, err := attributevalue.Marshal(contest_id)
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.Query(context.TODO(), &dynamodb.QueryInput{
+	out, err := r.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              &r.tableName,
 		KeyConditionExpression: aws.String("contest_id = :contestId"),
 		IndexName:              aws.String("contest_id-student_id-index"),
@@ -181,7 +184,9 @@ func (r *ContestRegistrationDynamoRepository) GetRegistrationsByContest(contest_
 // (e.g. AchievementDynamoRepository.GetAllAchievements) — acceptable at the
 // current table size.
 func (r *ContestRegistrationDynamoRepository) ListAll() ([]domain.ContestRegistration, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {

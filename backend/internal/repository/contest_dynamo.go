@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -19,20 +19,13 @@ type ContestDynamoRepository struct {
 	tableName string
 }
 
-func NewContestDynamoRepository(region string, tablename string) *ContestDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &ContestDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewContestDynamoRepository(db *dynamodb.Client, table string) *ContestDynamoRepository {
+	return &ContestDynamoRepository{db: db, tableName: table}
 }
 
 func (r *ContestDynamoRepository) AddContest(contest domain.Contest) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if contest.ID == "" {
 		contest.ID = uuid.New().String()
 	}
@@ -40,7 +33,7 @@ func (r *ContestDynamoRepository) AddContest(contest domain.Contest) (string, er
 	if err != nil {
 		return "", err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -51,7 +44,9 @@ func (r *ContestDynamoRepository) AddContest(contest domain.Contest) (string, er
 }
 
 func (r *ContestDynamoRepository) GetAllContests() ([]domain.Contest, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -70,11 +65,13 @@ func (r *ContestDynamoRepository) GetAllContests() ([]domain.Contest, error) {
 // legacy "SS" string-set rows written by the old update path, so already stored
 // data stays readable.
 func (r *ContestDynamoRepository) GetContestByID(id string) (*domain.Contest, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -95,6 +92,8 @@ func (r *ContestDynamoRepository) GetContestByID(id string) (*domain.Contest, er
 }
 
 func (r *ContestDynamoRepository) UpdateContest(id string, update domain.Contest) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	// First, get the current contest to preserve existing fields
 	currentContest, err := r.GetContestByID(id)
 	if err != nil {
@@ -162,7 +161,7 @@ func (r *ContestDynamoRepository) UpdateContest(id string, update domain.Contest
 	}
 
 	// Perform the update
-	_, err = r.db.UpdateItem(context.TODO(), &dynamodb.UpdateItemInput{
+	_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                 &r.tableName,
 		Key:                       key,
 		UpdateExpression:          &updateExpression,
@@ -174,11 +173,13 @@ func (r *ContestDynamoRepository) UpdateContest(id string, update domain.Contest
 }
 
 func (r *ContestDynamoRepository) DeleteContest(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})

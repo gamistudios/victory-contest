@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
+	"victor-contest-go/internal/awsconfig"
 	"victor-contest-go/internal/domain"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -17,20 +17,13 @@ type PollOptionDynamoRepository struct {
 	tableName string
 }
 
-func NewPollOptionDynamoRepository(region string, tablename string) *PollOptionDynamoRepository {
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
-	)
-	if err != nil {
-		panic("unable to load AWS SDK config: " + err.Error())
-	}
-	return &PollOptionDynamoRepository{
-		db:        dynamodb.NewFromConfig(cfg),
-		tableName: tablename,
-	}
+func NewPollOptionDynamoRepository(db *dynamodb.Client, table string) *PollOptionDynamoRepository {
+	return &PollOptionDynamoRepository{db: db, tableName: table}
 }
 
 func (r *PollOptionDynamoRepository) AddPollOption(option domain.PollOption) (string, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	if option.ID == "" {
 		option.ID = uuid.New().String()
 	}
@@ -38,7 +31,7 @@ func (r *PollOptionDynamoRepository) AddPollOption(option domain.PollOption) (st
 	if err != nil {
 		return "", err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -49,12 +42,14 @@ func (r *PollOptionDynamoRepository) AddPollOption(option domain.PollOption) (st
 }
 
 func (r *PollOptionDynamoRepository) UpdatePollOption(id string, update domain.PollOption) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	update.ID = id
 	item, err := attributevalue.MarshalMap(update)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
 	})
@@ -62,11 +57,13 @@ func (r *PollOptionDynamoRepository) UpdatePollOption(id string, update domain.P
 }
 
 func (r *PollOptionDynamoRepository) DeletePollOption(id string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return err
 	}
-	_, err = r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -74,11 +71,13 @@ func (r *PollOptionDynamoRepository) DeletePollOption(id string) error {
 }
 
 func (r *PollOptionDynamoRepository) GetPollOptionByID(id string) (*domain.PollOption, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	key, err := attributevalue.MarshalMap(map[string]string{"id": id})
 	if err != nil {
 		return nil, err
 	}
-	out, err := r.db.GetItem(context.TODO(), &dynamodb.GetItemInput{
+	out, err := r.db.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &r.tableName,
 		Key:       key,
 	})
@@ -97,7 +96,9 @@ func (r *PollOptionDynamoRepository) GetPollOptionByID(id string) (*domain.PollO
 }
 
 func (r *PollOptionDynamoRepository) GetAllPollOptions() ([]domain.PollOption, error) {
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &r.tableName,
 	})
 	if err != nil {
@@ -112,9 +113,11 @@ func (r *PollOptionDynamoRepository) GetAllPollOptions() ([]domain.PollOption, e
 }
 
 func (r *PollOptionDynamoRepository) GetPollOptionByScore(score int) (*domain.PollOption, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
 	scoreVal, _ := attributevalue.Marshal(score)
-	out, err := r.db.Scan(context.TODO(), &dynamodb.ScanInput{
-		TableName: &r.tableName,
+	out, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+		TableName:        &r.tableName,
 		FilterExpression: aws.String("min_score <= :score AND max_score >= :score"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":score": scoreVal,
@@ -132,4 +135,4 @@ func (r *PollOptionDynamoRepository) GetPollOptionByScore(score int) (*domain.Po
 		return nil, err
 	}
 	return &option, nil
-} 
+}
