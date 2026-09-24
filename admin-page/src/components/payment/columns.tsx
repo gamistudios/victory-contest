@@ -141,13 +141,21 @@ const PendingActionsCell = ({
 const ReceiptCell = ({ row }: { row: Row<PaymentRequest> }) => {
   const payment = row.original as PaymentRequest;
   const [isViewing, setIsViewing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  const handleOpenChange = (open: boolean) => {
+    setIsViewing(open);
+    if (open) setLoadFailed(false);
+  };
+
+  const url = payment.billScreenshotUrl;
 
   return (
     <>
       <Button variant="ghost" size="sm" onClick={() => setIsViewing(true)}>
         <Eye className="mr-2 h-4 w-4" /> View
       </Button>
-      <Dialog open={isViewing} onOpenChange={setIsViewing}>
+      <Dialog open={isViewing} onOpenChange={handleOpenChange}>
         <DialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Bill Screenshot</DialogTitle>
@@ -155,15 +163,24 @@ const ReceiptCell = ({ row }: { row: Row<PaymentRequest> }) => {
               Receipt for payment request {payment.id}
             </DialogDescription>
           </DialogHeader>
-          {/* In a real app, `payment.billScreenshotUrl` would point to an actual image */}
           <div className="mt-4 flex items-center justify-center rounded-md border border-dashed p-8">
-            <img
-              src={
-                payment.billScreenshotUrl ?? "https://placehold.co/400x600/png"
-              }
-              alt="Bill Screenshot"
-              className="max-w-full h-auto"
-            />
+            {url && !loadFailed ? (
+              <img
+                src={url}
+                alt={`Receipt for ${payment.user_id}`}
+                className="max-w-full h-auto"
+                onError={() => setLoadFailed(true)}
+              />
+            ) : (
+              // Requests can legitimately arrive without a screenshot (and a
+              // Cloudinary URL can 404), so say so instead of showing the
+              // browser's broken-image icon.
+              <p className="text-center text-sm text-muted-foreground">
+                {url
+                  ? "The receipt image could not be loaded."
+                  : "No receipt image was attached to this request."}
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
