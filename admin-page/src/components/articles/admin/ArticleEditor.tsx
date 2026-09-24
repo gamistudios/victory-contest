@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import EditorToolbar from "../editor/EditorToolbar";
 import ImagesDrawer from "./ImagesDrawer";
 import { getArticleById } from "@/services/articleServices";
+import { toast } from "sonner";
 import { Eye, Save, Send } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
@@ -76,6 +77,12 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
         bulletList: false,
 
         hardBreak: false,
+
+        // tiptap v3 StarterKit bundles these; the explicitly-configured
+        // Link/Underline below must be the only registration or tiptap warns
+        // about duplicate extension names.
+        link: false,
+        underline: false,
       }),
 
       HardBreak.extend({
@@ -209,14 +216,14 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
     (status: "draft" | "published"): Article => {
       // Simple validator
       if (!formData.title || formData.title.trim() === "") {
-        throw new Error("Excerpt is required");
+        throw new Error("Title is required");
       }
 
       if (!formData.excerpt || formData.excerpt.trim() === "") {
         throw new Error("Excerpt is required");
       }
 
-      if (!editor || !editor.getHTML().trim()) {
+      if (!editor || !editor.getText().trim()) {
         throw new Error("Content is required");
       }
 
@@ -253,12 +260,20 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
 
   const handleSave = useCallback(() => {
     if (!editor) return;
-    onSave(buildArticlePayload("draft"));
+    try {
+      onSave(buildArticlePayload("draft"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save article");
+    }
   }, [editor, onSave, buildArticlePayload]);
 
   const handlePublish = useCallback(() => {
     if (!editor) return;
-    onPublish(buildArticlePayload("published"));
+    try {
+      onPublish(buildArticlePayload("published"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not publish article");
+    }
   }, [editor, onPublish, buildArticlePayload]);
 
   const addTag = useCallback(() => {
@@ -310,7 +325,6 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
       </div>
     );
   }
-  console.log("article title", formData?.title.trim());
 
   return (
     <div className="article-editor w-full max-w-6xl mx-auto space-y-6">

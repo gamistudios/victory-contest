@@ -89,7 +89,9 @@ const ArticlesPage: React.FC = () => {
           },
         });
       }
-      setArticles([...articles, articleData]);
+      // Reload from the server: the client-side payload has no id yet, and a
+      // stale row without an id breaks subsequent edit/delete requests.
+      setTriggerLoadingArticles((prev) => !prev);
       setSearchParams({ view: "list" });
     } catch {
       toast.error("Failed to save article");
@@ -117,7 +119,7 @@ const ArticlesPage: React.FC = () => {
           error: "Failed to publish article",
         });
       }
-      setArticles([...articles, { ...articleData, status: "published" }]);
+      setTriggerLoadingArticles((prev) => !prev);
       setSearchParams({ view: "list" });
     } catch {
       toast.error("Failed to publish article");
