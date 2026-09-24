@@ -24,8 +24,8 @@ import {
   Button,
 } from "@mui/material";
 import { Phone, Star, TrendingUp, Delete } from "@mui/icons-material";
-import axios from "axios";
-import { feedbackServices } from "../../services/feedbackServices";
+import api from "@/services/api";
+import { feedbackServices, describeApiError } from "../../services/feedbackServices";
 
 interface HighScorer {
   id: string;
@@ -34,6 +34,18 @@ interface HighScorer {
   score: number;
   submittedAt: string;
   language: string;
+}
+
+// Raw shape of a feedback response as returned by the backend (domain JSON tags).
+interface RawFeedbackResponse {
+  id: string;
+  student_name: string;
+  submitted_at: string;
+  contact_info?: {
+    score: number;
+    phone_number: string;
+    language: string;
+  };
 }
 
 export default function HighScorersContactList() {
@@ -46,8 +58,8 @@ export default function HighScorersContactList() {
   const [scorerToDelete, setScorerToDelete] = useState<HighScorer | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "https://txnfqqn7-8081.euw.devtunnels.ms";
+  // All requests go through the shared `api` axios instance (relative paths,
+  // admin token cookie attached).
 
   useEffect(() => {
     fetchHighScorers();
@@ -56,24 +68,22 @@ export default function HighScorersContactList() {
   const fetchHighScorers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(
-        `${API_BASE_URL}/api/feedback-response/`
-      );
+      const response = await api.get("/api/feedback-response/");
 
       const highScorersData = response.data.responses
-        .filter((response: any) => {
-          const contactInfo = response.contact_info;
+        .filter((item: RawFeedbackResponse) => {
+          const contactInfo = item.contact_info;
           return (
             contactInfo && contactInfo.score >= 500 && contactInfo.score <= 600
           );
         })
-        .map((response: any) => ({
-          id: response.id,
-          name: response.student_name,
-          phoneNumber: response.contact_info.phone_number,
-          score: response.contact_info.score,
-          submittedAt: response.submitted_at,
-          language: response.contact_info.language,
+        .map((item: RawFeedbackResponse) => ({
+          id: item.id,
+          name: item.student_name,
+          phoneNumber: item.contact_info?.phone_number ?? "",
+          score: item.contact_info?.score ?? 0,
+          submittedAt: item.submitted_at,
+          language: item.contact_info?.language ?? "",
         }))
         .sort((a: HighScorer, b: HighScorer) => b.score - a.score);
 
@@ -81,7 +91,9 @@ export default function HighScorersContactList() {
       setLoading(false);
     } catch (error) {
       console.error("Error fetching high scorers:", error);
-      setError("Failed to fetch high scorers data");
+      setError(
+        describeApiError(error, "Failed to fetch high scorers data")
+      );
       setLoading(false);
     }
   };
@@ -108,7 +120,7 @@ export default function HighScorersContactList() {
       setScorerToDelete(null);
     } catch (error) {
       console.error("Error deleting contact:", error);
-      setError("Failed to delete contact");
+      setError(describeApiError(error, "Failed to delete contact"));
     } finally {
       setDeleting(false);
     }
@@ -130,7 +142,7 @@ export default function HighScorersContactList() {
     setPage(0);
   };
 
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number): "success" | "warning" | "primary" => {
     if (score >= 580) return "success";
     if (score >= 550) return "warning";
     return "primary";
@@ -268,7 +280,7 @@ export default function HighScorersContactList() {
                     <TableCell>
                       <Chip
                         label={`${scorer.score} pts`}
-                        color={getScoreColor(scorer.score) as any}
+                        color={getScoreColor(scorer.score)}
                         variant="filled"
                         sx={{ fontWeight: 600 }}
                       />

@@ -33,13 +33,35 @@ export interface CommentSummary {
   average_length: number;
 }
 
-export const feedbackServices = {
-  // Test endpoint
-  testConnection: async (): Promise<any> => {
-    const response = await api.get('/api/feedback-response/test');
-    return response.data;
-  },
+/**
+ * Maps an API error to a user-facing message, distinguishing auth failures
+ * (401 = missing/expired admin cookie, 403 = authenticated but not allowed)
+ * from server errors and plain network failures.
+ */
+export function describeApiError(error: unknown, action: string): string {
+  const err = error as {
+    response?: { status?: number; data?: { error?: string; message?: string } };
+    request?: unknown;
+    message?: string;
+  };
+  const status = err?.response?.status;
+  if (status === 401) {
+    return `${action}: your session is missing or expired. Please log in again.`;
+  }
+  if (status === 403) {
+    return `${action}: you do not have permission for this operation.`;
+  }
+  if (status) {
+    const detail = err.response?.data?.error || err.response?.data?.message;
+    return `${action} failed (HTTP ${status})${detail ? `: ${detail}` : ""}`;
+  }
+  if (err?.request) {
+    return `${action} failed: could not reach the server. Check your connection.`;
+  }
+  return `${action} failed: ${err?.message || "unknown error"}`;
+}
 
+export const feedbackServices = {
   // Get feedback analytics
   getAnalytics: async (timeRange: string = 'all', adminId?: string): Promise<AnalyticsData> => {
     const params = new URLSearchParams();
@@ -62,13 +84,18 @@ export const feedbackServices = {
     console.log('Deleting contact with URL:', url);
     try {
       await api.delete(url);
-    } catch (error: any) {
-      console.error('Delete contact error details:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        url: error.config?.url
+    } catch (error) {
+      const err = error as {
+        message?: string;
+        response?: { status?: number; statusText?: string; data?: unknown };
+        config?: { url?: string };
+      };
+      console.error("Delete contact error details:", {
+        message: err.message,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        url: err.config?.url
       });
       throw error;
     }

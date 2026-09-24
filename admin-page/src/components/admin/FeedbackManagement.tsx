@@ -1,8 +1,9 @@
 // src/components/admin/FeedbackManagement.tsx
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '@/services/api';
+import { describeApiError } from '@/services/feedbackServices';
 import { Plus, Edit, Trash2, BarChart3, Star, Users, MessageSquare } from 'lucide-react';
 
 // shadcn/ui components
@@ -55,6 +56,38 @@ interface FeedbackResponse {
   submittedAt: string;
 }
 
+// Raw payload shapes as returned by the backend (domain JSON tags).
+interface RawFeedbackQuestion {
+  id: string;
+  question: string;
+  options?: string[];
+  is_active: boolean;
+  created_at: string;
+}
+
+interface RawPollOption {
+  id: string;
+  label: string;
+  min_score?: number;
+  max_score?: number;
+  requires_contact: boolean;
+}
+
+interface RawFeedbackResponse {
+  id: string;
+  student_id: string;
+  student_name: string;
+  question_responses?: { [questionId: string]: QuestionResponse };
+  comment?: string;
+  poll_response: string;
+  contact_info?: {
+    score: number;
+    phone_number: string;
+    language: string;
+  };
+  submitted_at: string;
+}
+
 // Define types for items that can be deleted
 type DeletableItemType = 'question' | 'pollOption' | 'response';
 
@@ -70,7 +103,12 @@ export default function FeedbackManagement() {
   const [pollDialog, setPollDialog] = useState(false);
   const [editingPoll, setEditingPoll] = useState<PollOption | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Real logged-in admin id (domain.Admin.ID from GET /api/admin/me),
+  // fetched once and cached; feedback questions are keyed by this on the backend.
+  const adminIdRef = useRef<string | null>(null);
 
   // State for Confirmation Dialog
   const [itemToDeleteId, setItemToDeleteId] = useState<string | null>(null);
@@ -90,12 +128,29 @@ export default function FeedbackManagement() {
     requiresContact: false
   });
 
-  // Use the API base URL from your environment or shared config
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://txnfqqn7-8081.euw.devtunnels.ms";
+  // All requests go through the shared `api` axios instance: relative paths
+  // against VITE_API_URL with the admin token cookie attached.
 
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  const ensureAdminId = async (): Promise<string | null> => {
+    if (adminIdRef.current) return adminIdRef.current;
+    try {
+      const response = await api.get('/api/admin/me');
+      const id: string | undefined = response.data?.id;
+      if (!id) {
+        setError('Could not determine the logged-in admin: /api/admin/me returned no id.');
+        return null;
+      }
+      adminIdRef.current = id;
+      return id;
+    } catch (err) {
+      setError(describeApiError(err, 'Loading admin profile'));
+      return null;
+    }
+  };
 
   useEffect(() => {
     if (selectedScoreRangeFilter === 'all') {
@@ -107,6 +162,7 @@ export default function FeedbackManagement() {
 
   const fetchAllData = async () => {
     setLoading(true);
+    setError(null);
     try {
       await Promise.all([
         fetchQuestions(),
@@ -120,8 +176,8 @@ export default function FeedbackManagement() {
 
   const fetchQuestions = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/feedback-question/`);
-      const fetchedQuestions: FeedbackQuestion[] = response.data.questions.map((q: any) => ({
+      const response = await api.get('/api/feedback-question/');
+      const fetchedQuestions: FeedbackQuestion[] = response.data.questions.map((q: RawFeedbackQuestion) => ({
         id: q.id,
         question: q.question,
         options: q.options || [],
@@ -131,14 +187,15 @@ export default function FeedbackManagement() {
       setQuestions(fetchedQuestions);
     } catch (error) {
       console.error('Error fetching questions:', error);
+      setError(describeApiError(error, 'Loading feedback questions'));
       setQuestions([]);
     }
   };
 
   const fetchPollOptions = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/poll-option/`);
-      const fetchedPollOptions: PollOption[] = response.data.options.map((po: any) => ({
+      const response = await api.get('/api/poll-option/');
+      const fetchedPollOptions: PollOption[] = response.data.options.map((po: RawPollOption) => ({
         id: po.id,
         label: po.label,
         minScore: po.min_score,
@@ -149,6 +206,7 @@ export default function FeedbackManagement() {
       setPollOptions(fetchedPollOptions);
     } catch (error) {
       console.error('Error fetching poll options:', error);
+      setError(describeApiError(error, 'Loading poll options'));
       const fallbackOptions = [
         { id: 'p1', label: 'Less than 300', minScore: 0, maxScore: 299, requiresContact: false },
         { id: 'p2', label: 'Less than 400', minScore: 300, maxScore: 399, requiresContact: false },
@@ -162,8 +220,8 @@ export default function FeedbackManagement() {
 
   const fetchResponses = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/feedback-response/`);
-      const fetchedResponses: FeedbackResponse[] = response.data.responses.map((r: any) => ({
+      const response = await api.get('/api/feedback-response/');
+      const fetchedResponses: FeedbackResponse[] = response.data.responses.map((r: RawFeedbackResponse) => ({
         id: r.id,
         studentId: r.student_id,
         studentName: r.student_name,
@@ -184,23 +242,26 @@ export default function FeedbackManagement() {
       setResponses(fetchedResponses);
     } catch (error) {
       console.error('Error fetching responses:', error);
+      setError(describeApiError(error, 'Loading responses'));
       setResponses([]);
     }
   };
 
   const handleSaveQuestion = async () => {
+    const adminId = await ensureAdminId();
+    if (!adminId) return;
     try {
       const questionData = {
         question: newQuestion.question,
         options: newQuestion.options.filter(opt => opt.trim() !== ''),
-        admin_id: "admin_user_id",
+        admin_id: adminId,
         is_active: true
       };
 
       if (editingQuestion) {
-        await axios.put(`${API_BASE_URL}/api/feedback-question/${editingQuestion.id}`, questionData);
+        await api.put(`/api/feedback-question/${editingQuestion.id}`, questionData);
       } else {
-        await axios.post(`${API_BASE_URL}/api/feedback-question/`, questionData);
+        await api.post('/api/feedback-question/', questionData);
       }
 
       setOpenDialog(false);
@@ -212,6 +273,7 @@ export default function FeedbackManagement() {
       fetchQuestions();
     } catch (error) {
       console.error('Error saving question:', error);
+      setError(describeApiError(error, 'Saving question'));
     }
   };
 
@@ -226,16 +288,15 @@ export default function FeedbackManagement() {
     try {
       switch (itemToDeleteType) {
         case 'question':
-          await axios.delete(`${API_BASE_URL}/api/feedback-question/${itemToDeleteId}`);
+          await api.delete(`/api/feedback-question/${itemToDeleteId}`);
           fetchQuestions();
           break;
         case 'pollOption':
-          await axios.delete(`${API_BASE_URL}/api/poll-option/${itemToDeleteId}`);
+          await api.delete(`/api/poll-option/${itemToDeleteId}`);
           fetchPollOptions();
           break;
         case 'response':
-          // For now, use the existing endpoint until the backend is restarted
-          await axios.delete(`${API_BASE_URL}/api/feedback-response/${itemToDeleteId}`);
+          await api.delete(`/api/feedback-response/${itemToDeleteId}`);
           fetchResponses();
           break;
         default:
@@ -243,6 +304,7 @@ export default function FeedbackManagement() {
       }
     } catch (error) {
       console.error(`Error deleting ${itemToDeleteType}:`, error);
+      setError(describeApiError(error, `Deleting ${itemToDeleteType} failed`));
     } finally {
       setItemToDeleteId(null);
       setItemToDeleteType(null);
@@ -251,9 +313,8 @@ export default function FeedbackManagement() {
 
   const handleDeleteAllResponses = async () => {
     try {
-      // For now, use the existing endpoint until the backend is restarted
       const deletePromises = responses.map(response => 
-        axios.delete(`${API_BASE_URL}/api/feedback-response/${response.id}`)
+        api.delete(`/api/feedback-response/${response.id}`)
       );
       
       await Promise.all(deletePromises);
@@ -264,10 +325,13 @@ export default function FeedbackManagement() {
       setShowDeleteAllDialog(false);
     } catch (error) {
       console.error('Error deleting all responses:', error);
+      setError(describeApiError(error, 'Deleting all responses'));
     }
   };
 
   const toggleQuestionStatus = async (id: string, isActive: boolean) => {
+    const adminId = await ensureAdminId();
+    if (!adminId) return;
     try {
       const currentQuestion = questions.find(q => q.id === id);
       if (!currentQuestion) return;
@@ -275,14 +339,15 @@ export default function FeedbackManagement() {
       const updateData = {
         question: currentQuestion.question,
         options: currentQuestion.options,
-        admin_id: "admin_user_id",
+        admin_id: adminId,
         is_active: isActive
       };
 
-      await axios.put(`${API_BASE_URL}/api/feedback-question/${id}`, updateData);
+      await api.put(`/api/feedback-question/${id}`, updateData);
       fetchQuestions();
     } catch (error) {
       console.error('Error toggling question status:', error);
+      setError(describeApiError(error, 'Updating question status'));
     }
   };
 
@@ -296,9 +361,9 @@ export default function FeedbackManagement() {
       };
 
       if (editingPoll) {
-        await axios.put(`${API_BASE_URL}/api/poll-option/${editingPoll.id}`, pollOptionData);
+        await api.put(`/api/poll-option/${editingPoll.id}`, pollOptionData);
       } else {
-        await axios.post(`${API_BASE_URL}/api/poll-option/`, pollOptionData);
+        await api.post('/api/poll-option/', pollOptionData);
       }
       setPollDialog(false);
       setEditingPoll(null);
@@ -311,6 +376,7 @@ export default function FeedbackManagement() {
       fetchPollOptions();
     } catch (error) {
       console.error('Error saving poll option:', error);
+      setError(describeApiError(error, 'Saving poll option'));
     }
   };
 
@@ -353,6 +419,24 @@ export default function FeedbackManagement() {
           Manage student feedback questions, polls, and responses with ease
         </p>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+            <p className="text-sm font-medium text-red-800 dark:text-red-200">{error}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setError(null)}
+              className="ml-auto text-red-600 hover:text-red-800 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
