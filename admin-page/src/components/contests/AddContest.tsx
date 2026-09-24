@@ -40,7 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 // Define action types for the reducer
 type Action =
-  | { type: "UPDATE_FIELD"; field: keyof Contest; value: any }
+  | { type: "UPDATE_FIELD"; field: keyof Contest; value: string }
   | {
       type: "SET_TIME";
       field: "start_time" | "end_time";
@@ -53,7 +53,7 @@ const contestReducer = (state: Contest, action: Action): Contest => {
   switch (action.type) {
     case "UPDATE_FIELD":
       return { ...state, [action.field]: action.value };
-    case "SET_TIME":
+    case "SET_TIME": {
       if (!state.start_time || !action.value) {
         toast.error("Please select a date first.");
         return state;
@@ -66,6 +66,7 @@ const contestReducer = (state: Contest, action: Action): Contest => {
         ...state,
         [action.field]: combinedDateTime.format("YYYY-MM-DDTHH:mm:ss"),
       };
+    }
     case "RESET_FORM":
       return initialState;
     default:
@@ -174,9 +175,11 @@ export default function AddContest() {
   };
 
   return (
-    <div className="container mx-auto p-4 space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">Add New Contest</h1>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="mx-auto w-full max-w-full space-y-8 p-4 sm:p-6">
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+        Add New Contest
+      </h1>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         {/* Left Column: Form Fields */}
         <div className="lg:col-span-2 space-y-8">
           <Card>
@@ -322,8 +325,9 @@ export default function AddContest() {
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
+                  <PopoverContent className="w-auto max-w-[calc(100vw-2rem)] overflow-x-auto p-0">
                     <Calendar
+                      className="shrink-0"
                       mode="single"
                       selected={(() => {
                         try {
@@ -345,39 +349,44 @@ export default function AddContest() {
                 </Popover>
               </div>
 
-              <div className="space-y-2">
-                <Label>Start Time</Label>
-                {/* Assuming TimePickerComponent is adapted or you use a shadcn-compatible one */}
-                {/* <TimePickerComponent ... /> */}
-                <Input
-                  type="time"
-                  id="start_time_picker"
-                  value={
-                    contest.start_time
-                      ? dayjs(contest.start_time).format("HH:mm")
-                      : ""
-                  }
-                  onChange={(e) =>
-                    handleTimeChange("start_time", e.target.value)
-                  }
-                  disabled={isLoading || !selectedDate}
-                />
-              </div>
+              {/* Times sit side-by-side from sm up, stack full-width below */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Start Time</Label>
+                  {/* Assuming TimePickerComponent is adapted or you use a shadcn-compatible one */}
+                  {/* <TimePickerComponent ... /> */}
+                  <Input
+                    type="time"
+                    id="start_time_picker"
+                    value={
+                      contest.start_time
+                        ? dayjs(contest.start_time).format("HH:mm")
+                        : ""
+                    }
+                    onChange={(e) =>
+                      handleTimeChange("start_time", e.target.value)
+                    }
+                    disabled={isLoading || !selectedDate}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label>End Time</Label>
-                {/* <TimePickerComponent ... /> */}
-                <Input
-                  type="time"
-                  id="end_time_picker"
-                  value={
-                    contest.end_time
-                      ? dayjs(contest.end_time).format("HH:mm")
-                      : ""
-                  }
-                  onChange={(e) => handleTimeChange("end_time", e.target.value)} // Use the new handler
-                  disabled={isLoading || !selectedDate}
-                />
+                <div className="space-y-2">
+                  <Label>End Time</Label>
+                  {/* <TimePickerComponent ... /> */}
+                  <Input
+                    type="time"
+                    id="end_time_picker"
+                    value={
+                      contest.end_time
+                        ? dayjs(contest.end_time).format("HH:mm")
+                        : ""
+                    }
+                    onChange={(e) =>
+                      handleTimeChange("end_time", e.target.value)
+                    } // Use the new handler
+                    disabled={isLoading || !selectedDate}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

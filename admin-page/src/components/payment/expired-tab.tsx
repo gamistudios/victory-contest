@@ -40,7 +40,7 @@ export function ExpiredPaymentsTab() {
       toast("✅ Bulk Notification Complete", {
         description: `Successfully notified all ${payments.length} users.`,
       });
-    } catch (error) {
+    } catch {
       toast.error("❌ Notification Error", {
         description: "Some notifications may have failed. Please check logs.",
       });
@@ -52,17 +52,23 @@ export function ExpiredPaymentsTab() {
   if (isLoading) return <div className="p-4">Loading expired payments...</div>;
 
   return (
-    <div>
-      <div className="flex justify-end mb-4">
+    <div className="space-y-4">
+      {/* Wrap-toolbar: button is full-width on phones, right-sized from sm up */}
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
         <Button
           onClick={handleNotifyAll}
           disabled={isNotifying || payments.length === 0}
+          className="w-full sm:w-auto"
         >
           <BellRing className="mr-2 h-4 w-4" />
           {isNotifying ? "Notifying..." : "Notify All Expired"}
         </Button>
       </div>
-      <DataTable columns={expiredColumns} data={payments} />
+      <div className="w-full overflow-x-auto">
+        <div className="min-w-[42rem]">
+          <DataTable columns={expiredColumns} data={payments} />
+        </div>
+      </div>
     </div>
   );
 }

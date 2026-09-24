@@ -49,7 +49,10 @@ export function Leaderboard() {
   });
 
   return (
-    <Card className="sticky top-4" style={{ boxShadow: "0 0 1px #9c9898" }}>
+    <Card
+      className="top-4 lg:sticky"
+      style={{ boxShadow: "0 0 1px #9c9898" }}
+    >
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">

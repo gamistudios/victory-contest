@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { PaymentRequest } from "../../types/payment";
 import { Button } from "@/components/ui/button";
 import { notifyUser } from "../../services/paymentServices";
@@ -42,7 +42,7 @@ const PendingActionsCell = ({
   row,
   handlers,
 }: {
-  row: any;
+  row: Row<PaymentRequest>;
   handlers: PendingActionsHandlers;
 }) => {
   const payment = row.original as PaymentRequest;
@@ -57,7 +57,7 @@ const PendingActionsCell = ({
       await handlers.onApprove(payment);
       toast("✅ Success", { description: "Payment has been approved." });
       handlers.onApprove(payment);
-    } catch (error) {
+    } catch {
       toast.error("❌ Error", {
         description: "Failed to approve payment.",
       });
@@ -80,7 +80,7 @@ const PendingActionsCell = ({
         description: "Payment has been rejected.",
       });
       handlers.onReject(payment, rejectionReason);
-    } catch (error) {
+    } catch {
       toast.error("❌ Error", {
         description: "Failed to reject payment.",
       });
@@ -92,7 +92,7 @@ const PendingActionsCell = ({
 
   return (
     <>
-      <div className="space-x-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={handleApproveClick}>
           <CheckCircle className="mr-2 h-4 w-4" /> Approve
         </Button>
@@ -106,7 +106,7 @@ const PendingActionsCell = ({
       </div>
 
       <AlertDialog open={isRejecting} onOpenChange={setIsRejecting}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Are you sure you want to reject this payment?
@@ -138,7 +138,7 @@ const PendingActionsCell = ({
 };
 
 // Cell component for the "Show Receipt" button and modal
-const ReceiptCell = ({ row }: { row: any }) => {
+const ReceiptCell = ({ row }: { row: Row<PaymentRequest> }) => {
   const payment = row.original as PaymentRequest;
   const [isViewing, setIsViewing] = useState(false);
 
@@ -148,7 +148,7 @@ const ReceiptCell = ({ row }: { row: any }) => {
         <Eye className="mr-2 h-4 w-4" /> View
       </Button>
       <Dialog open={isViewing} onOpenChange={setIsViewing}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Bill Screenshot</DialogTitle>
             <DialogDescription>
@@ -245,7 +245,7 @@ export const expiredColumns: ColumnDef<PaymentRequest>[] = [
           toast.success("✅ Notification Sent!", {
             description: `${payment.fullName} has been notified.`,
           });
-        } catch (error) {
+        } catch {
           toast.error("❌ Error", {
             description: "Failed to send notification.",
           });
@@ -296,7 +296,7 @@ export const getApprovedColumns = (handlers: ActionHandlerForUndo) => {
             toast.warning("Operation was sucessfull!", {
               duration: 10000,
             });
-          } catch (error) {
+          } catch {
             toast.warning("Undoing payment...", {
               description: `Notifying ${payment.fullName}`,
               duration: 10000,
@@ -307,7 +307,7 @@ export const getApprovedColumns = (handlers: ActionHandlerForUndo) => {
         };
         return (
           <>
-            <div className="space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 disabled={loading}
                 variant="outline"
@@ -318,7 +318,7 @@ export const getApprovedColumns = (handlers: ActionHandlerForUndo) => {
               </Button>
             </div>
             <AlertDialog open={isRejecting} onOpenChange={setIsRejecting}>
-              <AlertDialogContent>
+              <AlertDialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto">
                 <AlertDialogHeader>
                   <AlertDialogTitle>
                     Are you sure you want to undo this payment?
@@ -385,7 +385,7 @@ export const getRejectColumns = (handlers: ActionHandlerForUndo) => {
             toast.success("Successfully sent!", {
               description: `Successfully undo payment for user ${payment.userId}`,
             });
-          } catch (error) {
+          } catch {
             toast.error("❌ Error", {
               description: "Failed to send notification.",
             });
@@ -395,7 +395,7 @@ export const getRejectColumns = (handlers: ActionHandlerForUndo) => {
         };
         return (
           <>
-            <div className="space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 disabled={loading}
                 variant="outline"
@@ -406,7 +406,7 @@ export const getRejectColumns = (handlers: ActionHandlerForUndo) => {
               </Button>
             </div>
             <AlertDialog open={isRejecting} onOpenChange={setIsRejecting}>
-              <AlertDialogContent>
+              <AlertDialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto">
                 <AlertDialogHeader>
                   <AlertDialogTitle>
                     Are you sure you want to undo this payment?

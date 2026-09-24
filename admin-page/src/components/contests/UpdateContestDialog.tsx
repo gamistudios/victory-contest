@@ -149,7 +149,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto mt-16">
+      <DialogContent className="mt-4 max-h-[85dvh] max-w-[calc(100vw-2rem)] overflow-y-auto sm:mt-16 sm:max-h-[90vh] sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Update Contest</DialogTitle>
           <DialogDescription>
@@ -158,7 +158,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
               <Input
@@ -169,7 +169,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="subject">Subject</Label>
                 <p className="text-xs text-gray-500 mb-2">
@@ -236,7 +236,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="start_time">Start Date & Time</Label>
               <p className="text-xs text-gray-500 mb-2">
@@ -270,7 +270,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="type">Type</Label>
               <Select

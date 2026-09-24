@@ -13,23 +13,32 @@ import { ApprovedPaymentsTab } from "./approved-tabs";
 
 export function PaymentsPage() {
   return (
-    <div className="container mx-auto py-10">
+    <div className="mx-auto w-full max-w-full px-4 py-6 sm:px-6 sm:py-10">
       <Card>
         <CardHeader>
-          <CardTitle>Payment Requests</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">Payment Requests</CardTitle>
           <CardDescription>
             Review pending and expired payment requests from users.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="pending">
-            <TabsList className="grid w-full grid-cols-1">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="pending">Pending</TabsTrigger>
-                <TabsTrigger value="expired">Expired</TabsTrigger>
-                <TabsTrigger value="approved">Approved</TabsTrigger>
-                <TabsTrigger value="rejected">Rejected</TabsTrigger>
-              </TabsList>
+            {/* Single flat tab list (previously nested TabsLists overflowed at
+                narrow widths). Scrolls horizontally on phones, centers on
+                larger screens. */}
+            <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto whitespace-nowrap p-1 sm:w-auto sm:justify-center">
+              <TabsTrigger value="pending" className="shrink-0">
+                Pending
+              </TabsTrigger>
+              <TabsTrigger value="expired" className="shrink-0">
+                Expired
+              </TabsTrigger>
+              <TabsTrigger value="approved" className="shrink-0">
+                Approved
+              </TabsTrigger>
+              <TabsTrigger value="rejected" className="shrink-0">
+                Rejected
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="pending" className="mt-4">
               <PendingPaymentsTab />

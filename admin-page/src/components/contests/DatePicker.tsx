@@ -59,7 +59,8 @@ export function DatePickerDemo({ setContest, contest }: DatePickerDemoProps) {
         <Button
           variant={"outline"}
           className={cn(
-            "w-[280px] justify-start text-left font-normal",
+            // Fixed 280px overflowed narrow phones; cap to viewport width
+            "w-[min(280px,calc(100vw-2rem))] justify-start text-left font-normal",
             !contest.start_time && "text-muted-foreground"
           )}
         >
@@ -81,9 +82,10 @@ export function DatePickerDemo({ setContest, contest }: DatePickerDemoProps) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
+      <PopoverContent className="w-auto max-w-[calc(100vw-2rem)] overflow-x-auto p-0">
         <Calendar
           style={{ fontFamily: "'Public Sans',sans-serif" }}
+          className="shrink-0"
           mode="single"
           selected={(() => {
             try {

@@ -282,7 +282,7 @@ export default function ContestById() {
     <div className="space-y-6">
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={handleCloseDeleteDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-2rem)]">
           <DialogHeader>
             <DialogTitle>Delete Contest</DialogTitle>
             <DialogDescription>
@@ -304,7 +304,9 @@ export default function ContestById() {
       {/* Header Section */}
       <div className="space-y-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Contest Details</h1>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+            Contest Details
+          </h1>
           <nav className="flex items-center space-x-2 text-sm text-gray-600 mt-2">
             <a
               href="/dashboard/contest"
@@ -320,9 +322,9 @@ export default function ContestById() {
         {/* Contest Info Card */}
         <Card className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-blue-50">
           <CardHeader className="pb-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <CardTitle className="text-2xl font-bold text-gray-900 mb-2">
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="mb-2 min-w-0 break-words text-xl font-bold text-gray-900 sm:text-2xl">
                   {contest.title}
                 </CardTitle>
                 <CardDescription className="text-gray-600 text-base">
@@ -477,7 +479,7 @@ export default function ContestById() {
                 <TabsTrigger value="2">Statistics</TabsTrigger>
               </TabsList>
             </CardHeader>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <TabsContent value="0">
                 <Standing school={school} city={city} contest={contest} />
               </TabsContent>
@@ -671,8 +673,9 @@ function Standing({ school, city, contest }: StandingProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border">
-        <Table>
+      <div className="w-full overflow-x-auto rounded-lg border">
+        {/* min-w keeps scoreboard columns readable; container scrolls at 390px */}
+        <Table className="min-w-[36rem]">
           <TableHeader>
             <TableRow>
               {tableHeader.map((header, index) => (

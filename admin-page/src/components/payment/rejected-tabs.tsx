@@ -36,5 +36,13 @@ export function RejectedPaymentsTab() {
 
   if (isLoading) return <div className="p-4">Loading rejected payments...</div>;
 
-  return <DataTable columns={columns} data={payments} />;
+  // Horizontal-scroll wrapper + min-width inner so the 7-column table
+  // adapts by scrolling at narrow widths instead of compressing cells.
+  return (
+    <div className="w-full overflow-x-auto">
+      <div className="min-w-[46rem]">
+        <DataTable columns={columns} data={payments} />
+      </div>
+    </div>
+  );
 }

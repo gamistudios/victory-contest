@@ -47,5 +47,13 @@ export function PendingPaymentsTab() {
 
   if (isLoading) return <div className="p-4">Loading pending payments...</div>;
 
-  return <DataTable columns={columns} data={payments} />;
+  // Horizontal-scroll wrapper + min-width inner so the 6-column table
+  // adapts by scrolling at 390px instead of compressing cells.
+  return (
+    <div className="w-full overflow-x-auto">
+      <div className="min-w-[42rem]">
+        <DataTable columns={columns} data={payments} />
+      </div>
+    </div>
+  );
 }

@@ -37,5 +37,13 @@ export function ApprovedPaymentsTab() {
 
   if (isLoading) return <div className="p-4">Loading approved payments...</div>;
 
-  return <DataTable columns={columns} data={payments} />;
+  // Horizontal-scroll wrapper + min-width inner so the table adapts by
+  // scrolling at narrow widths instead of compressing cells.
+  return (
+    <div className="w-full overflow-x-auto">
+      <div className="min-w-[42rem]">
+        <DataTable columns={columns} data={payments} />
+      </div>
+    </div>
+  );
 }

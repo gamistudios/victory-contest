@@ -254,8 +254,9 @@ export default function SelectableQuestionsTable({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
-          <Table>
+        <div className="w-full rounded-md border">
+          {/* min-w keeps 5 columns readable; ui/Table wrapper scrolls at 390px */}
+          <Table className="min-w-[40rem]">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">

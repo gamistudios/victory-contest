@@ -46,12 +46,14 @@ export default function ContestPage() {
     <div className="container mx-auto p-4 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Contests</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            Contests
+          </h1>
           <p className="text-muted-foreground">
             Browse contests and view top player rankings.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0 flex items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-0">
           {/* Grade Filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -115,7 +117,7 @@ export default function ContestPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3 lg:gap-8">
         <div className="lg:col-span-2">
           <ContestList filters={filters} />
         </div>

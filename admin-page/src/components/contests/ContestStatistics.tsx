@@ -174,7 +174,7 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Contest Statistics</h2>
           <p className="text-gray-600">Detailed analytics and performance metrics</p>
@@ -347,7 +347,8 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
 
       {/* Detailed Statistics */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        {/* 2x2 on phones (h-auto so the list grows), single row from sm up */}
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:h-10 sm:grid-cols-4 sm:gap-0">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="gender">Gender Analysis</TabsTrigger>
           <TabsTrigger value="geographic">Geographic</TabsTrigger>
@@ -468,7 +469,7 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
             <CardContent>
               <div className="space-y-4">
                 {Object.entries(statistics.city_stats)
-                  .sort(([,a], [,b]) => (b as any).pass_rate - (a as any).pass_rate)
+                  .sort(([, a], [, b]) => b.pass_rate - a.pass_rate)
                   .map(([city, cityStats]) => (
                     <div key={city} className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -477,12 +478,12 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
-                          <Progress value={(cityStats as any).pass_rate} className="h-2" />
+                          <Progress value={cityStats.pass_rate} className="h-2" />
                         </div>
-                        <Badge variant="secondary">{(cityStats as any).pass_rate.toFixed(1)}%</Badge>
+                        <Badge variant="secondary">{cityStats.pass_rate.toFixed(1)}%</Badge>
                       </div>
                       <div className="text-xs text-gray-600">
-                        {(cityStats as any).passed} passed, {(cityStats as any).failed} failed
+                        {cityStats.passed} passed, {cityStats.failed} failed
                       </div>
                     </div>
                   ))}
@@ -499,7 +500,7 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
             <CardContent>
               <div className="space-y-4">
                 {Object.entries(statistics.school_stats)
-                  .sort(([,a], [,b]) => (b as any).pass_rate - (a as any).pass_rate)
+                  .sort(([, a], [, b]) => b.pass_rate - a.pass_rate)
                   .map(([school, schoolStats]) => (
                     <div key={school} className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -508,12 +509,12 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
-                          <Progress value={(schoolStats as any).pass_rate} className="h-2" />
+                          <Progress value={schoolStats.pass_rate} className="h-2" />
                         </div>
-                        <Badge variant="secondary">{(schoolStats as any).pass_rate.toFixed(1)}%</Badge>
+                        <Badge variant="secondary">{schoolStats.pass_rate.toFixed(1)}%</Badge>
                       </div>
                       <div className="text-xs text-gray-600">
-                        {(schoolStats as any).passed} passed, {(schoolStats as any).failed} failed
+                        {schoolStats.passed} passed, {schoolStats.failed} failed
                       </div>
                     </div>
                   ))}
@@ -541,12 +542,12 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
-                          <Progress value={(gradeStats as any).pass_rate} className="h-2" />
+                          <Progress value={gradeStats.pass_rate} className="h-2" />
                         </div>
-                        <Badge variant="secondary">{(gradeStats as any).pass_rate.toFixed(1)}%</Badge>
+                        <Badge variant="secondary">{gradeStats.pass_rate.toFixed(1)}%</Badge>
                       </div>
                       <div className="text-xs text-gray-600">
-                        {(gradeStats as any).passed} passed, {(gradeStats as any).failed} failed
+                        {gradeStats.passed} passed, {gradeStats.failed} failed
                       </div>
                     </div>
                   ))}
@@ -561,7 +562,7 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
               <CardDescription>Comprehensive statistics table</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table className="min-w-[30rem]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Category</TableHead>
