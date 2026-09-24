@@ -63,20 +63,27 @@ export default function StatCard({
   const defaultTrendValues = { up: "+25%", down: "-25%", neutral: "+5%" };
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+    <Card className="h-full flex flex-col min-w-0">
+      <CardHeader className="pb-2 px-4 pt-4 sm:p-6 sm:pb-2">
+        <CardTitle className="text-sm font-medium truncate">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col justify-between flex-grow gap-2">
-        <div className="flex justify-between items-center">
-          <span className="text-2xl font-bold">{value || "0"}</span>
-          <Badge className={cn("text-xs font-semibold", badgeColors[trend])}>
+      <CardContent className="flex flex-col justify-between flex-grow gap-2 px-4 pb-4 sm:p-6 sm:pt-0">
+        <div className="flex justify-between items-center gap-2 min-w-0">
+          <span className="text-xl sm:text-2xl font-bold truncate">
+            {value || "0"}
+          </span>
+          <Badge
+            className={cn(
+              "text-xs font-semibold shrink-0",
+              badgeColors[trend]
+            )}
+          >
             {change || defaultTrendValues[trend]}
           </Badge>
         </div>
-        <CardDescription>{interval}</CardDescription>
+        <CardDescription className="text-xs sm:text-sm">{interval}</CardDescription>
 
-        <div className="w-full h-14">
+        <div className="w-full h-10 sm:h-14 min-w-0">
           {hasNonZeroData ? (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>

@@ -7,6 +7,8 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
 import LinearProgress, {
   linearProgressClasses,
 } from "@mui/material/LinearProgress";
@@ -90,6 +92,15 @@ interface ChartUserByCountryProps {
 export default function ChartUserByCountry({
   userStats,
 }: ChartUserByCountryProps) {
+  const theme = useTheme();
+  const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
+  const isNarrowColumn = useMediaQuery(theme.breakpoints.between("sm", "xl"));
+
+  // The donut sizes to its container, so only the radii/margins need a tier.
+  const outerRadius = isPhone ? 62 : isNarrowColumn ? 78 : 96;
+  const innerRadius = Math.round(outerRadius * 0.75);
+  const margin = isPhone ? 6 : 10;
+
   // Transform city data for the pie chart
   const data = userStats.by_city.map((city) => ({
     label: city.city,
@@ -128,28 +139,31 @@ export default function ChartUserByCountry({
         >
           Users by city
         </Typography>
-        <Box sx={{ display: "flex", alignItems: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "100%",
+            minWidth: 0,
+            // explicit, fluid height so the chart can measure its container
+            height: { xs: "11rem", sm: "13rem", lg: "14rem" },
+          }}
+        >
           <PieChart
             colors={colors}
-            margin={{
-              left: 80,
-              right: 80,
-              top: 80,
-              bottom: 80,
-            }}
+            margin={margin}
             hideLegend
             series={[
               {
                 data,
-                innerRadius: 75,
-                outerRadius: 100,
+                innerRadius,
+                outerRadius,
                 paddingAngle: 0,
                 highlightScope: { fade: "global", highlight: "item" },
               },
             ]}
-            height={260}
-            width={260}
-            sx={{ fontFamily: "'Public Sans', sans-serif", fontWeight: 700 }}
+            sx={{ width: "100%", height: "100%", fontFamily: "'Public Sans', sans-serif", fontWeight: 700 }}
           >
             <PieCenterLabel
               primaryText={

@@ -37,22 +37,28 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "400px",
+      <Box
+        sx={{
+          display: "grid",
+          placeItems: "center",
+          width: "100%",
+          minHeight: { xs: "16rem", md: "25rem" },
         }}
       >
-        Loading your dashboard...
-      </div>
+        <Typography variant="body2">Loading your dashboard...</Typography>
+      </Box>
     );
   }
 
   if (error || !dashboardData) {
     return (
-      <Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" }, p: 2 }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: { sm: "100%", md: "106.25rem" },
+          p: { xs: 1, sm: 2 },
+        }}
+      >
         <Typography color="error" variant="h6">
           {error || "No data available"}
         </Typography>
@@ -89,7 +95,14 @@ export default function Home() {
   ];
 
   return (
-    <Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" }, p: 2 }}>
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: { sm: "100%", md: "106.25rem" },
+        p: { xs: 1, sm: 2 },
+        overflowX: "hidden",
+      }}
+    >
       <Typography
         component="h2"
         variant="h6"
@@ -99,7 +112,7 @@ export default function Home() {
       </Typography>
       <Grid
         container
-        spacing={2}
+        spacing={{ xs: 1.5, sm: 2 }}
         columns={12}
         sx={{ mb: (theme) => theme.spacing(2) }}
       >
@@ -111,10 +124,10 @@ export default function Home() {
         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <HighlightedCard />
         </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <SessionsChart userStats={dashboardData.user_stats} />
         </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <PageViewsBarChart pageViewStats={dashboardData.page_view_stats} />
         </Grid>
       </Grid>
@@ -125,7 +138,7 @@ export default function Home() {
       >
         Details
       </Typography>
-      <Grid container spacing={2} columns={12}>
+      <Grid container spacing={{ xs: 1.5, sm: 2 }} columns={12}>
         <Grid size={{ xs: 12, lg: 9 }}>
           <CustomizedDataGrid
             value={{ rows: dashboardData.recent_activity, columns }}

@@ -33,7 +33,8 @@ export default function HighlightedCard() {
             color: "text.secondary",
             mb: "8px",
             fontFamily: "'Public Sans',sans-serif",
-            fontSize: 15,
+            // rem keeps the copy in step with the html font-size breakpoint scale
+            fontSize: { xs: "0.8125rem", sm: "0.9375rem" },
           }}
         >
           Uncover performance and visitor insights with our data wizardry.

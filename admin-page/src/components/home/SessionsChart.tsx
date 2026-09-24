@@ -1,5 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
 import { UserStats } from "../../types/dashboard";
 import {
   XAxis,
@@ -15,29 +17,46 @@ interface SessionsChartProps {
   userStats: UserStats;
 }
 
+interface TooltipEntry {
+  name?: string | number;
+  value?: number | string;
+  color?: string;
+}
+
 // 🎨 Custom tooltip component
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: TooltipEntry[];
+  label?: string | number;
+}) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3">
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-2 sm:p-3 max-w-[80vw]">
         <p className="text-xs text-gray-500 mb-1">{label}</p>
-        {payload.map((entry: any, index: number) => (
-          <div
-            key={`item-${index}`}
-            className="flex items-center justify-between text-sm"
-          >
-            <span className="flex items-center gap-2">
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: entry.color }}
-              />
-              {entry.name.charAt(0).toUpperCase() + entry.name.slice(1)}
-            </span>
-            <span className="font-semibold text-gray-800">
-              {entry.value.toLocaleString()}
-            </span>
-          </div>
-        ))}
+        {payload.map((entry, index) => {
+          const name = String(entry.name ?? "");
+          return (
+            <div
+              key={`item-${index}`}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: entry.color }}
+                />
+                {name.charAt(0).toUpperCase() + name.slice(1)}
+              </span>
+              <span className="font-semibold text-gray-800">
+                {Number(entry.value ?? 0).toLocaleString()}
+              </span>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -45,6 +64,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function SessionsChart({ userStats }: SessionsChartProps) {
+  const theme = useTheme();
+  const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
   const generateLabels = (dataLength: number) => {
     const labels = [];
     const currentDate = new Date();
@@ -126,15 +147,15 @@ export default function SessionsChart({ userStats }: SessionsChartProps) {
   const growthPercentage = calculateGrowthPercentage();
 
   return (
-    <Card className="w-full rounded-2xl shadow-sm">
-      <CardContent className="p-4 space-y-4">
+    <Card className="w-full min-w-0 rounded-2xl shadow-sm">
+      <CardContent className="p-3 sm:p-4 space-y-3 sm:space-y-4">
         <h2 className="text-sm font-medium text-muted-foreground">
           Contestant
         </h2>
 
         <div className="flex flex-col space-y-1">
-          <div className="flex items-center gap-2">
-            <p className="text-xl font-semibold">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-lg sm:text-xl font-semibold">
               {totalUsers.toLocaleString()}
             </p>
             <span
@@ -154,9 +175,9 @@ export default function SessionsChart({ userStats }: SessionsChartProps) {
           </p>
         </div>
 
-        <div className="h-[250px] w-full">
+        <div className="h-40 sm:h-52 lg:h-60 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
+            <AreaChart data={chartData} margin={{ left: 0, right: 4 }}>
               <defs>
                 <linearGradient id="female" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.4} />
@@ -173,8 +194,21 @@ export default function SessionsChart({ userStats }: SessionsChartProps) {
               </defs>
 
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: isPhone ? 9 : 10 }}
+                // 30 daily labels never fit a phone: thin them out instead of overlapping
+                interval={isPhone ? 9 : 4}
+                minTickGap={isPhone ? 24 : 12}
+                tickMargin={6}
+                stroke="#94a3b8"
+              />
+              <YAxis
+                tick={{ fontSize: isPhone ? 9 : 10 }}
+                width={isPhone ? 34 : 44}
+                tickMargin={4}
+                stroke="#94a3b8"
+              />
               <Tooltip content={<CustomTooltip />} />
 
               <Area
