@@ -106,7 +106,32 @@ Root cause first:
 - **M11 — ✅ fixed for hover affordances (R5).** `ImagesDrawer` actions always visible; hover-only only under `(min-width:64rem) and (hover:hover) and (pointer:fine)`. Per-row `Menubar` usage remains (radix menus are touch-capable; watch in E2E).
 - **M12 — open (deliberately out of the style pass):** the contest-detail page still calls `getAllStudents()` once **per submission** (N+1) — needs a data-logic slice.
 
-The full page pass landed as five slices (R1 home, R2 DataTable/users/admins, R3 contests/payment, R4 questions/profile/admin, R5 articles/auth): tables scroll with min-w instead of crushing, dialogs cap at `max-w-[calc(100vw-2rem)]`, forms `grid-cols-1 sm:grid-cols-2`, and all fixed px sizes were converted to rem utilities so the html font step resizes them per band. E2E at 390/768/1280 still pending (§ next steps).
+The full page pass landed as five slices (R1 home, R2 DataTable/users/admins, R3 contests/payment, R4 questions/profile/admin, R5 articles/auth): tables scroll with min-w instead of crushing, dialogs cap at `max-w-[calc(100vw-2rem)]`, forms `grid-cols-1 sm:grid-cols-2`, and all fixed px sizes were converted to rem utilities so the html font step resizes them per band.
+
+### 5a. E2E browser pass (2026-09-24, against the local dynalite + `:8081` backend)
+
+Clicked through every screen in the running app. What it caught and fixed:
+
+| Bug | Fix |
+|---|---|
+| Profile showed `1/1/1, 2:27:16 AM`, `Invalid Date`, `NaN days overdue`, and every student read "Active" | `7ce1949` shared epoch guard in `parsePaymentDate` |
+| Users list badge always "Unpaid" (read a field the API never sends; stored `is_premium` is stale) | `efe13be` premium derived server-side in `GetStudents` + real `ListAll` check, plus a Go nil-pointer panic on payments without an expiration date |
+| Mobile drawer crashed the whole app (`Tooltip must be used within TooltipProvider`) | `e490b2f` provider moved into `NavLinks` |
+| Drawer rendered inline inside the app bar instead of overlaying (client screenshot) | `e490b2f` `Drawer.Content` wrapped in `Drawer.Portal` + overlay |
+| Admins table forced a 600px horizontal scroll at phone width | `0dfe92c` Email column collapses under `sm`, value moves under the name |
+| React warning on every admins load; the font override was silently dropped | `a7194ad` MUI 9 moved `inputProps` → `slotProps.htmlInput` |
+| Receipt dialog showed the browser's broken-image glyph for requests without a screenshot | `897719f` explicit "No receipt image was attached" state |
+| Sidebar profile card displayed the shadcn template's demo avatar (network fetch of `github.com/shadcn.png`); dead "Settings" menu item; unnamed bell button | `63013f1` |
+| Unnamed icon-only controls (feedback edit/delete, user-row profile) | `2ac73d9`, `586ef2f` |
+| Any unknown URL rendered the chrome around a blank content area | `b31e609` catch-all routes |
+
+Verified working, no change needed: payment tabs filter per status against `/api/payment/withstatus` (Pending 58 / Approved 1 / Rejected 1 / Expired 0 matched the API), receipt dialog, notification bell list + mark-read + delete (badge count tracked the payload), feedback question and poll-option create/delete, high-scorers empty state, users list, student profile stats, logout → login round trip. Console clean on every screen at the end of the pass.
+
+Still not covered by this pass:
+
+- **Paid/premium state in the browser.** Creating a payment request uploads the receipt to **live Cloudinary**, so it is not something to click through from a test panel; the derivation rule is covered by Go unit tests (`student_usecase_test.go`) instead.
+- **768 / 1280 re-check of the last ten commits.** The phone-width band is what the client reported, and that is what was exercised; the desktop band was verified earlier in the session for home/users/profile/admins, and the rest is CSS-only (`sm:`/`md:` variants) but unverified in a browser.
+- **Global search is a command palette, not a data search** — Users/Questions/Contests are three static navigation shortcuts, so typing a student's name legitimately returns "No results found." Building real search is a §6-sized feature, not a bug fix.
 
 ---
 
