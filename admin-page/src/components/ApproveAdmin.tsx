@@ -41,6 +41,26 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
   },
 }));
 
+// Primary action: no `.tight`-style shrink — keep a 44px touch target on
+// coarse pointers while staying compact on desktop.
+const ApproveButton = styled("button")(({ theme }) => ({
+  fontFamily: "'Public Sans', sans-serif",
+  fontSize: "0.875rem",
+  fontWeight: 600,
+  color: theme.palette.common.white,
+  backgroundColor: theme.palette.primary.main,
+  border: "none",
+  borderRadius: 8,
+  padding: theme.spacing(1, 2),
+  minHeight: 44,
+  minWidth: 44,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  "&:hover": {
+    backgroundColor: theme.palette.primary.dark,
+  },
+}));
+
 export default function ApproveAdmin() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [status, setStatus] = useState("pending");
@@ -89,12 +109,12 @@ export default function ApproveAdmin() {
   );
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", p: 2 }}>
-      <Box sx={{}}>
+    <Box sx={{ display: "flex", flexDirection: "column", p: { xs: 2, sm: 3 } }}>
+      <Box sx={{ minWidth: 0 }}>
         <Typography
           sx={{
             fontFamily: '"Public Sans", sans-serif',
-            fontSize: 25,
+            fontSize: { xs: 20, sm: 25 },
             fontWeight: 700,
             mb: 1,
           }}
@@ -114,8 +134,10 @@ export default function ApproveAdmin() {
       <Box
         sx={{
           display: "flex",
+          flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "center",
+          gap: 2,
           width: "100%",
           mt: 3,
         }}
@@ -127,14 +149,12 @@ export default function ApproveAdmin() {
           onChange={(e) => setSearch(e.target.value)}
           id="outlined-start-adornment"
           sx={{
-            m: 1,
-            width: "25ch",
-            height: 50,
+            width: { xs: "100%", sm: "25ch" },
+            maxWidth: "100%",
             "& .MuiOutlinedInput-root": {
               borderRadius: 3,
               "&.Mui-focused fieldset": {
                 border: "1px solid gray",
-                width: 300,
               },
             },
           }}
@@ -161,7 +181,6 @@ export default function ApproveAdmin() {
                   </IconButton>
                 </InputAdornment>
               ),
-              style: { height: 50 },
             },
           }}
           inputProps={{
@@ -175,11 +194,11 @@ export default function ApproveAdmin() {
         sx={{
           flex: 1,
           borderRadius: 3,
-          width: "99%",
+          width: "100%",
         }}
       >
         {status === "success" ? (
-          <Table>
+          <Table sx={{ minWidth: { xs: 600, md: 0 } }}>
             <TableHead>
               <TableRow>
                 {headers.map((header, index) => (
@@ -242,21 +261,28 @@ function Row({ student, onApprove }: RowProps) {
               width: "100%",
               display: "flex",
               alignItems: "center",
-              gap: 6,
+              gap: { xs: 2, sm: 4, md: 6 },
+              minWidth: 0,
             }}
           >
-            <IconButton aria-label="expand row" size="small">
+            <IconButton aria-label="expand row" size="small" sx={{ flexShrink: 0 }}>
               <Avatar src={student.imgurl} />
             </IconButton>
-            <Typography sx={{ fontFamily: "'Public Sans',sans-serif" }}>
+            <Typography
+              sx={{
+                fontFamily: "'Public Sans',sans-serif",
+                minWidth: 0,
+                overflowWrap: "anywhere",
+              }}
+            >
               {student.name}
             </Typography>
           </Box>
         </StyledTableCell>
         <StyledTableCell align="right">
-          <div>
-            <p>{student.email}</p>
-          </div>
+          <Box component="p" sx={{ overflowWrap: "anywhere" }}>
+            {student.email}
+          </Box>
         </StyledTableCell>
         <StyledTableCell
           sx={{ fontFamily: "'Public Sans',sans-serif" }}
@@ -265,9 +291,9 @@ function Row({ student, onApprove }: RowProps) {
           {student.is_approved ? (
             "Approved"
           ) : (
-            <div>
-              <button onClick={handleApprove}>Not approved</button>
-            </div>
+            <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+              <ApproveButton onClick={handleApprove}>Not approved</ApproveButton>
+            </Box>
           )}
         </StyledTableCell>
       </StyledTableRow>

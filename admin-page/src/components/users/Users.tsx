@@ -34,8 +34,15 @@ import {
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Info, AlertTriangle } from "lucide-react";
-import { DataTablePagination } from "../questions/QuestionTable";
+import {
+  Search,
+  Info,
+  AlertTriangle,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+} from "lucide-react";
 import { Student } from "@/types/models";
 
 // Type definitions
@@ -147,17 +154,17 @@ export default function UserListPage() {
     if (status === "pending") {
       return [...Array(pageSize)].map((_, i) => (
         <TableRow key={i}>
-          <TableCell className="flex items-center gap-4">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <Skeleton className="h-4 w-32" />
+          <TableCell className="flex items-center gap-2 sm:gap-4">
+            <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+            <Skeleton className="h-4 w-24 sm:w-32" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-4 w-16" />
           </TableCell>
-          <TableCell>
+          <TableCell className="hidden sm:table-cell">
             <Skeleton className="h-4 w-24" />
           </TableCell>
-          <TableCell>
+          <TableCell className="hidden md:table-cell">
             <Skeleton className="h-4 w-12" />
           </TableCell>
           <TableCell>
@@ -192,17 +199,19 @@ export default function UserListPage() {
       return (
         <TableRow key={student.id}>
           <TableCell>
-            <div className="flex items-center gap-4">
-              <Avatar>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Avatar className="h-9 w-9 shrink-0 sm:h-10 sm:w-10">
                 <AvatarImage src={student.imgurl} alt={student.name} />
                 <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
               </Avatar>
-              <span className="font-medium">{student.name}</span>
+              <span className="font-medium break-words">{student.name}</span>
             </div>
           </TableCell>
           <TableCell>{student.grade}</TableCell>
-          <TableCell>{student.city}</TableCell>
-          <TableCell>{student.gender}</TableCell>
+          <TableCell className="hidden sm:table-cell">{student.city}</TableCell>
+          <TableCell className="hidden md:table-cell">
+            {student.gender}
+          </TableCell>
           <TableCell>
             <Badge variant={payment.variant}>{payment.label}</Badge>
           </TableCell>
@@ -213,6 +222,7 @@ export default function UserListPage() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-11 w-11 sm:h-9 sm:w-9"
                     onClick={() =>
                       navigate(`/dashboard/user/${student.telegram_id}`)
                     }
@@ -234,15 +244,17 @@ export default function UserListPage() {
   return (
     <div className="container mx-auto p-4 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+          Users
+        </h1>
+        <p className="text-sm text-muted-foreground sm:text-base">
           Search, filter, and manage all registered students.
         </p>
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row items-center gap-4 justify-between">
+        <CardHeader className="p-4 pb-0 sm:p-6 sm:pb-0">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -252,7 +264,7 @@ export default function UserListPage() {
                 onChange={(e) => handleFilterChange("search", e.target.value)}
               />
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
               {[
                 {
                   name: "grade",
@@ -289,15 +301,17 @@ export default function UserListPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           <div className="rounded-md border">
-            <Table>
+            <Table className="min-w-[560px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-1/3">Name</TableHead>
+                  <TableHead className="w-[35%] min-w-[9rem]">Name</TableHead>
                   <TableHead>Grade</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead>Gender</TableHead>
+                  <TableHead className="hidden sm:table-cell">City</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Gender
+                  </TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead className="text-right">Info</TableHead>
                 </TableRow>
@@ -305,14 +319,79 @@ export default function UserListPage() {
               <TableBody>{renderTableContent()}</TableBody>
             </Table>
           </div>
-          <DataTablePagination
-            pageIndex={pageIndex}
-            pageCount={pageCount}
-            pageSize={pageSize}
-            setPageIndex={setPageIndex}
-            setPageSize={setPageSize}
-            itemCount={filteredStudents.length}
-          />
+          {/* Responsive pagination: rows-per-page collapses to phone-safe
+              layout, first/last buttons hide below sm. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-2 py-4">
+            <div className="text-sm text-muted-foreground">
+              {filteredStudents.length} total rows
+            </div>
+            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-6 lg:gap-8">
+              <div className="flex items-center gap-2">
+                <p className="hidden text-sm font-medium sm:block">
+                  Rows per page
+                </p>
+                <Select
+                  value={`${pageSize}`}
+                  onValueChange={(value) => {
+                    setPageSize(Number(value));
+                    setPageIndex(0);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue placeholder={pageSize} />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[10, 20, 30, 40, 50].map((size) => (
+                      <SelectItem key={size} value={`${size}`}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-xs font-medium sm:text-sm sm:text-center">
+                Page {pageIndex + 1} of {Math.max(pageCount, 1)}
+              </div>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Button
+                  variant="outline"
+                  className="hidden h-8 w-8 p-0 sm:inline-flex"
+                  onClick={() => setPageIndex(0)}
+                  disabled={pageIndex === 0}
+                  aria-label="First page"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setPageIndex(pageIndex - 1)}
+                  disabled={pageIndex === 0}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setPageIndex(pageIndex + 1)}
+                  disabled={pageIndex >= pageCount - 1}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="hidden h-8 w-8 p-0 sm:inline-flex"
+                  onClick={() => setPageIndex(pageCount - 1)}
+                  disabled={pageIndex >= pageCount - 1}
+                  aria-label="Last page"
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
