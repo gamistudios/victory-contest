@@ -21,12 +21,13 @@ import (
 type TelegramUsecase interface {
 	HandleStartCommand(chatId, userId int64) error
 	TakeUpdate(update tgbotapi.Update) error
-	CreatePremiumInvoiceLink() (string, error)
+	CreatePremiumInvoiceLink(userID string) (string, error)
 	SavePreparedInlineMessage(userID int64, result json.RawMessage) (json.RawMessage, error)
 }
 type telegramUsecase struct {
-	bot         *tgbotapi.BotAPI
-	studentRepo StudentRepository
+	bot            *tgbotapi.BotAPI
+	studentRepo    StudentRepository
+	paymentUsecase PaymentUsecase
 }
 
 // StartCommand implements TelegramUsecase.
@@ -75,11 +76,17 @@ func (t *telegramUsecase) HandleStartCommand(chatId, userId int64) error {
 //
 // Non-message updates (callback_query, edited_message, inline_query, ...) are
 // acknowledged and ignored; only plain messages are handled. Nil guards on
-// Message/Chat/From prevent the nil-pointer panic from #17.
+// Message/Chat/From prevent the nil-pointer panic from #17. A message
+// carrying successful_payment is the server-side source of truth for a
+// Telegram Stars purchase (README §9 / S4) and is handled before the
+// chat/text guards below.
 func (t *telegramUsecase) TakeUpdate(update tgbotapi.Update) error {
 	if update.Message == nil {
 		log.Printf("telegram: ignoring non-message update %d", update.UpdateID)
 		return nil
+	}
+	if sp := update.Message.SuccessfulPayment; sp != nil {
+		return t.handleSuccessfulPayment(sp, update.Message.From)
 	}
 	if update.Message.Chat == nil {
 		log.Printf("telegram: ignoring message without chat in update %d", update.UpdateID)
@@ -151,13 +158,86 @@ func (t *telegramUsecase) callTelegram(method string, payload map[string]any) (j
 	return out.Result, nil
 }
 
+// premiumPayloadPrefix marks an invoice payload as a premium purchase bound
+// to a Telegram user id: "premium_<userID>_<random>". The payload survives
+// the round trip through Telegram, so the webhook's successful_payment update
+// can attribute the charge to the right student without any client claim.
+const premiumPayloadPrefix = "premium_"
+
+// buildPremiumPayload returns the invoice payload for the given Telegram user
+// id, or an error when the id is not a plain numeric Telegram id.
+func buildPremiumPayload(userID string) (string, error) {
+	if userID == "" || strings.ContainsFunc(userID, func(r rune) bool { return r < '0' || r > '9' }) {
+		return "", errors.New("telegram user id must be numeric")
+	}
+	return premiumPayloadPrefix + userID + "_" + strings.ReplaceAll(uuid.NewString(), "-", ""), nil
+}
+
+// parsePremiumPayload maps an invoice payload back to the bound Telegram user
+// id. The random suffix must be present so hand-crafted short payloads from
+// other sources are rejected.
+func parsePremiumPayload(payload string) (string, bool) {
+	rest, ok := strings.CutPrefix(payload, premiumPayloadPrefix)
+	if !ok {
+		return "", false
+	}
+	userID, random, ok := strings.Cut(rest, "_")
+	if !ok || userID == "" || random == "" {
+		return "", false
+	}
+	if strings.ContainsFunc(userID, func(r rune) bool { return r < '0' || r > '9' }) {
+		return "", false
+	}
+	return userID, true
+}
+
+// handleSuccessfulPayment records a Telegram Stars purchase confirmed by
+// Telegram. Only XTR (Stars) invoices created by CreatePremiumInvoiceLink are
+// honored; the charge id doubles as the payment id, so a replayed webhook
+// update resolves to the same row instead of creating a duplicate or
+// extending the premium window twice.
+func (t *telegramUsecase) handleSuccessfulPayment(sp *tgbotapi.SuccessfulPayment, from *tgbotapi.User) error {
+	if sp.Currency != "XTR" {
+		log.Printf("telegram: ignoring successful payment %s with currency %s (expected XTR)", sp.TelegramPaymentChargeID, sp.Currency)
+		return nil
+	}
+	userID, ok := parsePremiumPayload(sp.InvoicePayload)
+	if !ok {
+		log.Printf("telegram: ignoring successful payment %s with unrecognized invoice payload %q", sp.TelegramPaymentChargeID, sp.InvoicePayload)
+		return nil
+	}
+	if sp.TelegramPaymentChargeID == "" {
+		log.Printf("telegram: ignoring successful payment for user %s without a charge id", userID)
+		return nil
+	}
+	if t.paymentUsecase == nil {
+		log.Printf("telegram: payment usecase not wired; dropping successful payment %s", sp.TelegramPaymentChargeID)
+		return nil
+	}
+	fullName := ""
+	if from != nil {
+		fullName = strings.TrimSpace(from.FirstName + " " + from.LastName)
+	}
+	if err := t.paymentUsecase.ConfirmTelegramStarsPayment("tgpay_"+sp.TelegramPaymentChargeID, userID, fullName); err != nil {
+		return fmt.Errorf("record telegram stars payment %s: %w", sp.TelegramPaymentChargeID, err)
+	}
+	log.Printf("telegram: recorded stars payment %s as approved for user %s", sp.TelegramPaymentChargeID, userID)
+	return nil
+}
+
 // CreatePremiumInvoiceLink creates a Telegram Stars subscription invoice
-// server-side so the bot token never reaches the client.
-func (t *telegramUsecase) CreatePremiumInvoiceLink() (string, error) {
+// server-side so the bot token never reaches the client. userID (the buyer's
+// Telegram id) is embedded in the invoice payload so the webhook can bind the
+// eventual successful_payment update back to them.
+func (t *telegramUsecase) CreatePremiumInvoiceLink(userID string) (string, error) {
+	payload, err := buildPremiumPayload(userID)
+	if err != nil {
+		return "", err
+	}
 	result, err := t.callTelegram("createInvoiceLink", map[string]any{
 		"title":       "Premium Plan",
 		"description": "Victory Learning premium plan",
-		"payload":     "subscription_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
+		"payload":     payload,
 		"currency":    "XTR",
 		"prices":      []map[string]any{{"label": "Victory Premium", "amount": 50}},
 	})
@@ -188,6 +268,6 @@ func (t *telegramUsecase) SavePreparedInlineMessage(userID int64, result json.Ra
 	})
 }
 
-func NewTelegramUsecase(bot *tgbotapi.BotAPI, studentRepo StudentRepository) TelegramUsecase {
-	return &telegramUsecase{bot: bot, studentRepo: studentRepo}
+func NewTelegramUsecase(bot *tgbotapi.BotAPI, studentRepo StudentRepository, paymentUsecase PaymentUsecase) TelegramUsecase {
+	return &telegramUsecase{bot: bot, studentRepo: studentRepo, paymentUsecase: paymentUsecase}
 }

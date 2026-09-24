@@ -112,7 +112,7 @@ func NewServer() *Server {
 	aiUsecase := usecase.NewAiUsecase(submissionRepo, aiProviderRepo)
 	aiProviderUsecase := usecase.NewAiProviderUsecase(aiProviderRepo)
 	aiSettingsUsecase := usecase.NewAiSettingsUsecase(aiSettingsRepo, paymentRepo)
-	telegramUsecase := usecase.NewTelegramUsecase(bot, studentRepo)
+	telegramUsecase := usecase.NewTelegramUsecase(bot, studentRepo, paymentUsecase)
 
 	// --- Initialize Contest Statistics Use Case ---
 	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil)
@@ -157,6 +157,7 @@ func NewServer() *Server {
 	server.studentHandler.studentAuthMw = studentAuthMw
 	server.submissionHandler.studentAuthMw = studentAuthMw
 	server.paymentHandler.studentAuthMw = studentAuthMw
+	server.telegramHandler.studentAuthMw = studentAuthMw
 	server.studentHandler.studentEditMw = studentSelfOrAdminAuth([]byte(jwtSecret))
 	return server
 }

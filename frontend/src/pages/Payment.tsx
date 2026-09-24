@@ -32,7 +32,7 @@ import {
 import { createInvoice } from "../services/telegramServices";
 import { getActiveBanks } from "../services/bankServices";
 import { isAbortedRequest } from "../services/api";
-import { Bank, PaymentRequest } from "../types";
+import { Bank } from "../types";
 import { useNavigate } from "react-router-dom";
 
 interface FormErrors {
@@ -223,34 +223,28 @@ const Payment: FC = () => {
   };
   const handlePayWithTG = async () => {
     try {
-      const invoiceLink = await createInvoice();
+      if (!user?.id) {
+        toast.error("Your Telegram session is missing a user ID. Please reopen the app from Telegram.");
+        return;
+      }
+      const invoiceLink = await createInvoice(user.id);
       openInvoice(invoiceLink, async (status) => {
         if (status === "paid") {
-          const payment: Omit<PaymentRequest, "status"> = {
-            userId: user?.id.toString() ?? "",
-            id: "",
-            fullName:
-              ((user?.first_name ?? "") + " " + (user?.last_name ?? "")).trim(),
-            bankName: "Telegram Star",
-            billScreenshotUrl: "",
-            createdAt: "",
-            updatedAt: "",
-            medium: "telegram_payment",
-          };
-          await sendPaymentInfo(payment);
-          setIsSuccess(true);
-          toast.success("Payment is successful", {
-            style: {
-              backgroundColor: "green",
-              color: "white",
-              border: "1px solid #f59e0b",
-              borderRadius: "8px",
-              fontSize: "14px",
-              fontWeight: "500",
-              boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
-            },
-          });
-          resetForm();
+          // The client never reports the payment as approved: Telegram
+          // delivers the successful_payment update to the backend webhook,
+          // which records it as Approved server-side.
+          toast.success(
+            "Payment received! Premium activates shortly once Telegram confirms it to our server.",
+            {
+              duration: 6000,
+              style: {
+                backgroundColor: "#d4edda",
+                color: "#155724",
+                border: "1px solid #c3e6cb",
+                borderRadius: "8px",
+              },
+            }
+          );
           navigate("/");
         } else if (status === "cancelled") {
           toast.warning("Payment is cancelled", {
@@ -284,6 +278,9 @@ const Payment: FC = () => {
       });
     } catch (error) {
       console.warn("Invoice flow failed:", error);
+      toast.error("Could not start the payment. Please try again.", {
+        position: "top-center",
+      });
     }
   };
   if (isSuccess) {

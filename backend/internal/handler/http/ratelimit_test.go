@@ -82,7 +82,7 @@ type fakeTelegramUsecase struct{ got int }
 
 func (f *fakeTelegramUsecase) HandleStartCommand(chatId, userId int64) error { return nil }
 func (f *fakeTelegramUsecase) TakeUpdate(tgbotapi.Update) error              { f.got++; return nil }
-func (f *fakeTelegramUsecase) CreatePremiumInvoiceLink() (string, error) {
+func (f *fakeTelegramUsecase) CreatePremiumInvoiceLink(string) (string, error) {
 	return "", fmt.Errorf("unused")
 }
 func (f *fakeTelegramUsecase) SavePreparedInlineMessage(int64, json.RawMessage) (json.RawMessage, error) {

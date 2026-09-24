@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"victor-contest-go/internal/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -12,19 +13,41 @@ import (
 )
 
 type telegramHandler struct {
-	usecase        usecase.TelegramUsecase
-	webhookSecret  string // TELEGRAM_WEBHOOK_SECRET; empty = verification disabled
+	usecase       usecase.TelegramUsecase
+	webhookSecret string // TELEGRAM_WEBHOOK_SECRET; empty = verification disabled
+	// studentAuthMw is wired by NewRouter; when set, POST /invoice-link
+	// requires a student token whose Telegram id equals the body's user_id.
+	studentAuthMw gin.HandlerFunc
 }
 
 func (t *telegramHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/webhook", t.Updater)
-	rg.POST("/invoice-link", t.InvoiceLink)
+	rg.POST("/invoice-link", withStudentAuth(t.studentAuthMw, t.InvoiceLink)...)
 	rg.POST("/prepared-inline-message", t.PreparedInlineMessage)
 }
 
-// InvoiceLink creates a Telegram Stars invoice server-side (bot token stays secret).
+// InvoiceLink creates a Telegram Stars invoice server-side (bot token stays
+// secret) with the buyer's Telegram id bound into the invoice payload, so the
+// successful_payment webhook can attribute the charge without trusting any
+// later client claim.
 func (t *telegramHandler) InvoiceLink(c *gin.Context) {
-	link, err := t.usecase.CreatePremiumInvoiceLink()
+	var req struct {
+		UserID string `json:"user_id"`
+	}
+	_ = c.ShouldBindJSON(&req) // absent/legacy body tolerated; token wins below
+	userID := strings.TrimSpace(req.UserID)
+	if tokenID := c.GetString(StudentUserIDContextKey); tokenID != "" {
+		if !requireMatchingStudent(c, userID) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "user_id does not match the authenticated student"})
+			return
+		}
+		userID = tokenID
+	}
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id is required to bind the invoice to a buyer"})
+		return
+	}
+	link, err := t.usecase.CreatePremiumInvoiceLink(userID)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return

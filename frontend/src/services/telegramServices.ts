@@ -11,8 +11,15 @@ export async function getPreparedMessageIdTelegram(data: {
   return res.data;
 }
 
-export async function createInvoice(): Promise<string> {
-  const res = await api.post("/telegram/invoice-link");
+/**
+ * Creates the Telegram Stars invoice link. The buyer's Telegram id is sent so
+ * the server binds it into the invoice payload; payment confirmation then
+ * arrives over the bot webhook, never from this client.
+ */
+export async function createInvoice(userId: string | number): Promise<string> {
+  const res = await api.post("/telegram/invoice-link", {
+    user_id: userId.toString(),
+  });
   return res.data.result as string;
 }
 
