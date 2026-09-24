@@ -92,7 +92,7 @@ The topic is %s for grade %s at a %s difficulty level.
 For each question, provide the following in a clear, structured format:
 - The question text.
 - Four multiple-choice options.
-- The index of the correct answer (0, 1, 2, or 3).
+- The index of the correct answer, 1-based: option A is 1, B is 2, C is 3, D is 4. Valid values are 1, 2, 3, or 4 — NEVER 0.
 - A brief explanation for the correct answer.
 
 IMPORTANT: Format the entire output as a JSON array where each element is a question object.

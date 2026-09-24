@@ -154,11 +154,10 @@ const ContestComponent: React.FC = () => {
   };
 
   const handleAnswerSelect = (answerIndex: number) => {
-    // 1-based selection on the wire: the stored `question.answer` values come
-    // from the external admin panel using the same 1-based convention the
-    // previous client-side grading used (`selectedAnswer === Number(answer)`).
-    // The server compares them directly; unifying to 0-based needs a prod
-    // question migration first (README §9 B6 / task #19 stays open).
+    // Canonical answer-index convention (B6, unified 2026-09-24): every
+    // producer/consumer of option indices is 1-based — stored question
+    // answers (validated 1..len by the backend), the submitted answer sheet,
+    // AI-generated questions, and the editorial walkthrough. -1 means skipped.
     setSelectedAnswer(answerIndex + 1);
     hapticFeedback("selection");
   };

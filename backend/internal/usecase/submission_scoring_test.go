@@ -39,7 +39,8 @@ func (f *scoringFakeContest) AddContest(c domain.Contest) (string, error) {
 // capturedSubmissionRepo captures the row AddSubmission persists.
 type capturedSubmissionRepo struct {
 	stubSubmissionRepo
-	added *domain.Submission
+	added  *domain.Submission
+	latest *domain.Submission
 }
 
 func (r *capturedSubmissionRepo) AddSubmission(s domain.Submission) (string, error) {
@@ -49,7 +50,7 @@ func (r *capturedSubmissionRepo) AddSubmission(s domain.Submission) (string, err
 }
 
 func (r *capturedSubmissionRepo) GetSubmissionsByStudentAndContest(string, string) (*domain.Submission, error) {
-	return nil, nil // participated = false is fine for the gating tests
+	return r.latest, nil
 }
 
 // nilStudentRepo stops the badge write at "student not found" so badge
@@ -292,5 +293,99 @@ func TestContestHasEnded(t *testing.T) {
 	}
 	if !ContestHasEnded(time.Now().Add(-time.Hour).Format(time.RFC3339)) {
 		t.Fatal("past end_time must count as ended")
+	}
+}
+
+// --- answer-index boundaries (B6 canonical: 1-based everywhere) ----------
+
+// boundaryQuestions has 4 options each: the first option is answer 1 and
+// the last is answer 4. Any off-by-one drift in the index convention makes
+// the "all correct" sheet score wrong, which is exactly what this pins.
+func boundaryQuestions() []domain.Question {
+	opts := []string{"a", "b", "c", "d"}
+	return []domain.Question{
+		{ID: "q-first", Answer: 1, MultipleChoice: opts, QuestionText: "first?"},
+		{ID: "q-mid", Answer: 2, MultipleChoice: opts, QuestionText: "mid?"},
+		{ID: "q-last", Answer: 4, MultipleChoice: opts, QuestionText: "last?"},
+	}
+}
+
+func boundaryContest() *domain.ContestTypeWithQuestionObj {
+	obj := &domain.ContestTypeWithQuestionObj{}
+	obj.Contest = domain.Contest{ID: "c1", Title: "Boundary", EndTime: time.Now().Add(-time.Hour).Format(time.RFC3339)}
+	obj.Questions = boundaryQuestions()
+	return obj
+}
+
+// A 1-based sheet picking the FIRST and LAST options must grade as correct;
+// the same sheet shifted by -1 (the losing 0-based convention) must not.
+func TestGradeSubmission_BoundaryAnswers(t *testing.T) {
+	qs := boundaryQuestions()
+
+	canonical := []domain.SubmissionMissedQuestionDto{
+		{ID: "q-first", SelectedAnswer: 1}, // first option, 1-based
+		{ID: "q-mid", SelectedAnswer: 2},
+		{ID: "q-last", SelectedAnswer: 4}, // last option, 1-based
+	}
+	dto := domain.SubmissionDto{Answers: canonical}
+	score, missed := gradeSubmission(qs, dto)
+	if score != 3 {
+		t.Fatalf("1-based boundary sheet scored %v, want 3", score)
+	}
+	if len(missed) != 0 {
+		t.Fatalf("1-based boundary sheet left missed = %+v, want none", missed)
+	}
+
+	zeroBased := []domain.SubmissionMissedQuestionDto{
+		{ID: "q-first", SelectedAnswer: 0},
+		{ID: "q-mid", SelectedAnswer: 1},
+		{ID: "q-last", SelectedAnswer: 3},
+	}
+	score, missed = gradeSubmission(qs, domain.SubmissionDto{Answers: zeroBased})
+	if score != 0 {
+		t.Fatalf("0-based sheet scored %v, want 0 (must never match 1-based answers)", score)
+	}
+	if len(missed) != 3 {
+		t.Fatalf("0-based sheet missed = %+v, want all three", missed)
+	}
+}
+
+// The editorial echoes selected_answer/user_answer in the same 1-based
+// convention; first/last boundary rows must round-trip unshifted.
+func TestGetStudentEditorial_BoundaryAnswers(t *testing.T) {
+	repo := &capturedSubmissionRepo{latest: &domain.Submission{
+		ID: "s1", ContestID: "c1", Score: 1,
+		MissedQuestions: []domain.SubmissionMissedQuestionDto{
+			{ID: "q-first", SelectedAnswer: 4}, // wrong: last option vs answer 1
+			{ID: "q-mid", SelectedAnswer: -1},  // skipped
+		},
+	}}
+	u := newScoringUsecase(repo, &scoringFakeContest{current: boundaryContest()})
+
+	res, err := u.GetStudentEditorial("c1", "st-1")
+	if err != nil {
+		t.Fatalf("GetStudentEditorial: %v", err)
+	}
+	if len(res.Editorial) != 3 {
+		t.Fatalf("editorial entries = %d, want 3", len(res.Editorial))
+	}
+	byID := map[string]domain.Editorial{}
+	for _, e := range res.Editorial {
+		byID[e.ID] = e
+	}
+	first := byID["q-first"]
+	if first.UserAnswer != 4 || first.IsCorrect {
+		t.Fatalf("q-first: user_answer=%v is_correct=%v, want 4/false unshifted", first.UserAnswer, first.IsCorrect)
+	}
+	if first.Answer != 1 {
+		t.Fatalf("q-first: stored answer=%v, want 1 (first option, 1-based)", first.Answer)
+	}
+	last := byID["q-last"]
+	if last.UserAnswer != 4 || !last.IsCorrect {
+		t.Fatalf("q-last: user_answer=%v is_correct=%v, want 4/true (correct echo = stored 1-based answer)", last.UserAnswer, last.IsCorrect)
+	}
+	skipped := byID["q-mid"]
+	if skipped.UserAnswer != -1 || skipped.IsCorrect {
+		t.Fatalf("q-mid: user_answer=%v is_correct=%v, want -1/false", skipped.UserAnswer, skipped.IsCorrect)
 	}
 }

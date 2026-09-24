@@ -155,6 +155,8 @@ export interface InputMessageContent {
 export interface Question {
   id: string;
   question_text: string;
+  // 1-based correct option index — the canonical answer-index convention
+  // (B6) shared by stored questions, submitted answers and the editorial.
   // Stripped by the backend while a contest is live (README §9 #11): the
   // exam UI must never depend on these while answering.
   answer?: string | number;
@@ -169,6 +171,7 @@ export interface Question {
 
 export interface ContestAnswer {
   question: Question;
+  // 1-based selected option index (canonical, B6); -1 = skipped.
   selected_answer: number;
   // Server-authoritative scoring means the client can no longer self-grade;
   // is_correct is only present on legacy payloads/results.
@@ -183,6 +186,7 @@ export interface ContestSubmission {
   // Client estimate only — the server always recomputes the official score
   // (README §9 #12) and returns it in the submission response.
   score: number;
+  // All selected_answer values are 1-based option indices (canonical, B6).
   missed_questions: Array<{ id: string; selected_answer: number }>;
   // Full answer sheet (every contest question, -1 = skipped). The server
   // grades from this instead of trusting the client's missed list.

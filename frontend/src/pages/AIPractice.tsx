@@ -53,7 +53,7 @@ interface AIQuestion {
   question_text: string;
   question_image?: string | null;
   multiple_choice: string[];
-  answer: number; // The correct answer index
+  answer: number; // 1-based correct option index (canonical convention, B6)
   explanation: string;
   subject: string;
   grade: string;
@@ -155,6 +155,9 @@ export function AIPracticePage() {
   };
 
   const handleAnswerSelect = (answerIndex: number) => {
+    // Selected answers are 1-based option indices everywhere (B6 canonical:
+    // matches stored question.answer and the submission wire format).
+    const selected = answerIndex + 1;
     const existingAnswer = answers.find(
       (a) => a.questionIndex === currentQuestionIndex
     );
@@ -162,7 +165,7 @@ export function AIPracticePage() {
       setAnswers(
         answers.map((a) =>
           a.questionIndex === currentQuestionIndex
-            ? { ...a, selectedAnswer: answerIndex + 1 }
+            ? { ...a, selectedAnswer: selected }
             : a
         )
       );
@@ -171,7 +174,7 @@ export function AIPracticePage() {
         ...answers,
         {
           questionIndex: currentQuestionIndex,
-          selectedAnswer: answerIndex + 1,
+          selectedAnswer: selected,
         },
       ]);
     }
@@ -264,7 +267,7 @@ export function AIPracticePage() {
                 const hasAnswered =
                   selectedAnswer !== undefined && selectedAnswer !== null;
                 const isSelected = selectedAnswer === index + 1;
-                const isCorrectAnswer = currentQuestion.answer === index;
+                const isCorrectAnswer = currentQuestion.answer === index + 1;
 
                 let optionClass =
                   "border-border bg-transparent hover:border-muted-foreground/50";
@@ -446,8 +449,8 @@ export function AIPracticeResultPage({
   const totalQuestions = questions.length;
   const correctAnswers = answers.filter((answer) => {
     const question = questions[answer.questionIndex];
-    // Adjust for 0-based index vs 1-based selectedAnswer
-    return question && question.answer === answer.selectedAnswer - 1;
+    // Both sides are 1-based option indices (B6 canonical convention).
+    return question && question.answer === answer.selectedAnswer;
   }).length;
 
   const accuracy =
@@ -496,7 +499,7 @@ export function AIPracticeResultPage({
                   (a) => a.questionIndex === index
                 );
                 const isCorrect = userAnswer
-                  ? question.answer === userAnswer.selectedAnswer - 1
+                  ? question.answer === userAnswer.selectedAnswer
                   : false;
 
                 return (
