@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -176,5 +177,166 @@ func TestPracticeWithAiUsesSelectedProvider(t *testing.T) {
 	}
 	if gotPath != "/v1beta/models/gemini-local:generateContent" {
 		t.Fatalf("provider was not called through the gemini adapter: path %s", gotPath)
+	}
+}
+
+// pickProvider is the full selection order: default (enabled, ≥1 model)
+// first, else the oldest-enabled rule.
+func TestPickProviderDefaultOrder(t *testing.T) {
+	old := domain.AIProvider{ID: "old", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: []string{"m"}}
+	tests := []struct {
+		name string
+		rows []domain.AIProvider
+		want string // "" = nil
+	}{
+		{"no default keeps oldest-enabled", []domain.AIProvider{
+			{ID: "new", Enabled: true, CreatedAt: "2026-03-01T00:00:00Z", Models: []string{"m"}},
+			old,
+		}, "old"},
+		{"default wins even when newest", []domain.AIProvider{
+			old,
+			{ID: "new", Enabled: true, CreatedAt: "2026-03-01T00:00:00Z", Models: []string{"m"}, IsDefault: true},
+		}, "new"},
+		{"disabled default falls back to oldest enabled", []domain.AIProvider{
+			old,
+			{ID: "new", Enabled: false, CreatedAt: "2026-03-01T00:00:00Z", Models: []string{"m"}, IsDefault: true},
+		}, "old"},
+		{"default without models is not honored", []domain.AIProvider{
+			old,
+			{ID: "new", Enabled: true, CreatedAt: "2026-03-01T00:00:00Z", IsDefault: true},
+		}, "old"},
+		{"torn double default resolves to earliest created", []domain.AIProvider{
+			{ID: "b", Enabled: true, CreatedAt: "2026-02-01T00:00:00Z", Models: []string{"m"}, IsDefault: true},
+			{ID: "a", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: []string{"m"}, IsDefault: true},
+		}, "a"},
+		{"nothing usable", []domain.AIProvider{
+			{ID: "x", Enabled: false, Models: []string{"m"}, IsDefault: true},
+		}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := pickProvider(tc.rows)
+			if tc.want == "" {
+				if got != nil {
+					t.Fatalf("got %+v, want nil", got)
+				}
+				return
+			}
+			if got == nil || got.ID != tc.want {
+				t.Fatalf("got %+v, want id %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestModelFor(t *testing.T) {
+	p := &domain.AIProvider{Models: []string{"a", "b"}}
+	if got := modelFor(p); got != "a" {
+		t.Fatalf("no pin: got %s, want a", got)
+	}
+	p.DefaultModel = "b"
+	if got := modelFor(p); got != "b" {
+		t.Fatalf("pin: got %s, want b", got)
+	}
+	p.DefaultModel = "gone" // stale pin after a models edit → first model
+	if got := modelFor(p); got != "a" {
+		t.Fatalf("stale pin: got %s, want a", got)
+	}
+}
+
+// selectProvider honors the default row AND its pinned model.
+func TestSelectProviderPrefersDefault(t *testing.T) {
+	t.Setenv("GOOGLE_API_KEY", "")
+	repo := newFakeAiProviderRepo()
+	repo.seed(domain.AIProvider{ID: "old", Name: "old", Protocol: domain.AIProtocolOpenAI,
+		BaseURL: "https://old.example", APIKey: "k", Models: []string{"m"}, Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"})
+	repo.seed(domain.AIProvider{ID: "def", Name: "def", Protocol: domain.AIProtocolOpenAI,
+		BaseURL: "https://def.example", APIKey: "k", Models: []string{"x", "y"}, Enabled: true,
+		CreatedAt: "2026-05-01T00:00:00Z", IsDefault: true, DefaultModel: "y"})
+	a := &aiUsecase{providerRepo: repo}
+	p, model, err := a.selectProvider()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.ID != "def" || model != "y" {
+		t.Fatalf("got %s/%s, want def/y", p.ID, model)
+	}
+}
+
+// SetDefaultProvider keeps exactly one default row; ClearDefaultProvider
+// unsets; the pinned model must belong to the provider.
+func TestSetClearDefaultProvider(t *testing.T) {
+	repo := newFakeAiProviderRepo()
+	repo.seed(domain.AIProvider{ID: "a", Enabled: true, Models: []string{"m1", "m2"}, CreatedAt: "2026-01-01T00:00:00Z"})
+	repo.seed(domain.AIProvider{ID: "b", Enabled: true, Models: []string{"mx"}, CreatedAt: "2026-02-01T00:00:00Z"})
+	u := NewAiProviderUsecase(repo)
+
+	if err := u.SetDefaultProvider("a", "m2"); err != nil {
+		t.Fatal(err)
+	}
+	if !repo.rows["a"].IsDefault || repo.rows["a"].DefaultModel != "m2" {
+		t.Fatalf("a = %+v", repo.rows["a"])
+	}
+	// Re-tag b: a must lose the flag.
+	if err := u.SetDefaultProvider("b", ""); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := repo.GetAllProviders()
+	n := 0
+	for _, p := range rows {
+		if p.IsDefault {
+			n++
+			if p.ID != "b" || p.DefaultModel != "" {
+				t.Fatalf("unexpected default: %+v", p)
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("defaults = %d, want exactly 1", n)
+	}
+	if repo.rows["a"].IsDefault || repo.rows["a"].DefaultModel != "" {
+		t.Fatalf("old default not cleared: %+v", repo.rows["a"])
+	}
+
+	// Unknown model → input error; nothing moved.
+	if err := u.SetDefaultProvider("a", "nope"); !IsProviderInputError(err) {
+		t.Fatalf("bad model err = %v, want input error", err)
+	}
+	if repo.rows["a"].IsDefault {
+		t.Fatal("rejected call must not flip the flag")
+	}
+	// Unknown id → wrapped ErrProviderNotFound.
+	if err := u.SetDefaultProvider("zz", ""); !errors.Is(err, ErrProviderNotFound) || !IsProviderInputError(err) {
+		t.Fatalf("unknown id err = %v", err)
+	}
+	// Clear + idempotency.
+	if err := u.ClearDefaultProvider("b"); err != nil {
+		t.Fatal(err)
+	}
+	if repo.rows["b"].IsDefault {
+		t.Fatal("clear did not apply")
+	}
+	if err := u.ClearDefaultProvider("b"); err != nil {
+		t.Fatalf("second clear should be idempotent: %v", err)
+	}
+	if err := u.ClearDefaultProvider("zz"); !errors.Is(err, ErrProviderNotFound) {
+		t.Fatalf("clear unknown id err = %v", err)
+	}
+}
+
+// A regular UpdateProvider (PUT path) must never move or wipe the default.
+func TestUpdateProviderPreservesDefaultFields(t *testing.T) {
+	repo := newFakeAiProviderRepo()
+	repo.seed(domain.AIProvider{ID: "a", Name: "a", Enabled: true, Models: []string{"m1", "m2"},
+		BaseURL: "https://a.example", Protocol: domain.AIProtocolOpenAI, APIKey: "k",
+		IsDefault: true, DefaultModel: "m2"})
+	u := NewAiProviderUsecase(repo)
+	err := u.UpdateProvider("a", domain.AIProvider{Name: "renamed", BaseURL: "https://b.example",
+		Protocol: domain.AIProtocolOpenAI, Models: []string{"m1", "m2"}, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.rows["a"].IsDefault || repo.rows["a"].DefaultModel != "m2" {
+		t.Fatalf("PUT wiped default: %+v", repo.rows["a"])
 	}
 }

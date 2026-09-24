@@ -126,28 +126,30 @@ Each object must have these exact keys: "question_text", "multiple_choice", "ans
 }
 
 // selectProvider resolves the provider row every AI call goes through:
-// the oldest enabled ai_providers row wins; with no enabled rows we fall
-// back to the legacy GOOGLE_API_KEY Gemini setup so existing deployments
-// keep working. A repository read failure also degrades to the env fallback
-// when a key is present (the AI surface must not hard-depend on the new
-// table), and only errors when neither path can serve a request.
+// the admin-tagged default provider wins (only when enabled with at least
+// one model, using its default model or first model); otherwise the oldest
+// enabled row; with no usable rows we fall back to the legacy GOOGLE_API_KEY
+// Gemini setup so existing deployments keep working. A repository read
+// failure also degrades to the env fallback when a key is present (the AI
+// surface must not hard-depend on the new table), and only errors when
+// neither path can serve a request.
 func (a *aiUsecase) selectProvider() (*domain.AIProvider, string, error) {
 	var providers []domain.AIProvider
 	if a.providerRepo != nil {
 		list, err := a.providerRepo.GetAllProviders()
 		if err != nil {
 			if fb := a.envFallbackProvider(); fb != nil {
-				return fb, fb.Models[0], nil
+				return fb, modelFor(fb), nil
 			}
 			return nil, "", fmt.Errorf("list ai providers: %w", err)
 		}
 		providers = list
 	}
-	if p := pickEnabledProvider(providers); p != nil {
-		return p, p.Models[0], nil
+	if p := pickProvider(providers); p != nil {
+		return p, modelFor(p), nil
 	}
 	if fb := a.envFallbackProvider(); fb != nil {
-		return fb, fb.Models[0], nil
+		return fb, modelFor(fb), nil
 	}
 	return nil, "", errors.New("no enabled AI provider configured and GOOGLE_API_KEY is not set")
 }

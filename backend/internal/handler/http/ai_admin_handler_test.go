@@ -55,11 +55,35 @@ func (r *adminTestRepo) GetAllProviders() ([]domain.AIProvider, error) {
 
 const aiAdminSecret = "test-secret"
 
+// aiSettingsStub is an in-memory AiSettingsUsecase for admin route tests:
+// it stores whatever was last saved and reports premium for the ids in
+// the `premium` set.
+type aiSettingsStub struct {
+	settings domain.AISettings
+	saveErr  error
+	premium  map[string]bool
+}
+
+func newAiSettingsStub() *aiSettingsStub {
+	return &aiSettingsStub{premium: map[string]bool{}}
+}
+
+func (s *aiSettingsStub) GetSettings() (domain.AISettings, error) { return s.settings, nil }
+func (s *aiSettingsStub) SaveSettings(v domain.AISettings) error {
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	s.settings = v
+	return nil
+}
+func (s *aiSettingsStub) RequirePremium() bool            { return s.settings.RequirePremium }
+func (s *aiSettingsStub) IsPremiumStudent(id string) bool { return s.premium[id] }
+
 func newAiAdminTestServer(t *testing.T) (*gin.Engine, *adminTestRepo) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	repo := &adminTestRepo{rows: map[string]domain.AIProvider{}}
-	h := NewAiAdminHandler(usecase.NewAiProviderUsecase(repo))
+	h := NewAiAdminHandler(usecase.NewAiProviderUsecase(repo), newAiSettingsStub())
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/api/ai-admin"), adminAuth([]byte(aiAdminSecret)))
 	return r, repo
@@ -92,6 +116,10 @@ func TestAiAdminRoutesRequireAuth(t *testing.T) {
 		{http.MethodPut, "/api/ai-admin/providers/some-id", validBody},
 		{http.MethodDelete, "/api/ai-admin/providers/some-id", ""},
 		{http.MethodPost, "/api/ai-admin/providers/some-id/test", ""},
+		{http.MethodPost, "/api/ai-admin/providers/some-id/default", `{"model":"m"}`},
+		{http.MethodDelete, "/api/ai-admin/providers/some-id/default", ""},
+		{http.MethodGet, "/api/ai-admin/settings", ""},
+		{http.MethodPut, "/api/ai-admin/settings", `{"require_premium":true}`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
@@ -336,4 +364,188 @@ func TestAiAdminTestProviderEndpoint(t *testing.T) {
 			t.Fatalf("status = %d, want 404", w.Code)
 		}
 	})
+}
+
+// createProvider is a test helper: POST a valid provider and return its id.
+func createProvider(t *testing.T, r *gin.Engine, cookie *http.Cookie, repo *adminTestRepo, name string, models ...string) string {
+	t.Helper()
+	m, _ := json.Marshal(models)
+	body := fmt.Sprintf(`{"name":%q,"base_url":"https://api.example.com","api_key":"k","protocol":"openai","models":%s}`, name, m)
+	w := doReq(r, http.MethodPost, "/api/ai-admin/providers", strings.NewReader(body), cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("create %s status = %d body %s", name, w.Code, w.Body.String())
+	}
+	var created struct{ ID string }
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil || created.ID == "" {
+		t.Fatalf("bad create response: %s (%v)", w.Body.String(), err)
+	}
+	return created.ID
+}
+
+// countDefaults lists providers and reports how many views claim is_default
+// plus the id of the default one (when exactly one).
+func countDefaults(t *testing.T, r *gin.Engine, cookie *http.Cookie) (int, string, map[string]string) {
+	t.Helper()
+	w := doReq(r, http.MethodGet, "/api/ai-admin/providers", nil, cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d body %s", w.Code, w.Body.String())
+	}
+	var out struct {
+		Providers []struct {
+			ID           string `json:"id"`
+			IsDefault    bool   `json:"is_default"`
+			DefaultModel string `json:"default_model"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	var id string
+	models := map[string]string{}
+	for _, p := range out.Providers {
+		if p.IsDefault {
+			n++
+			id = p.ID
+		}
+		models[p.ID] = p.DefaultModel
+	}
+	return n, id, models
+}
+
+// POST /providers/:id/default keeps exactly one default row and stores the
+// pinned model; re-tagging another provider clears the previous one.
+func TestAiAdminSetDefaultProvider(t *testing.T) {
+	r, repo := newAiAdminTestServer(t)
+	cookie := directCookie(t)
+	a := createProvider(t, r, cookie, repo, "a", "m1", "m2")
+	b := createProvider(t, r, cookie, repo, "b", "mx")
+
+	// Set A default, pinning m2.
+	w := doReq(r, http.MethodPost, "/api/ai-admin/providers/"+a+"/default", strings.NewReader(`{"model":"m2"}`), cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("set default status = %d body %s", w.Code, w.Body.String())
+	}
+	if n, id, models := countDefaults(t, r, cookie); n != 1 || id != a || models[a] != "m2" {
+		t.Fatalf("defaults after set a: n=%d id=%s models=%v", n, id, models)
+	}
+	if !repo.rows[a].IsDefault || repo.rows[a].DefaultModel != "m2" {
+		t.Fatalf("stored row a = %+v", repo.rows[a])
+	}
+
+	// Re-tag to B (no body → no pinned model): A must be cleared.
+	w = doReq(r, http.MethodPost, "/api/ai-admin/providers/"+b+"/default", nil, cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("re-tag status = %d body %s", w.Code, w.Body.String())
+	}
+	if n, id, _ := countDefaults(t, r, cookie); n != 1 || id != b {
+		t.Fatalf("defaults after re-tag b: n=%d id=%s", n, id)
+	}
+	if repo.rows[a].IsDefault || repo.rows[a].DefaultModel != "" {
+		t.Fatalf("old default not cleared: %+v", repo.rows[a])
+	}
+	if repo.rows[b].DefaultModel != "" {
+		t.Fatalf("empty body should clear pinned model: %+v", repo.rows[b])
+	}
+
+	// Model not in the provider's list → 400, default unchanged.
+	w = doReq(r, http.MethodPost, "/api/ai-admin/providers/"+a+"/default", strings.NewReader(`{"model":"nope"}`), cookie)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("bad model status = %d body %s", w.Code, w.Body.String())
+	}
+	if n, id, _ := countDefaults(t, r, cookie); n != 1 || id != b {
+		t.Fatalf("default moved after rejected call: n=%d id=%s", n, id)
+	}
+
+	// Unknown id → 404.
+	w = doReq(r, http.MethodPost, "/api/ai-admin/providers/nope/default", nil, cookie)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unknown id status = %d", w.Code)
+	}
+
+	// DELETE unsets; then no default at all.
+	w = doReq(r, http.MethodDelete, "/api/ai-admin/providers/"+b+"/default", nil, cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unset status = %d body %s", w.Code, w.Body.String())
+	}
+	if n, _, _ := countDefaults(t, r, cookie); n != 0 {
+		t.Fatalf("defaults after unset: %d", n)
+	}
+	// Idempotent second unset.
+	w = doReq(r, http.MethodDelete, "/api/ai-admin/providers/"+b+"/default", nil, cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("second unset status = %d", w.Code)
+	}
+	// Unset of unknown id → 404.
+	w = doReq(r, http.MethodDelete, "/api/ai-admin/providers/nope/default", nil, cookie)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unset unknown id status = %d, want 404", w.Code)
+	}
+}
+
+// A plain PUT /providers/:id must never wipe or move the default flag.
+func TestAiAdminUpdatePreservesDefaultFields(t *testing.T) {
+	r, repo := newAiAdminTestServer(t)
+	cookie := directCookie(t)
+	id := createProvider(t, r, cookie, repo, "a", "m1", "m2")
+	w := doReq(r, http.MethodPost, "/api/ai-admin/providers/"+id+"/default", strings.NewReader(`{"model":"m2"}`), cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("set default: %d %s", w.Code, w.Body.String())
+	}
+	put := `{"name":"renamed","base_url":"https://api2.example.com","protocol":"openai","models":["m1","m2"]}`
+	w = doReq(r, http.MethodPut, "/api/ai-admin/providers/"+id, strings.NewReader(put), cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("put status = %d body %s", w.Code, w.Body.String())
+	}
+	if !repo.rows[id].IsDefault || repo.rows[id].DefaultModel != "m2" {
+		t.Fatalf("PUT wiped default fields: %+v", repo.rows[id])
+	}
+}
+
+// GET/PUT /api/ai-admin/settings round-trips the global switch; an unwritten
+// table reads back the default (false).
+func TestAiAdminSettingsRoundTrip(t *testing.T) {
+	r, _ := newAiAdminTestServer(t)
+	cookie := directCookie(t)
+
+	var view struct {
+		RequirePremium bool `json:"require_premium"`
+	}
+	w := doReq(r, http.MethodGet, "/api/ai-admin/settings", nil, cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET settings status = %d body %s", w.Code, w.Body.String())
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &view); err != nil {
+		t.Fatal(err)
+	}
+	if view.RequirePremium {
+		t.Fatal("unset settings must default to require_premium=false")
+	}
+
+	w = doReq(r, http.MethodPut, "/api/ai-admin/settings", strings.NewReader(`{"require_premium":true}`), cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT settings status = %d body %s", w.Code, w.Body.String())
+	}
+	w = doReq(r, http.MethodGet, "/api/ai-admin/settings", nil, cookie)
+	if err := json.Unmarshal(w.Body.Bytes(), &view); err != nil {
+		t.Fatal(err)
+	}
+	if !view.RequirePremium {
+		t.Fatalf("round-trip lost the flag: %s", w.Body.String())
+	}
+
+	// Malformed body → 400 (a bare {} is valid and means false — bool zero value).
+	w = doReq(r, http.MethodPut, "/api/ai-admin/settings", strings.NewReader(`{"require_premium":"yes"}`), cookie)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("bad settings body status = %d body %s", w.Code, w.Body.String())
+	}
+	// Switch back off.
+	w = doReq(r, http.MethodPut, "/api/ai-admin/settings", strings.NewReader(`{"require_premium":false}`), cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT off status = %d", w.Code)
+	}
+	w = doReq(r, http.MethodGet, "/api/ai-admin/settings", nil, cookie)
+	if err := json.Unmarshal(w.Body.Bytes(), &view); err != nil || view.RequirePremium {
+		t.Fatalf("after off: %s (%v)", w.Body.String(), err)
+	}
 }

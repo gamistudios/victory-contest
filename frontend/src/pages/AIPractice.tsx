@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Label } from "../components/ui/label";
-import { getAiGeneratedQuestions } from "../services/aiService";
+import { getAiGeneratedQuestions, isPremiumRequiredError } from "../services/aiService";
 import { toast } from "sonner";
 import { useTelegram } from "../hooks/useTelegram";
 import { Input } from "../components/ui/input";
@@ -126,16 +126,29 @@ export function AIPracticePage() {
       setTimeLeft(ai_questions.length * 60); // 1 minute per question
       setIsLoading(false);
       setPageState("PRACTICING");
-    } catch {
-      toast.error("Failed to generate questions. Please try again.", {
-        style: {
-          backgroundColor: "#f8d7da",
-          color: "#721c24",
-          border: "1px solid #f5c6cb",
-          padding: "10px",
-          borderRadius: "8px",
-        },
-      });
+    } catch (err) {
+      if (isPremiumRequiredError(err)) {
+        // Backend 403: the admin switched /api/ai to premium-only.
+        toast.error("AI practice needs a premium account — pay to unlock", {
+          style: {
+            backgroundColor: "#fff3cd",
+            color: "#664d03",
+            border: "1px solid #ffe69c",
+            padding: "10px",
+            borderRadius: "8px",
+          },
+        });
+      } else {
+        toast.error("Failed to generate questions. Please try again.", {
+          style: {
+            backgroundColor: "#f8d7da",
+            color: "#721c24",
+            border: "1px solid #f5c6cb",
+            padding: "10px",
+            borderRadius: "8px",
+          },
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -175,7 +188,9 @@ export function AIPracticePage() {
   const selectedAnswer = answers.find(
     (a) => a.questionIndex === currentQuestionIndex
   )?.selectedAnswer;
-  const canGenerate = settings.subject && settings.topic && settings.difficulty;
+  // Topic is optional free text: subject + difficulty are enough for the
+  // backend prompt, requiring a topic blocked free-text users for nothing.
+  const canGenerate = Boolean(settings.subject && settings.difficulty);
   const totalSessionTime = questions.length * 60; // Assuming 1 min per question
   const timeSpent = totalSessionTime - timeLeft;
   const handleNextQuestion = () => {
@@ -361,7 +376,7 @@ export function AIPracticePage() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="grade">Topic</Label>
+            <Label htmlFor="grade">Topic (optional)</Label>
             <Input
               onChange={(e) =>
                 setSettings((prev) => ({ ...prev, topic: e.target.value }))

@@ -2,6 +2,7 @@ package http
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"victor-contest-go/internal/domain"
@@ -11,16 +12,18 @@ import (
 )
 
 // AiAdminHandler is the admin-only CRUD surface for AI providers
-// (/api/ai-admin/providers). Provider management belongs to the external
+// (/api/ai-admin/providers) plus the global AI feature switch
+// (/api/ai-admin/settings). Provider management belongs to the external
 // admin panel, so every route here sits behind adminAuth. Responses use
 // providerView and therefore can never carry api_key: the domain field is
 // json:"-" AND the view struct simply has no key field, only a last-4 hint.
 type AiAdminHandler struct {
-	uc usecase.AiProviderUsecase
+	uc       usecase.AiProviderUsecase
+	settings usecase.AiSettingsUsecase // nil ⇒ /settings routes not registered
 }
 
-func NewAiAdminHandler(uc usecase.AiProviderUsecase) *AiAdminHandler {
-	return &AiAdminHandler{uc: uc}
+func NewAiAdminHandler(uc usecase.AiProviderUsecase, settings usecase.AiSettingsUsecase) *AiAdminHandler {
+	return &AiAdminHandler{uc: uc, settings: settings}
 }
 
 func (h *AiAdminHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
@@ -31,36 +34,49 @@ func (h *AiAdminHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.Ha
 	auth.PUT("/providers/:id", h.Update)
 	auth.DELETE("/providers/:id", h.Delete)
 	auth.POST("/providers/:id/test", h.Test)
+	// Default provider tagging (single-default invariant enforced in the
+	// usecase): POST sets, DELETE unsets; the body is optional and may pin
+	// one of the provider's models via {"model": "..."}.
+	auth.POST("/providers/:id/default", h.SetDefault)
+	auth.DELETE("/providers/:id/default", h.ClearDefault)
+	if h.settings != nil {
+		auth.GET("/settings", h.GetSettings)
+		auth.PUT("/settings", h.PutSettings)
+	}
 }
 
 // providerView is the only representation of a provider that leaves this
 // handler. APIKeyHint exposes at most the last 4 characters, enough for an
 // admin to recognize which key is stored without recovering it.
 type providerView struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	BaseURL    string   `json:"base_url"`
-	Protocol   string   `json:"protocol"`
-	Models     []string `json:"models"`
-	Enabled    bool     `json:"enabled"`
-	CreatedAt  string   `json:"created_at"`
-	UpdatedAt  string   `json:"updated_at"`
-	APIKeyHint string   `json:"api_key_hint"`
-	HasKey     bool     `json:"has_api_key"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	BaseURL      string   `json:"base_url"`
+	Protocol     string   `json:"protocol"`
+	Models       []string `json:"models"`
+	Enabled      bool     `json:"enabled"`
+	IsDefault    bool     `json:"is_default"`
+	DefaultModel string   `json:"default_model"`
+	CreatedAt    string   `json:"created_at"`
+	UpdatedAt    string   `json:"updated_at"`
+	APIKeyHint   string   `json:"api_key_hint"`
+	HasKey       bool     `json:"has_api_key"`
 }
 
 func toProviderView(p domain.AIProvider) providerView {
 	return providerView{
-		ID:         p.ID,
-		Name:       p.Name,
-		BaseURL:    p.BaseURL,
-		Protocol:   p.Protocol,
-		Models:     p.Models,
-		Enabled:    p.Enabled,
-		CreatedAt:  p.CreatedAt,
-		UpdatedAt:  p.UpdatedAt,
-		APIKeyHint: lastFourHint(p.APIKey),
-		HasKey:     p.APIKey != "",
+		ID:           p.ID,
+		Name:         p.Name,
+		BaseURL:      p.BaseURL,
+		Protocol:     p.Protocol,
+		Models:       p.Models,
+		Enabled:      p.Enabled,
+		IsDefault:    p.IsDefault,
+		DefaultModel: p.DefaultModel,
+		CreatedAt:    p.CreatedAt,
+		UpdatedAt:    p.UpdatedAt,
+		APIKeyHint:   lastFourHint(p.APIKey),
+		HasKey:       p.APIKey != "",
 	}
 }
 
@@ -203,4 +219,75 @@ func (h *AiAdminHandler) Test(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, res)
+}
+
+// SetDefault marks :id as the single default provider. The body is optional
+// and may be {"model":"..."} to pin one of the provider's models; an empty
+// body clears the pin so selection falls back to the provider's first model.
+// A non-empty model not present in the provider's Models maps to 400.
+func (h *AiAdminHandler) SetDefault(c *gin.Context) {
+	var input struct {
+		Model string `json:"model"`
+	}
+	// Tolerate a missing body (default to first model); only reject a malformed one.
+	if err := c.ShouldBindJSON(&input); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.uc.SetDefaultProvider(c.Param("id"), strings.TrimSpace(input.Model)); err != nil {
+		switch {
+		case errors.Is(err, usecase.ErrProviderNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case usecase.IsProviderInputError(err):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "success"})
+}
+
+// ClearDefault unsets the default marker on :id (idempotent).
+func (h *AiAdminHandler) ClearDefault(c *gin.Context) {
+	if err := h.uc.ClearDefaultProvider(c.Param("id")); err != nil {
+		if errors.Is(err, usecase.ErrProviderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "success"})
+}
+
+// aiSettingsView is the wire shape of the global AI access switch.
+type aiSettingsView struct {
+	RequirePremium bool `json:"require_premium"`
+}
+
+// GetSettings returns the current global AI access switch (require_premium
+// defaults to false when the row has never been written).
+func (h *AiAdminHandler) GetSettings(c *gin.Context) {
+	s, err := h.settings.GetSettings()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, aiSettingsView{RequirePremium: s.RequirePremium})
+}
+
+// PutSettings overwrites the single settings row. The body is required and
+// must carry require_premium (JSON true/false).
+func (h *AiAdminHandler) PutSettings(c *gin.Context) {
+	var input aiSettingsView
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.settings.SaveSettings(domain.AISettings{RequirePremium: input.RequirePremium}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, aiSettingsView{RequirePremium: input.RequirePremium})
 }

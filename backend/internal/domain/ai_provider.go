@@ -27,15 +27,22 @@ var AIProtocolSet = map[string]bool{
 // even accidentally through the domain struct itself; list/get responses
 // use the handler-level view with a last-4-char hint instead.
 type AIProvider struct {
-	ID        string   `json:"id"         dynamodbav:"id"`
-	Name      string   `json:"name"       dynamodbav:"name"`
-	BaseURL   string   `json:"base_url"   dynamodbav:"base_url"`
-	APIKey    string   `json:"-"          dynamodbav:"api_key"`
-	Protocol  string   `json:"protocol"   dynamodbav:"protocol"`
-	Models    []string `json:"models"     dynamodbav:"models"`
-	Enabled   bool     `json:"enabled"    dynamodbav:"enabled"`
-	CreatedAt string   `json:"created_at" dynamodbav:"created_at"`
-	UpdatedAt string   `json:"updated_at" dynamodbav:"updated_at"`
+	ID       string   `json:"id"         dynamodbav:"id"`
+	Name     string   `json:"name"       dynamodbav:"name"`
+	BaseURL  string   `json:"base_url"   dynamodbav:"base_url"`
+	APIKey   string   `json:"-"          dynamodbav:"api_key"`
+	Protocol string   `json:"protocol"   dynamodbav:"protocol"`
+	Models   []string `json:"models"     dynamodbav:"models"`
+	Enabled  bool     `json:"enabled"    dynamodbav:"enabled"`
+	// IsDefault marks the single admin-chosen provider that student AI calls
+	// prefer over the oldest-enabled rule. DefaultModel optionally pins which
+	// of Models to use; empty means "first model". Both are plain attributes
+	// on the same row (no separate pointer table), so the invariant "exactly
+	// one default" is maintained by the usecase's read-modify-write update.
+	IsDefault    bool   `json:"is_default"    dynamodbav:"is_default"`
+	DefaultModel string `json:"default_model" dynamodbav:"default_model"`
+	CreatedAt    string `json:"created_at" dynamodbav:"created_at"`
+	UpdatedAt    string `json:"updated_at" dynamodbav:"updated_at"`
 }
 
 // ValidateBaseURL enforces the SSRF/credential-exfil guardrail for stored

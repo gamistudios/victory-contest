@@ -53,6 +53,11 @@ type AiProviderUsecase interface {
 	UpdateProvider(id string, p domain.AIProvider) error
 	DeleteProvider(id string) error
 	TestProvider(id string) (*ProviderTestResult, error)
+	// SetDefaultProvider marks id as the single default provider (optionally
+	// pinning one of its models) and clears the flag on every other row.
+	SetDefaultProvider(id, model string) error
+	// ClearDefaultProvider unsets the default flag on id (idempotent).
+	ClearDefaultProvider(id string) error
 }
 
 type aiProviderUsecase struct {
@@ -100,6 +105,11 @@ func (u *aiProviderUsecase) UpdateProvider(id string, p domain.AIProvider) error
 		p.APIKey = existing.APIKey
 	}
 	p.CreatedAt = existing.CreatedAt
+	// The default flag/model are managed exclusively by SetDefaultProvider /
+	// ClearDefaultProvider (which maintain the single-default invariant); a
+	// regular PUT must never wipe or silently set them.
+	p.IsDefault = existing.IsDefault
+	p.DefaultModel = existing.DefaultModel
 	if err := p.Validate(); err != nil {
 		return providerInputError{err}
 	}
@@ -125,7 +135,7 @@ func (u *aiProviderUsecase) TestProvider(id string) (*ProviderTestResult, error)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), aiProbeTimeout)
 	defer cancel()
-	text, err := completeProvider(ctx, *p, p.Models[0], completionRequest{
+	text, err := completeProvider(ctx, *p, modelFor(p), completionRequest{
 		prompt:    "Connection test. Reply with exactly: PONG",
 		maxTokens: 64,
 	})
@@ -139,10 +149,71 @@ func (u *aiProviderUsecase) TestProvider(id string) (*ProviderTestResult, error)
 	return &ProviderTestResult{OK: true, Message: "connected; sample reply: " + sample}, nil
 }
 
-// pickEnabledProvider is the single selection rule used by every AI call
-// path: the oldest-created enabled provider with at least one model wins.
-// Sorting is stable on (created_at, id) so selection is deterministic even
-// when rows share a timestamp.
+// SetDefaultProvider enforces the single-default invariant with a
+// read-modify-write pass over the whole (tiny, admin-sized) table: every
+// other row that carries is_default or a stale default_model is rewritten
+// with both cleared, then the target row is marked. This is "atomically
+// enough" for a table with a handful of admin-managed rows; a crash between
+// clear and set leaves zero defaults, which selection handles gracefully by
+// falling back to the oldest-enabled rule.
+func (u *aiProviderUsecase) SetDefaultProvider(id, model string) error {
+	target, err := u.repo.GetProviderByID(id)
+	if err != nil {
+		return err
+	}
+	if target == nil {
+		return providerInputError{fmt.Errorf("%w: %q", ErrProviderNotFound, id)}
+	}
+	if model != "" {
+		found := false
+		for _, m := range target.Models {
+			if m == model {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return providerInputError{fmt.Errorf("model %q is not configured on provider %q", model, id)}
+		}
+	}
+	providers, err := u.repo.GetAllProviders()
+	if err != nil {
+		return fmt.Errorf("list providers to clear old defaults: %w", err)
+	}
+	for _, p := range providers {
+		if p.ID == id || (!p.IsDefault && p.DefaultModel == "") {
+			continue
+		}
+		p.IsDefault = false
+		p.DefaultModel = ""
+		if err := u.repo.UpdateProvider(p); err != nil {
+			return fmt.Errorf("clear default on %s: %w", p.ID, err)
+		}
+	}
+	target.IsDefault = true
+	target.DefaultModel = model
+	return u.repo.UpdateProvider(*target)
+}
+
+// ClearDefaultProvider unsets the default marker on id. It is idempotent:
+// clearing a provider that is not the default succeeds.
+func (u *aiProviderUsecase) ClearDefaultProvider(id string) error {
+	target, err := u.repo.GetProviderByID(id)
+	if err != nil {
+		return err
+	}
+	if target == nil {
+		return providerInputError{fmt.Errorf("%w: %q", ErrProviderNotFound, id)}
+	}
+	target.IsDefault = false
+	target.DefaultModel = ""
+	return u.repo.UpdateProvider(*target)
+}
+
+// pickEnabledProvider is the fallback selection rule: the oldest-created
+// enabled provider with at least one model wins. Sorting is stable on
+// (created_at, id) so selection is deterministic even when rows share a
+// timestamp.
 func pickEnabledProvider(providers []domain.AIProvider) *domain.AIProvider {
 	usable := make([]domain.AIProvider, 0, len(providers))
 	for _, p := range providers {
@@ -160,4 +231,48 @@ func pickEnabledProvider(providers []domain.AIProvider) *domain.AIProvider {
 		return usable[i].ID < usable[j].ID
 	})
 	return &usable[0]
+}
+
+// pickProvider is THE provider-selection rule for every student AI call:
+//  1. the default provider — but only when it is enabled and has at least one
+//     model (an admin tagging a disabled/incomplete row must not break AI),
+//  2. otherwise the oldest enabled provider (pickEnabledProvider).
+//
+// If several rows claim is_default (a torn write), the earliest-created one
+// wins, keeping selection deterministic.
+func pickProvider(providers []domain.AIProvider) *domain.AIProvider {
+	usable := make([]domain.AIProvider, 0, len(providers))
+	for _, p := range providers {
+		if p.Enabled && len(p.Models) > 0 {
+			usable = append(usable, p)
+		}
+	}
+	if len(usable) == 0 {
+		return nil
+	}
+	sort.SliceStable(usable, func(i, j int) bool {
+		if usable[i].CreatedAt != usable[j].CreatedAt {
+			return usable[i].CreatedAt < usable[j].CreatedAt
+		}
+		return usable[i].ID < usable[j].ID
+	})
+	for i := range usable {
+		if usable[i].IsDefault {
+			return &usable[i]
+		}
+	}
+	return &usable[0]
+}
+
+// modelFor resolves the model a call should use on the chosen provider: the
+// pinned DefaultModel when it is still in Models, else the first model.
+func modelFor(p *domain.AIProvider) string {
+	if p.DefaultModel != "" {
+		for _, m := range p.Models {
+			if m == p.DefaultModel {
+				return m
+			}
+		}
+	}
+	return p.Models[0]
 }

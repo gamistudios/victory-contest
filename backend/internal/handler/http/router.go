@@ -89,6 +89,7 @@ func NewServer() *Server {
 	articleRepo := repository.NewArticleDynamoRepository(ddb, "articles")
 	commentRepo := repository.NewCommentDynamoRepository(ddb, "comments")
 	aiProviderRepo := repository.NewAiProviderDynamoRepository(ddb, "ai_providers")
+	aiSettingsRepo := repository.NewAiSettingsDynamoRepository(ddb, "ai_settings")
 
 	// --- Initialize Feedback Repositories ---
 	feedbackQuestionRepo := repository.NewFeedbackQuestionDynamoRepository(ddb, "feedback_questions")
@@ -110,6 +111,7 @@ func NewServer() *Server {
 	paymentUsecase := usecase.NewPaymentUsecases(paymentRepo)
 	aiUsecase := usecase.NewAiUsecase(submissionRepo, aiProviderRepo)
 	aiProviderUsecase := usecase.NewAiProviderUsecase(aiProviderRepo)
+	aiSettingsUsecase := usecase.NewAiSettingsUsecase(aiSettingsRepo, paymentRepo)
 	telegramUsecase := usecase.NewTelegramUsecase(bot, studentRepo)
 
 	// --- Initialize Contest Statistics Use Case ---
@@ -135,8 +137,8 @@ func NewServer() *Server {
 		pollOptionHandler:          NewPollOptionHandler(pollOptionUsecase),
 		feedbackResponseHandler:    NewFeedbackResponseHandler(feedbackResponseUsecase, notificationUsecase),
 		paymentHandler:             NewPaymentHandler(paymentUsecase, *imgRepo),
-		aiHandler:                  NewAiHandler(aiUsecase),
-		aiAdminHandler:             NewAiAdminHandler(aiProviderUsecase),
+		aiHandler:                  NewAiHandler(aiUsecase, aiSettingsUsecase, jwtSecret),
+		aiAdminHandler:             NewAiAdminHandler(aiProviderUsecase, aiSettingsUsecase),
 		telegramHandler:            NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")),
 		pageViewHandler:            NewPageViewHandler(pageViewUsecase),
 		articleHandler:             NewArticleHandler(articleUsecase),
