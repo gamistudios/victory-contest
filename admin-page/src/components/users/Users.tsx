@@ -206,6 +206,7 @@ export default function UserListPage() {
                     variant="ghost"
                     size="icon"
                     className="h-11 w-11 sm:h-9 sm:w-9"
+                    aria-label={`View ${student.name}'s profile`}
                     onClick={() =>
                       navigate(`/dashboard/user/${student.telegram_id}`)
                     }
