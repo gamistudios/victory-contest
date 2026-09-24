@@ -27,6 +27,7 @@ import {
   Pause,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { parsePaymentDate } from "@/lib/utils";
 import { useParams } from "react-router-dom";
 import { useState } from "react";
 import {
@@ -54,9 +55,8 @@ export function PaymentManagement({
     delete: false,
   });
   function formatDate(date: string | Date | null | undefined) {
-    if (!date) return "no payment";
-    const d = typeof date === "string" ? new Date(date) : date;
-    if (!d || isNaN(d.getTime())) return "";
+    const d = parsePaymentDate(date);
+    if (!d) return "no payment";
     return d.toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
@@ -153,7 +153,15 @@ export function PaymentManagement({
   const handleSendFinalNotice = async () => {
     setLoading({ ...loading, notice: true });
     try {
-      const dateObj = new Date(user.payment.expirationDate);
+      const dateObj = parsePaymentDate(user.payment.expirationDate);
+      if (!dateObj) {
+        toast({
+          title: "Error Sending Notice",
+          description: `${user.name} has no scheduled payment date, so a final notice cannot be sent.`,
+          variant: "destructive",
+        });
+        return;
+      }
       const formattedDate = dateObj.toLocaleDateString("en-US", {
         year: "numeric",
         month: "long",
@@ -187,31 +195,27 @@ export function PaymentManagement({
     }
   };
   let paymentStatus;
-  const expirationDateStr = user.payment.expirationDate;
+  const expirationDate = parsePaymentDate(user.payment.expirationDate);
   const today = new Date();
 
-  if (!expirationDateStr) {
-    // Case 1: No expiration date exists
+  if (!expirationDate) {
+    // Case 1: No (valid) expiration date exists
     paymentStatus = "unpaid";
   } else {
-    const expirationDate = new Date();
-
     // Case 2: Compare expiration date with today's date
-    if (expirationDate >= today) {
-      paymentStatus = "active";
-    } else {
-      paymentStatus = "unpaid";
-    }
+    paymentStatus = expirationDate >= today ? "active" : "unpaid";
   }
 
   const statusInfo = getPaymentStatusInfo(paymentStatus);
   const StatusIcon = statusInfo.icon;
 
-  // Calculate days until next payment
-  const nextPayment = new Date(user.payment.expirationDate);
-  const daysUntilPayment = Math.ceil(
-    (nextPayment.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  // Days until next payment; NaN when the student has no valid expiration.
+  const daysUntilPayment = expirationDate
+    ? Math.ceil(
+        (expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      )
+    : NaN;
+  const hasDaysUntilPayment = !Number.isNaN(daysUntilPayment);
 
   const renderStatusSpecificContent = () => {
     switch (paymentStatus) {
@@ -515,11 +519,13 @@ export function PaymentManagement({
                   <p className="text-gray-700 font-medium text-xs">
                     {formatDate(user.payment.expirationDate)}
                   </p>
-                  <p className="text-gray-600 text-xs mt-1">
-                    {daysUntilPayment > 0
-                      ? `Due in ${daysUntilPayment} days`
-                      : `${Math.abs(daysUntilPayment)} days overdue`}
-                  </p>
+                  {hasDaysUntilPayment && (
+                    <p className="text-gray-600 text-xs mt-1">
+                      {daysUntilPayment > 0
+                        ? `Due in ${daysUntilPayment} days`
+                        : `${Math.abs(daysUntilPayment)} days overdue`}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

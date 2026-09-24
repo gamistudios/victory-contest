@@ -1,5 +1,6 @@
 import { User } from "@/types/user";
 import { StudentProfileStats } from "@/services/studentServices";
+import { parsePaymentDate } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   MapPin,
@@ -16,6 +17,11 @@ interface ProfileHeaderProps {
   user: User;
   /** Aggregated quickstat numbers; null while unavailable. */
   stats: StudentProfileStats | null;
+}
+
+function formatPaymentDate(value: string | Date | null | undefined) {
+  const date = parsePaymentDate(value);
+  return date ? date.toLocaleDateString() : "no payment";
 }
 
 export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
@@ -171,9 +177,7 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
                   <div className="min-w-0">
                     <p className="text-xs text-gray-600">Last Payment</p>
                     <p className="text-sm font-medium text-gray-900">
-                      {user.payment.createdAt === ""
-                        ? "no payment"
-                        : new Date(user.payment.createdAt).toLocaleString()}
+                      {formatPaymentDate(user.payment.createdAt)}
                     </p>
                   </div>
                 </div>
@@ -182,9 +186,7 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
                   <div className="min-w-0">
                     <p className="text-xs text-gray-600">Next Payment</p>
                     <p className="text-sm font-medium text-gray-900">
-                      {new Date(
-                        user.payment.expirationDate
-                      ).toLocaleDateString()}
+                      {formatPaymentDate(user.payment.expirationDate)}
                     </p>
                   </div>
                 </div>

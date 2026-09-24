@@ -7,6 +7,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Students who never paid come back with Go's zero time
+ * ("0001-01-01T00:00:00Z") rather than null, so an emptiness check on the raw
+ * string is not enough — a date before the epoch is "no payment".
+ */
+export function parsePaymentDate(
+  value: string | Date | null | undefined
+): Date | null {
+  if (!value) return null;
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime()) || date.getUTCFullYear() < 1970) {
+    return null;
+  }
+  return date;
+}
+
 //Contest Actions
 export async function deleteContest(contest_id: string) {
   if (!contest_id) {
