@@ -22,7 +22,7 @@ export default function MobileNav() {
       >
         <Menu className="h-6 w-6" />
       </Button>
-      <Drawer
+      <Drawer.Root
         direction="left"
         open={open}
         onOpenChange={setOpen}
@@ -48,7 +48,7 @@ export default function MobileNav() {
             <UserProfile isCollapsed={false} />
           </div>
         </Drawer.Content>
-      </Drawer>
+      </Drawer.Root>
     </>
   );
 }
