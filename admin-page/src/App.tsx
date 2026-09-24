@@ -1,5 +1,5 @@
 // App.tsx
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 
 import Dashboard from "./layout/DashboardLayout";
 import Contest from "./components/contests/Contest";
@@ -47,10 +47,14 @@ const router = createBrowserRouter([
           { path: "feedback", element: <FeedbackManagement /> },
           { path: "high-scorers", element: <HighScorersContactList /> },
           { path: "payment", element: <PaymentsPage /> },
+          // Without these, a mistyped URL rendered the sidebar and an empty
+          // content area with nothing to explain it.
+          { path: "*", element: <Navigate to="/dashboard" replace /> },
         ],
       },
       { path: "/", element: <Login /> },
       { path: "/register", element: <Register /> },
+      { path: "*", element: <Navigate to="/" replace /> },
     ],
   },
 ]);
