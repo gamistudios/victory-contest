@@ -2,6 +2,7 @@
 import {
   LayoutDashboard,
   Users,
+  UserCog,
   MessageSquareWarning,
   BarChart2,
   PlusSquare,
@@ -123,6 +124,12 @@ export const menuList: NavGroup[] = [
         title: "Users",
         path: "/dashboard/users",
         icon: Users,
+      },
+      {
+        id: 10,
+        title: "Admins",
+        path: "/dashboard/admins",
+        icon: UserCog,
       },
     ],
   },

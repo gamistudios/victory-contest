@@ -97,7 +97,14 @@ function NotificationBell() {
   const { notifications, unreadCount, markAsRead, markNotificationAsRead, deleteNotification } = useNotifications();
   const navigate = useNavigate();
 
-  const handleNotificationClick = (notification: any) => {
+  const handleNotificationClick = (notification: {
+    id: string;
+    title: string;
+    message: string;
+    type: string;
+    sent_at: string;
+    is_read: boolean;
+  }) => {
     // Mark as read when clicked
     if (!notification.is_read) {
       markNotificationAsRead(notification.id);
@@ -280,9 +287,9 @@ function UserProfileNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
+        <DropdownMenuItem onClick={() => navigate("/dashboard/admins")}>
           <User className="mr-2 h-4 w-4" />
-          <span>Profile</span>
+          <span>Admins</span>
         </DropdownMenuItem>
         <DropdownMenuItem>
           <Settings className="mr-2 h-4 w-4" />
