@@ -35,13 +35,12 @@ The panel **is now in-scoped for this repo**: we own it, will commit fixes to it
 
 ---
 
-## 2. Gate status (2026-09-24, verified locally after wave 1)
+## 2. Gate status (2026-09-24, re-verified after the responsive pass)
 
 - `npx tsc --noEmit` → **clean (0 errors)**.
-- `npx eslint .` → **95 errors, 13 warnings** (was 122/14 before the fix wave). Errors by rule:
-  `no-unused-vars` 46 · `no-explicit-any` 38 · **`react-hooks/rules-of-hooks` 3** (still open — A22) · `no-empty-pattern` 3 · `prefer-const` 2 · `no-case-declarations` 1 · `no-empty-object-type` 1 · `no-prototype-builtins` 1. Warnings: `react-refresh/only-export-components` 8 · `react-hooks/exhaustive-deps` 5. Backlog lives mostly in articles/dashboard code untouched by wave 1.
-- `npm audit` → **0 vulnerabilities** after the full refresh (`ab7cdad`, 27 → 0). Framework choices curated: React 18 kept (frontend precedent), Vite ≥7 (no patched 5.x/6.x for the high advisory), react-table pinned v8.
-- `npm run build` → clean (≈1m30s). No test runner configured (`package.json` has no test script) — acceptance is gates + manual browser flows.
+- `npx eslint .` → **21 errors, 12 warnings** (was 95/13 after wave 1; **`react-hooks/rules-of-hooks` cleared in `0cff049`** — A22 done). Errors by rule: `no-unused-vars` 10 (mostly `services/articleServices.ts` ×8) · `no-explicit-any` 4 (`lib/helpers.ts`, `services/contestServices.ts`) · `no-empty-pattern` 3 (`ui/calendar.tsx` ×2, `ui/styled-badge.tsx`) · `prefer-const` 2 · `no-empty-object-type` 1 (`ui/input.tsx`) · `no-prototype-builtins` 1 — all in legacy `ui/services/hooks/lib` files untouched by the page slices. Warnings: `react-refresh/only-export-components` 8 · `react-hooks/exhaustive-deps` 4.
+- `npm audit` → **0 vulnerabilities** after the full refresh (`ab7cdad`, 27 → 0). Framework choices curated: React 18 kept (frontend precedent), Vite ≥7 (no patched 5.x/6.x for the high advisory), react-table pinned v8; `vite-plugin-pwa@1.3.0` added `fecd163`.
+- `npm run build` → clean (≈1m45s–2m25s incl. SW generation: `precache 17 entries ≈4.5 MB`). No test runner configured (`package.json` has no test script) — acceptance is gates + manual browser flows.
 
 ---
 
@@ -96,18 +95,18 @@ Root cause first:
 
 - **M1 — ✅ fixed (`ebd786d`).** `index.html` now has `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">` — the single line behind most of the client's complaint.
 - **M2 — ✅ fixed (`ebd786d`).** Single `<title>Victory Contest Admin</title>`.
-- **M3 — no mobile navigation (open).** Sidebar is `hidden custom:block` (visible only ≥970px) with **zero fallback** — under 970px there is literally no way to move between pages. `vaul` (Drawer) is already installed and unused; `MenuButton` dead (see §4).
-- **M4 — sidebar layout bugs even on desktop:** `w-64` sidebar inside a `w-60` `overflow-hidden` parent clips ~16px; the collapse FAB toggles nothing.
+- **M3 — ✅ fixed (`0cff049`).** Mobile navigation: vaul left `MobileNav` drawer (hamburger in Appbar <lg) reusing `Sidebar`'s NavLinks/UserProfile; sidebar now `hidden lg:block` in a fixed `h-dvh` shell.
+- **M4 — ✅ fixed (`0cff049`).** Sidebar clips nothing in the new `flex h-dvh overflow-hidden` shell; collapse FAB works and is no longer clipped.
 - **M5 — ✅ fixed (`ebd786d`).** Appbar profile link now goes to `/dashboard/admins`, and "Admins" is a sidebar entry.
-- **M6 — sub-44px touch targets and 14px inputs** across toolbars/tables → iOS auto-zooms on focus.
-- **M7 — dashboard `gridData` sets `minWidth` summing to 830px** → forced horizontal scroll on phones.
-- **M8 — `data-table.tsx` mounts every row** (only `getCoreRowModel`, no pagination/virtualization) — the students list (hundreds of rows) is unusably janky on a phone.
-- **M9 — fixed-size charts:** `ChartUserByCountry.tsx` PieChart `width/height=260` non-responsive; `.chart-container` CSS class is dead.
-- **M10 — structural markup bug:** `payment/Payment.tsx:26-33` nests `TabsList` inside `TabsList` — the tab bar renders broken on any narrow viewport.
-- **M11 — `Menubar` (desktop hover menu) used as the per-row mobile menu; hover-only affordances** (e.g. `articles/admin/ImagesDrawer.tsx:95`) that are unreachable by touch.
-- **M12 — perf on mobile:** the contest-detail page calls `getAllStudents()` once **per submission** (N+1).
+- **M6 — ✅ fixed (`0cff049`).** `src/index.css` base rules: html font-size steps 15/16/17px at <640/≥640/≥1440 (type AND controls resize instead of stretching); inputs/selects/textareas forced 16px <640px (kills iOS focus-zoom); `@media(pointer:coarse)` gives buttons/menuitems min-height 2.25rem unless `.tight`.
+- **M7 — ✅ fixed (R1).** `home/gridData.tsx` exposes `getResponsiveColumns()` — 3 columns on phones up to all 7 at xl; DataGrid fluid width, compact density, rows-per-page hidden <600px.
+- **M8 — 🟡 mostly (R2).** `data-table.tsx` gained additive optional props: `toolbar` (wraps), `enablePagination` + page-size select (hidden on phones), `tableClassName` (default `min-w-[640px]` inside the scroll wrapper), and `meta.class`/`headClass` responsive column hiding. Pagination is opt-in and defaults to old behavior — enabling it per page (users list) is done locally; remaining consumers can adopt incrementally.
+- **M9 — ✅ fixed (R1).** `ChartUserByCountry` donut measures its Box (no 260px constants); Sessions/PageViews charts fluid `h-40 sm:h-52 lg:h-60`; Home stacks 1/2/4-up.
+- **M10 — ✅ fixed (R3).** `payment/Payment.tsx` nested `TabsList` flattened into one scrollable tab row.
+- **M11 — ✅ fixed for hover affordances (R5).** `ImagesDrawer` actions always visible; hover-only only under `(min-width:64rem) and (hover:hover) and (pointer:fine)`. Per-row `Menubar` usage remains (radix menus are touch-capable; watch in E2E).
+- **M12 — open (deliberately out of the style pass):** the contest-detail page still calls `getAllStudents()` once **per submission** (N+1) — needs a data-logic slice.
 
-Concrete 390px-width offenders found during wave 1 (start here for the mobile slice): `home/CustomizedDataGrid.tsx` + `home/gridData.tsx:88-125` (~780px `minWidth` columns), `layout/DashboardLayout.tsx:36` `w-screen` + `:51` `px-6`, `home/ChartUserByCountry.tsx:151` `width=260`, `contests/DatePicker.tsx:62` `w-[280px]`, `auth/Register.tsx:144` fixed-width dropzone.
+The full page pass landed as five slices (R1 home, R2 DataTable/users/admins, R3 contests/payment, R4 questions/profile/admin, R5 articles/auth): tables scroll with min-w instead of crushing, dialogs cap at `max-w-[calc(100vw-2rem)]`, forms `grid-cols-1 sm:grid-cols-2`, and all fixed px sizes were converted to rem utilities so the html font step resizes them per band. E2E at 390/768/1280 still pending (§ next steps).
 
 ---
 
@@ -149,4 +148,4 @@ Everything below has a working, gated backend API but **no screen in this panel*
 ## 8. Repo rules for this folder
 
 - `admin-page/.env` contains **live credentials** (bot token, admin JWT) — gitignored, never commit, never echo into docs/logs. The bot-token *code path* is gone (`31a6d16`) but the stale key still sits in the local file — remove it and revoke via @BotFather. `node_modules` ignored. `.env.example` (placeholders only) is the tracked template.
-- Gates to keep honest on every change: `npx tsc --noEmit`, `npx eslint .`, `npm run build`. The eslint backlog (95 errors after wave 1) is burned down as part of the fix pass, not waived.
+- Gates to keep honest on every change: `npx tsc --noEmit`, `npx eslint .`, `npm run build`. The eslint backlog (21 errors after the responsive pass, was 95) is burned down as part of the fix pass, not waived.
