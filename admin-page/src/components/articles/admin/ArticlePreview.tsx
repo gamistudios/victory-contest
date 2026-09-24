@@ -1,9 +1,7 @@
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Calendar, User, Clock, Tag } from "lucide-react";
-import { Article } from "@/types/article";
 
 interface ArticlePreviewProps {
   article: {
@@ -34,21 +32,21 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
   const readTime = article.readTime || calculateReadTime(article.content);
 
   return (
-    <div className={`article-preview max-w-4xl mx-auto ${className}`}>
+    <div className={`article-preview w-full max-w-4xl mx-auto px-1 ${className}`}>
       {/* Article Header */}
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4 leading-tight">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-4 leading-tight break-words">
           {article.title}
         </h1>
 
         {article.excerpt && (
-          <p className="text-xl text-gray-600 mb-6 leading-relaxed">
+          <p className="text-base sm:text-xl text-gray-600 mb-6 leading-relaxed break-words">
             {article.excerpt}
           </p>
         )}
 
         {/* Article Meta */}
-        <div className="flex items-center gap-6 text-sm text-gray-500 mb-6">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-gray-500 mb-6">
           {article.author && (
             <div className="flex items-center gap-2">
               <User className="w-4 h-4" />
@@ -71,8 +69,8 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
 
         {/* Tags */}
         {article.tags && article.tags.length > 0 && (
-          <div className="flex items-center gap-2 mb-6">
-            <Tag className="w-4 h-4 text-gray-400" />
+          <div className="flex items-center gap-2 mb-6 min-w-0">
+            <Tag className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <div className="flex flex-wrap gap-2">
               {article.tags.map((tag) => (
                 <Badge key={tag} variant="secondary" className="text-xs">
@@ -87,12 +85,12 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
       <Separator className="mb-8" />
 
       {/* Article Content */}
-      <div className="prose prose-lg max-w-none">
+      <div className="prose sm:prose-lg max-w-none min-w-0">
         <div
           className="article-content"
           dangerouslySetInnerHTML={{ __html: article.content }}
           style={{
-            fontSize: "1.125rem",
+            fontSize: "clamp(1rem, 2.5vw, 1.125rem)",
             lineHeight: "1.75",
             color: "#374151",
           }}
@@ -106,6 +104,8 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
             color: #374151;
+            overflow-wrap: break-word;
+            word-break: break-word;
           }
           .article-content h1, .article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6 {
             margin-top: 1.5rem;
@@ -113,12 +113,20 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
             font-weight: 600;
             color: #111827;
           }
-          .article-content h1 { font-size: 2rem; }
-          .article-content h2 { font-size: 1.75rem; }
-          .article-content h3 { font-size: 1.5rem; }
-          .article-content h4 { font-size: 1.25rem; }
-          .article-content h5 { font-size: 1.125rem; }
-          .article-content h6 { font-size: 1rem; }
+          .article-content h1 { font-size: 1.75rem; }
+          .article-content h2 { font-size: 1.5rem; }
+          .article-content h3 { font-size: 1.3125rem; }
+          .article-content h4 { font-size: 1.125rem; }
+          .article-content h5 { font-size: 1rem; }
+          .article-content h6 { font-size: 0.875rem; }
+          @media (min-width: 640px) {
+            .article-content h1 { font-size: 2rem; }
+            .article-content h2 { font-size: 1.75rem; }
+            .article-content h3 { font-size: 1.5rem; }
+            .article-content h4 { font-size: 1.25rem; }
+            .article-content h5 { font-size: 1.125rem; }
+            .article-content h6 { font-size: 1rem; }
+          }
           .article-content p {
             margin-bottom: 1rem;
             line-height: 1.7;
@@ -149,6 +157,10 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
             border-radius: 8px;
             margin: 1rem 0;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          }
+          .article-content .youtube-wrapper,
+          .article-content div[class*='youtube'] {
+            max-width: 100%;
           }
           .article-content a {
             color: #2563eb;

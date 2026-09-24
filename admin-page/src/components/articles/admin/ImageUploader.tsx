@@ -59,24 +59,25 @@ export default function ImageUploader({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid w-full max-w-sm items-center gap-1.5">
+      <div className="grid w-full sm:max-w-sm items-center gap-1.5">
         <Input
           id="picture"
           type="file"
           accept="image/png, image/jpeg, image/gif"
           onChange={handleFileChange}
           disabled={loading}
+          className="w-full min-w-0"
         />
       </div>
-      <Button onClick={handleUpload} disabled={!file || loading}>
+      <Button onClick={handleUpload} disabled={!file || loading} className="w-full sm:w-auto sm:self-start">
         {loading ? "Uploading..." : "Upload Image"}
       </Button>
 
       {imageUrl && (
         <div className="mt-4 p-3 border rounded-md bg-muted">
           <p className="text-sm font-medium mb-2">Upload successful!</p>
-          <div className="flex items-center gap-2">
-            <Input readOnly value={imageUrl} className="text-xs flex-grow" />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <Input readOnly value={imageUrl} className="text-xs flex-grow min-w-0" />
             <Button variant="outline" size="sm" onClick={handleCopyUrl}>
               Copy
             </Button>

@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -42,35 +42,35 @@ const ArticleNavigation: React.FC<ArticleNavigationProps> = ({
   return (
     <div className="space-y-8">
       {/* Breadcrumb Navigation */}
-      <nav className="flex items-center space-x-2 text-sm text-gray-500">
+      <nav className="flex items-center space-x-2 text-sm text-gray-500 min-w-0">
         <Button
           variant="ghost"
           size="sm"
           onClick={onBackToList}
-          className="flex items-center gap-1 hover:text-gray-700"
+          className="flex items-center gap-1 hover:text-gray-700 flex-shrink-0"
         >
           <Home className="w-4 h-4" />
-          Articles
+          <span>Articles</span>
         </Button>
         <span>/</span>
-        <span className="text-gray-900 font-medium truncate">
+        <span className="text-gray-900 font-medium truncate min-w-0">
           {currentArticle.title}
         </span>
       </nav>
 
-      {/* Previous/Next Navigation */}
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
+      {/* Previous/Next Navigation: horizontally scrollable on phones */}
+      <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1 [&>*]:flex-shrink-0">
+        <div className="min-w-0">
           {previousArticle && (
             <Button
               variant="outline"
               onClick={() => onNavigate(previousArticle.id)}
-              className="flex items-center gap-2 text-left"
+              className="flex items-center gap-2 text-left max-w-full"
             >
-              <ChevronLeft className="w-4 h-4" />
-              <div className="flex flex-col items-start">
+              <ChevronLeft className="w-4 h-4 flex-shrink-0" />
+              <div className="flex flex-col items-start min-w-0">
                 <span className="text-xs text-gray-500">Previous</span>
-                <span className="font-medium truncate max-w-[200px]">
+                <span className="font-medium truncate max-w-[140px] sm:max-w-[200px]">
                   {previousArticle.title}
                 </span>
               </div>
@@ -78,20 +78,20 @@ const ArticleNavigation: React.FC<ArticleNavigationProps> = ({
           )}
         </div>
 
-        <div className="flex-1 flex justify-end">
+        <div className="flex justify-end min-w-0">
           {nextArticle && (
             <Button
               variant="outline"
               onClick={() => onNavigate(nextArticle.id)}
-              className="flex items-center gap-2 text-right"
+              className="flex items-center gap-2 text-right max-w-full"
             >
-              <div className="flex flex-col items-end">
+              <div className="flex flex-col items-end min-w-0">
                 <span className="text-xs text-gray-500">Next</span>
-                <span className="font-medium truncate max-w-[200px]">
+                <span className="font-medium truncate max-w-[140px] sm:max-w-[200px]">
                   {nextArticle.title}
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 flex-shrink-0" />
             </Button>
           )}
         </div>

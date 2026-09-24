@@ -77,7 +77,7 @@ const LinkInsertionModal: React.FC<LinkInsertionModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link className="w-5 h-5" />
@@ -132,16 +132,16 @@ const LinkInsertionModal: React.FC<LinkInsertionModalProps> = ({
           </div>
 
           {url && isValidUrl && (
-            <div className="p-3 bg-gray-50 rounded-lg">
+            <div className="p-3 bg-gray-50 rounded-lg min-w-0">
               <p className="text-sm font-medium mb-1">Preview:</p>
               <a
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
+                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm min-w-0"
               >
-                {text || url}
-                <ExternalLink className="w-3 h-3" />
+                <span className="truncate">{text || url}</span>
+                <ExternalLink className="w-3 h-3 flex-shrink-0" />
               </a>
             </div>
           )}

@@ -61,18 +61,18 @@ export default function Register() {
   //   };
   return (
     <div className="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-sm">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md lg:max-w-sm">
         <img
           className="mx-auto h-10 w-auto"
           src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
           alt="Your Company"
         />
-        <h2 className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-gray-900">
+        <h2 className="mt-8 sm:mt-10 text-center text-xl/8 sm:text-2xl/9 font-bold tracking-tight text-gray-900 break-words">
           Register to be Admin
         </h2>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+      <div className="mt-8 sm:mt-10 w-full sm:mx-auto sm:w-full sm:max-w-md lg:max-w-sm">
         <form className="space-y-6" onSubmit={handleRegister}>
           <div>
             <label
@@ -141,7 +141,7 @@ export default function Register() {
               Photo
             </label>
             <div className="mt-2 mb-5 flex items-center gap-2">
-              <label className="flex items-center justify-center w-[250px] h-[100px] border-2 border-dashed border-gray-300 rounded-lg cursor-pointer transition-colors duration-300 text-center p-2  hover:border-indigo-600">
+              <label className="flex items-center justify-center w-full max-w-[250px] h-[100px] border-2 border-dashed border-gray-300 rounded-lg cursor-pointer transition-colors duration-300 text-center p-2  hover:border-indigo-600">
                 <input
                   type="file"
                   accept="image/*"
@@ -165,7 +165,7 @@ export default function Register() {
             </div>
           </div> */}
           {status == "error" && (
-            <div className="py-2 px-3 bg-red-300">
+            <div className="py-2 px-3 bg-red-300 break-words">
               <span className="text-red-600">
                 {String(errorMessage).split(":")[1]}
               </span>
@@ -182,7 +182,7 @@ export default function Register() {
           </div>
         </form>
 
-        <p className="mt-10 text-center text-sm/6 text-gray-500">
+        <p className="mt-8 sm:mt-10 text-center text-sm/6 text-gray-500 break-words">
           Not a member?
           <a
             href="#"

@@ -34,18 +34,18 @@ export default function Login() {
   };
   return (
     <div className="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-sm">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md lg:max-w-sm">
         <img
           className="mx-auto h-20 w-20 rounded-full "
           src="https://res.cloudinary.com/dud4t1ptn/image/upload/v1756131905/payments/toauoplzr6rtuzipcook.jpg"
           alt="Your Company"
         />
-        <h2 className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-gray-900">
+        <h2 className="mt-8 sm:mt-10 text-center text-xl/8 sm:text-2xl/9 font-bold tracking-tight text-gray-900 break-words">
           Sign in to your account
         </h2>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+      <div className="mt-8 sm:mt-10 w-full sm:mx-auto sm:w-full sm:max-w-md lg:max-w-sm">
         <form className="space-y-6" onSubmit={handleLogin}>
           <div>
             <label
@@ -68,7 +68,7 @@ export default function Login() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-x-2">
               <label
                 htmlFor="password"
                 className="block text-sm/6 font-medium text-gray-900"
@@ -96,7 +96,7 @@ export default function Login() {
             </div>
           </div>
           {status == "error" && (
-            <div className="py-2 px-3 bg-red-300">
+            <div className="py-2 px-3 bg-red-300 break-words">
               <span className="text-red-600">
                 {String(errorMessage).split(":")[1]}
               </span>
@@ -113,7 +113,7 @@ export default function Login() {
           </div>
         </form>
 
-        <p className="mt-10 text-center text-sm/6 text-gray-500">
+        <p className="mt-8 sm:mt-10 text-center text-sm/6 text-gray-500">
           Not a member?
           <a
             href="#"

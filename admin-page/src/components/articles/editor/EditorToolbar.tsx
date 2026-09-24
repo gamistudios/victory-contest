@@ -70,7 +70,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const [renderTick, setRenderTick] = useState(0);
+  const [, setRenderTick] = useState(0);
 
   // Force re-render on editor changes so active states and color indicators update
   React.useEffect(() => {
@@ -131,7 +131,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
 
   return (
     <div className="editor-toolbar border-b bg-gray-50 p-2">
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1 flex-wrap gap-y-2">
         {/* Heading Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -168,7 +168,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
         {/* Font Family Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="min-w-[140px]">
+            <Button variant="outline" size="sm" className="min-w-[110px] sm:min-w-[140px]">
               Font
               <ChevronDown className="w-4 h-4 ml-1" />
             </Button>

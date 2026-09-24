@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import { Article, ArticleStatus } from "@/types/article";
 import { toast } from "sonner";
-import { deleteArticle, toggleArticleStatus } from "@/services/articleServices";
+import { toggleArticleStatus } from "@/services/articleServices";
 
 interface ArticleManagementProps {
   articles: Article[];
@@ -150,7 +150,7 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
     try {
       onDelete(articleToDelete.id);
       toast.success("Article deleted successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete article");
     } finally {
       setIsLoading(false);
@@ -167,7 +167,7 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
     try {
       await toggleArticleStatus(article.id, newStatus);
       toast.success(`Article ${newStatus} successfully`);
-    } catch (error) {
+    } catch {
       toast.error("Failed to update article status");
     } finally {
       // Always reset pointer-events
@@ -217,16 +217,16 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Article Management</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold break-words">Article Management</h1>
           <p className="text-gray-600 mt-1">
             Manage your articles, drafts, and published content
           </p>
         </div>
         <Button
           onClick={() => onEdit("new")}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 w-full sm:w-auto justify-center"
         >
           <Plus className="w-4 h-4" />
           New Article
@@ -242,7 +242,7 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="search">Search</Label>
               <div className="relative">
@@ -281,7 +281,9 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
               <Label htmlFor="sortBy">Sort By</Label>
               <Select
                 value={sortBy}
-                onValueChange={(value) => setSortBy(value as any)}
+                onValueChange={(value) =>
+                  setSortBy(value as "createdAt" | "updatedAt" | "publishedAt" | "title")
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -322,8 +324,8 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
@@ -350,9 +352,9 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
                   sortedArticles.map((article) => (
                     <TableRow key={article.id}>
                       <TableCell>
-                        <div>
-                          <div className="font-medium">{article.title}</div>
-                          <div className="text-sm text-gray-500 mt-1">
+                        <div className="min-w-0 max-w-[280px]">
+                          <div className="font-medium break-words">{article.title}</div>
+                          <div className="text-sm text-gray-500 mt-1 break-words">
                             {truncateText(article.excerpt, 80)}
                           </div>
                         </div>
@@ -450,7 +452,7 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-2rem)]">
           <DialogHeader>
             <DialogTitle>Delete Article</DialogTitle>
             <DialogDescription>

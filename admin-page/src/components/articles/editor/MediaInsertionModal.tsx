@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,6 @@ const MediaInsertionModal: React.FC<MediaInsertionModalProps> = ({
   onInsert,
   type,
 }) => {
-  const [isDragOver, setIsDragOver] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
   const [alt, setAlt] = useState("");
@@ -93,7 +92,7 @@ const MediaInsertionModal: React.FC<MediaInsertionModalProps> = ({
 
       onInsert(mediaItem);
       handleClose();
-    } catch (error) {
+    } catch {
       toast.error("Failed to insert media");
     } finally {
       setIsLoading(false);
@@ -101,7 +100,6 @@ const MediaInsertionModal: React.FC<MediaInsertionModalProps> = ({
   };
 
   const handleClose = () => {
-    setIsDragOver(false);
     setUploadedFile(null);
     setUrl("");
     setAlt("");
@@ -122,7 +120,7 @@ const MediaInsertionModal: React.FC<MediaInsertionModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogTitle />
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {type === "image" ? (

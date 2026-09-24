@@ -108,7 +108,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ editor, type }) => {
           />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64 p-2">
+      <DropdownMenuContent align="start" className="w-64 max-w-[calc(100vw-2rem)] p-2">
         <div className="grid grid-cols-5 gap-1">
           {colors.map((color) => (
             <button

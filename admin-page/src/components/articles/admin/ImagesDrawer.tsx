@@ -92,7 +92,9 @@ export default function ImagesDrawer({
                             alt="img"
                             className="w-full h-32 object-cover"
                           />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          {/* Actions are always visible on touch/small screens;
+                              hover-revealed only on lg+ with a fine pointer. */}
+                          <div className="absolute inset-0 bg-black/40 transition-opacity flex items-center justify-center gap-2 p-2 flex-wrap opacity-100 [@media(min-width:64rem)_and_(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(min-width:64rem)_and_(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 [@media(min-width:64rem)_and_(hover:hover)_and_(pointer:fine)]:focus-within:opacity-100">
                             <Button
                               size="sm"
                               variant="secondary"

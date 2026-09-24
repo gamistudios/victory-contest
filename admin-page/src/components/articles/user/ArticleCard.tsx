@@ -24,22 +24,17 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
     });
   };
 
-  const truncateText = (text: string, maxLength: number) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + "...";
-  };
-
   if (viewMode === "list") {
     return (
       <Card
         className="hover:shadow-md transition-shadow cursor-pointer"
         onClick={onClick}
       >
-        <CardContent className="p-6">
-          <div className="flex gap-6">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
             {/* Thumbnail */}
             <div className="flex-shrink-0">
-              <div className="w-32 h-24 bg-gray-200 rounded-lg overflow-hidden">
+              <div className="w-full sm:w-32 h-40 sm:h-24 bg-gray-200 rounded-lg overflow-hidden">
                 {article.thumbnail ? (
                   <img
                     src={article.thumbnail}
@@ -58,15 +53,15 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2 line-clamp-2">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2 line-clamp-2 break-words">
                     {article.title}
                   </h3>
-                  <p className="text-gray-600 mb-3 line-clamp-2">
+                  <p className="text-gray-600 mb-3 line-clamp-2 break-words">
                     {article.excerpt}
                   </p>
 
                   {/* Meta information */}
-                  <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 mb-3">
                     <div className="flex items-center gap-1">
                       <User className="w-4 h-4" />
                       <span>{article.author.name}</span>
@@ -122,7 +117,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
       className="hover:shadow-lg transition-all duration-200 cursor-pointer group h-full flex flex-col"
       onClick={onClick}
     >
-      <CardContent className="p-6 flex flex-col h-full">
+      <CardContent className="p-4 sm:p-6 flex flex-col h-full">
         {/* Thumbnail */}
         <div className="mb-4">
           <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden mb-4">

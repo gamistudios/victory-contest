@@ -19,7 +19,7 @@ const ArticlesPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [articles, setArticles] = useState<Article[]>([]);
   const [triggerLoadingArticles, setTriggerLoadingArticles] = useState(false);
-  const [_, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
 
   const [currentArticle, setCurrentArticle] = useState<Article | null>(null);
 
@@ -34,7 +34,7 @@ const ArticlesPage: React.FC = () => {
         setIsLoading(true);
         const data = await getArticles();
         if (isMounted) setArticles(data.articles as Article[]);
-      } catch (error) {
+      } catch {
         toast.error("Failed to fetch articles");
       } finally {
         // if (isMounted) setIsLoading(false);
@@ -61,19 +61,19 @@ const ArticlesPage: React.FC = () => {
     try {
       const article = await getArticleById(id);
       setCurrentArticle(article);
-    } catch (error) {
+    } catch {
       toast.error("Failed to load article");
     }
   };
 
-  const handleSaveArticle = async (articleData: any) => {
+  const handleSaveArticle = async (articleData: Article) => {
     try {
       if (editId && editId != "new") {
         const promise = updateArticle({ id: editId, ...articleData });
         toast.promise(promise, {
           loading: "Updating article...",
           success: "Article updated successfully",
-          error: (err: { message: any }) => {
+          error: (err: unknown) => {
             // err can be a validation error or network error
             return err instanceof Error ? err.message : String(err);
           },
@@ -83,7 +83,7 @@ const ArticlesPage: React.FC = () => {
         toast.promise(promise, {
           loading: "Creating article...",
           success: "Article created successfully",
-          error: (err: { message: any }) => {
+          error: (err: unknown) => {
             // err can be a validation error or network error
             return err instanceof Error ? err.message : String(err);
           },
@@ -91,12 +91,12 @@ const ArticlesPage: React.FC = () => {
       }
       setArticles([...articles, articleData]);
       setSearchParams({ view: "list" });
-    } catch (error) {
+    } catch {
       toast.error("Failed to save article");
     }
   };
 
-  const handlePublishArticle = async (articleData: any) => {
+  const handlePublishArticle = async (articleData: Article) => {
     try {
       if (editId && editId != "new") {
         const promise = updateArticle({
@@ -119,7 +119,7 @@ const ArticlesPage: React.FC = () => {
       }
       setArticles([...articles, { ...articleData, status: "published" }]);
       setSearchParams({ view: "list" });
-    } catch (error) {
+    } catch {
       toast.error("Failed to publish article");
     }
   };
@@ -137,7 +137,7 @@ const ArticlesPage: React.FC = () => {
       await deleteArticle(id);
       toast.success("Article deleted successfully");
       setTriggerLoadingArticles((prev) => !prev);
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete article");
     }
   };
@@ -154,7 +154,7 @@ const ArticlesPage: React.FC = () => {
           articles.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
         );
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to update article status");
     }
   };
@@ -167,7 +167,7 @@ const ArticlesPage: React.FC = () => {
   // Render based on current view
   if (view === "editor") {
     return (
-      <div className="container overflow-y-hidden mx-auto p-6">
+      <div className="container overflow-y-hidden mx-auto p-4 sm:p-6">
         <ArticleEditor
           articleId={currentArticle?.id ?? ""}
           onSave={handleSaveArticle}
@@ -179,12 +179,12 @@ const ArticlesPage: React.FC = () => {
 
   if (view === "viewer" && currentArticle) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-4 sm:p-6">
         <ArticleViewer
           article={currentArticle}
           onBackToList={handleBackToList}
         />
-        <div className="mt-12">
+        <div className="mt-8 sm:mt-12">
           <ArticleNavigation
             currentArticle={currentArticle}
             onNavigate={handleViewArticle}
@@ -197,7 +197,7 @@ const ArticlesPage: React.FC = () => {
 
   // Default list view
   return (
-    <div className="container mx-auto p-6">
+    <div className="container mx-auto p-4 sm:p-6">
       <ArticleManagement
         articles={articles}
         onEdit={handleEditArticle}

@@ -91,8 +91,8 @@ const ArticlesList: React.FC<ArticlesListProps> = ({
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-gray-900">Articles</h1>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 break-words">Articles</h1>
+        <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto">
           Discover insightful articles, tutorials, and guides written by our
           expert authors
         </p>
@@ -114,7 +114,7 @@ const ArticlesList: React.FC<ArticlesListProps> = ({
               placeholder="Search articles by title, content, or tags..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 text-lg"
+              className="pl-10 text-base sm:text-lg"
             />
           </div>
 
@@ -138,15 +138,17 @@ const ArticlesList: React.FC<ArticlesListProps> = ({
           )}
 
           {/* Sort and View Controls */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 min-w-0 flex-grow sm:flex-grow-0">
                 <Label className="text-sm font-medium">Sort by:</Label>
                 <Select
                   value={sortBy}
-                  onValueChange={(value) => setSortBy(value as any)}
+                  onValueChange={(value) =>
+                  setSortBy(value as "publishedAt" | "title")
+                }
                 >
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-full min-w-[10rem] sm:w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -168,7 +170,7 @@ const ArticlesList: React.FC<ArticlesListProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:justify-end">
               <Button
                 variant={viewMode === "grid" ? "default" : "outline"}
                 size="sm"
@@ -221,7 +223,7 @@ const ArticlesList: React.FC<ArticlesListProps> = ({
         </div>
       ) : sortedArticles.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
+          <CardContent className="p-6 sm:p-12 text-center">
             <div className="space-y-4">
               <div className="text-6xl">📝</div>
               <h3 className="text-xl font-semibold text-gray-900">

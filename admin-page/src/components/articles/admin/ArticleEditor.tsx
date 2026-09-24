@@ -149,7 +149,7 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
     editorProps: {
       attributes: {
         class:
-          "tiptap prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[400px] p-4",
+          "tiptap prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[400px] p-4 max-w-full break-words",
       },
     },
   });
@@ -167,7 +167,7 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
         const data = await getArticleById(articleId);
         setFormData(data);
         isContentLoaded.current = false;
-      } catch (error) {
+      } catch {
         setFetchError("Could not load the article. Please try again.");
       } finally {
         setIsFetching(false);
@@ -248,7 +248,7 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
         likeCount: formData?.likeCount || 0,
       };
     },
-    [formData, editor, formData]
+    [formData, editor]
   );
 
   const handleSave = useCallback(() => {
@@ -313,14 +313,14 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
   console.log("article title", formData?.title.trim());
 
   return (
-    <div className="article-editor max-w-6xl space-y-6">
+    <div className="article-editor w-full max-w-6xl mx-auto space-y-6">
       {/* Header (No changes needed here, just ensure props are correct) */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-bold break-words">
           {formData ? "Edit Article" : "Create New Article"}
         </h1>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setShowImages(true)}
@@ -388,7 +388,7 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
               disabled={isFetching}
             />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">
                 Author Name
@@ -471,11 +471,11 @@ const ArticleEditor: React.FC<ArticleEditorProps> = ({ onSave, onPublish }) => {
         </CardHeader>
         <CardContent>
           {isPreview ? (
-            <div className="prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto min-h-[400px] p-4 border rounded-lg">
+            <div className="prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto min-h-[400px] p-4 border rounded-lg max-w-full overflow-x-auto break-words">
               <div dangerouslySetInnerHTML={{ __html: editor.getHTML() }} />
             </div>
           ) : (
-            <div className="border rounded-lg">
+            <div className="border rounded-lg max-w-full overflow-x-auto">
               <EditorToolbar editor={editor} />
               <EditorContent editor={editor} />
               {/* ## 4. CSS BEST PRACTICES NOTE ## */}
