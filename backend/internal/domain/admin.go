@@ -12,6 +12,10 @@ type Admin struct {
 
 type CustomClaims struct {
 	UserID string `json:"user_id"`
+	// Role distinguishes student sessions (S2) from admin ones; admin tokens
+	// predate it and carry no claim, which studentAuth treats as "not a
+	// student" (omitempty keeps their payloads byte-identical).
+	Role string `json:"role,omitempty"`
 	jwt.RegisteredClaims
 }
 

@@ -14,6 +14,12 @@ import (
 type StudentHandler struct {
 	usecase             usecase.StudentUsecase
 	notificationService usecase.NotificationUsecase
+	// studentAuthMw is wired by NewRouter; when set, POST / requires a
+	// student token and the registration identity is forced from it (S2).
+	studentAuthMw gin.HandlerFunc
+	// studentEditMw gates PUT /:id: a student may edit only their own row,
+	// the admin panel keeps access via its cookie (S2 / #6 remainder).
+	studentEditMw gin.HandlerFunc
 }
 
 func NewStudentHandler(u usecase.StudentUsecase, notificationService usecase.NotificationUsecase) *StudentHandler {
@@ -29,13 +35,13 @@ func (h *StudentHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.Ha
 	auth.GET("/paid", h.GetPaidStudents)
 	auth.GET("/quickstat/:id", h.GetQuickStat)
 	auth.GET("/profile-admin/:student_id", h.GetUserStatForAdmin)
-	rg.POST("/", h.AddStudent)
-	rg.PUT("/:id", h.UpdateStudent)
+	rg.PUT("/:id", withStudentAuth(h.studentEditMw, h.UpdateStudent)...)
 	rg.GET("/rank", h.GetStudentRankings)
 	rg.GET("/rank/:contest_id", h.GetStudentRankingsByContest)
 	rg.GET("/:id", h.GetStudentByID)
 	rg.GET("/grades-and-schools", h.GetGradesAndSchools)
 	rg.GET("/profile/:id", h.GetUserProfile)
+	rg.POST("/", withStudentAuth(h.studentAuthMw, h.AddStudent)...)
 }
 
 func (h *StudentHandler) AddStudent(c *gin.Context) {
@@ -43,6 +49,14 @@ func (h *StudentHandler) AddStudent(c *gin.Context) {
 	if err := c.ShouldBindJSON(&student); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	// Identity comes from the verified session, never the body (S2): the
+	// frontend registers itself under its own Telegram id, so forcing both
+	// fields is a no-op for honest clients and closes the impersonation hole
+	// for all others. studentAuth already 401s tokenless calls on this route.
+	if tokenID := c.GetString(StudentUserIDContextKey); tokenID != "" {
+		student.TelegramID = tokenID
+		student.ID = tokenID
 	}
 	err := h.usecase.AddStudent(student)
 	if err != nil {

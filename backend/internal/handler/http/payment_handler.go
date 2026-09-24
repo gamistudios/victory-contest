@@ -16,6 +16,9 @@ import (
 type PaymentHandler struct {
 	usecase usecase.PaymentUsecase
 	imgRepo repository.ImageRepository
+	// studentAuthMw is wired by NewRouter; when set, POST / requires a
+	// student token whose Telegram id equals the form's user_id (S2).
+	studentAuthMw gin.HandlerFunc
 }
 
 func NewPaymentHandler(paymentUsecase usecase.PaymentUsecase, imgRepo repository.ImageRepository) *PaymentHandler {
@@ -32,8 +35,8 @@ func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.Ha
 	auth.DELETE("/:id", h.DeletePayment)
 	auth.GET("/getexpired", h.GetExpiredPayments)
 	auth.GET("/withstatus", h.GetPaymentsWithStatus)
-	rg.POST("/", h.CreatePayment)
 	rg.GET("/:user_id", h.GetByUserId)
+	rg.POST("/", withStudentAuth(h.studentAuthMw, h.CreatePayment)...)
 }
 
 // GetAllPayments serves GET /api/payment/. The frontend fetches a single
@@ -81,6 +84,12 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 
 	if userID == "" || fullName == "" || bankName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required form fields: user_id, fullName, bankName"})
+		return
+	}
+	// The payment may only be filed for the authenticated student (S2):
+	// studentAuth has already rejected tokenless calls on this route.
+	if !requireMatchingStudent(c, userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user_id does not match the authenticated student"})
 		return
 	}
 

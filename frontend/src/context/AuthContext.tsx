@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { getStudentById } from "../services/studentServices";
+import { exchangeTelegramInitData } from "../services/telegramServices";
 import { isAbortedRequest } from "../services/api";
 import { AuthStudent } from "../types";
 import { useTelegram } from "../hooks/useTelegram";
@@ -66,6 +67,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setStatus("error");
     }
   }, [tgUser]);
+
+  // One-shot Telegram session exchange (S2): validates initData on the
+  // server and stores the student token used by the axios interceptor.
+  // StrictMode double-mounts, hence the ref guard. A failure must not block
+  // the app: public reads keep working and the register/payment flows
+  // surface their own errors if the token never arrives.
+  const authExchanged = useRef(false);
+  useEffect(() => {
+    if (authExchanged.current) return;
+    authExchanged.current = true;
+    exchangeTelegramInitData().catch((err: unknown) => {
+      console.warn("telegram initData exchange failed:", err);
+    });
+  }, []);
 
   useEffect(() => {
     // Only fetch user data when Telegram is loaded and we have a user

@@ -11,6 +11,9 @@ import (
 
 type SubmissionHandler struct {
 	usecase usecase.SubmissionUsecase
+	// studentAuthMw is wired by NewRouter; when set, POST / requires a
+	// student token whose Telegram id equals student.student_id (S2).
+	studentAuthMw gin.HandlerFunc
 }
 
 func NewSubmissionHandler(u usecase.SubmissionUsecase) *SubmissionHandler {
@@ -26,7 +29,7 @@ func (h *SubmissionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin
 	auth.GET("/student/:student_id", h.GetSubmissionsByStudent)
 	auth.GET("/:id", h.GetSubmissionByID)
 	auth.DELETE("/:id", h.DeleteSubmission)
-	rg.POST("/", h.AddSubmission)
+	rg.POST("/", withStudentAuth(h.studentAuthMw, h.AddSubmission)...)
 	rg.GET("/leaderboard", h.GetLeaderboardByTimeFrame)
 	rg.GET("/rank/:conId", h.GetRankForContest)
 	rg.GET("/editorial/:student_id", h.GetStudentEditorial)
@@ -38,6 +41,13 @@ func (h *SubmissionHandler) AddSubmission(c *gin.Context) {
 	var submission domain.SubmissionDto
 	if err := c.ShouldBindJSON(&submission); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Submissions may only be filed under the authenticated student (S2):
+	// student.student_id is the Telegram id the frontend took from the WebApp.
+	if !requireMatchingStudent(c, submission.Student.ID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "student.student_id does not match the authenticated student"})
 		return
 	}
 

@@ -31,6 +31,7 @@ type Server struct {
 	paymentHandler             *PaymentHandler
 	aiHandler                  *AiHandler
 	telegramHandler            *telegramHandler
+	telegramAuthHandler        *telegramAuthHandler
 	pageViewHandler            *PageViewHandler
 	articleHandler             *ArticleHandler
 	imageHandler               *ImageHandler
@@ -43,7 +44,8 @@ func NewServer() *Server {
 
 	// Bot — optional: API boots without it, webhook route reports it as disabled
 	var bot *tgbotapi.BotAPI
-	if botToken := os.Getenv("TELEGRAM_BOT_TOKEN"); botToken == "" {
+	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	if botToken == "" {
 		log.Println("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
 	} else if b, err := tgbotapi.NewBotAPI(botToken); err != nil {
 		log.Printf("failed to initialize Telegram bot, disabling: %v", err)
@@ -129,6 +131,17 @@ func NewServer() *Server {
 		jwtSecret:                  jwtSecret,
 		aiRequestsPerMinute:        aiRequestsPerMinute,
 	}
+	server.telegramAuthHandler = newTelegramAuthHandler(jwtSecret, botToken, os.Getenv("ALLOW_DEV_AUTH") == "true")
+	if server.telegramAuthHandler.allowDevAuth {
+		log.Println("ALLOW_DEV_AUTH=true — /api/telegram/auth/dev mints UNVERIFIED student sessions; NEVER enable in production")
+	}
+	// Student session auth (S2): the token minted by /api/telegram/auth must
+	// match the client-declared Telegram id on the identity-critical routes.
+	studentAuthMw := studentAuth([]byte(jwtSecret))
+	server.studentHandler.studentAuthMw = studentAuthMw
+	server.submissionHandler.studentAuthMw = studentAuthMw
+	server.paymentHandler.studentAuthMw = studentAuthMw
+	server.studentHandler.studentEditMw = studentSelfOrAdminAuth([]byte(jwtSecret))
 	return server
 }
 
@@ -238,6 +251,7 @@ func (s *Server) NewRouter() *gin.Engine {
 	// it is admin-gated since #6.
 	s.aiHandler.RegisterRoutes(api.Group("/ai", rateLimitByClientIP(s.aiRequestsPerMinute, float64(s.aiRequestsPerMinute))))
 	s.telegramHandler.RegisterRoutes(api.Group("/telegram"))
+	s.telegramAuthHandler.RegisterRoutes(api.Group("/telegram"))
 	s.pageViewHandler.RegisterRoutes(api.Group("/pageview"), adminAuthMw)
 	s.articleHandler.Register(api, adminAuthMw)
 	// Image routes

@@ -7,6 +7,39 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// Student session token (S2): minted by POST /telegram/auth from validated
+// Telegram initData and sent as `Authorization: Bearer` on every request.
+// Kept in localStorage so a WebApp reload keeps the session (7-day expiry).
+const STUDENT_TOKEN_KEY = "student_token";
+let studentToken: string | null = (() => {
+  try {
+    return localStorage.getItem(STUDENT_TOKEN_KEY);
+  } catch {
+    return null; // storage blocked (private mode): memory-only session
+  }
+})();
+
+export function setStudentToken(token: string | null): void {
+  studentToken = token;
+  try {
+    if (token) localStorage.setItem(STUDENT_TOKEN_KEY, token);
+    else localStorage.removeItem(STUDENT_TOKEN_KEY);
+  } catch {
+    // ignore: in-memory token still applies for this page lifetime
+  }
+}
+
+export function getStudentToken(): string | null {
+  return studentToken;
+}
+
+api.interceptors.request.use((config) => {
+  if (studentToken) {
+    config.headers.Authorization = `Bearer ${studentToken}`;
+  }
+  return config;
+});
+
 /**
  * True when a request was cancelled rather than genuinely failed.
  *

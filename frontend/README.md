@@ -2,7 +2,7 @@
 
 The Telegram Mini App client for Victory Contest ("Ayahuna / Victory Contest") — a timed quiz/coding-contest platform for Ethiopian students. Runs inside Telegram (`window.Telegram.WebApp`), identifies users by `initDataUnsafe.user.id`, and talks to the Go backend in `../backend` via axios. Deploys to Vercel.
 
-> **Status (2026-09-23):** the issue catalog in §9 has been worked through — all security-correctness fixes that could be done client-side are merged, B20 (hardcoded values) is closed, **S3/contest trust is fixed (server-side scoring, see §8.2)**, ESLint reports **0 errors / 0 warnings** and `tsc -b && vite build` is green. Dev builds run in a plain browser by default via `devTelegramMock` (no Telegram required; opt out with `VITE_MOCK_TELEGRAM=false`; `showConfirm` auto-bridges to `window.confirm` so confirm-gated flows work in dev). Remaining items need product/backend decisions (S2, S4, B6) and are listed open in §9/§10.
+> **Status (2026-09-24):** the issue catalog in §9 has been worked through — all security-correctness fixes that could be done client-side are merged, B20 (hardcoded values) is closed, **S3/contest trust is fixed (server-side scoring, see §8.2)** and **S2 is fixed: the app now exchanges Telegram `initData` at `POST /telegram/auth` for a verified student JWT (see §9)**. ESLint reports **0 errors / 0 warnings** and `tsc -b && vite build` is green. Dev builds run in a plain browser by default via `devTelegramMock` (no Telegram required; opt out with `VITE_MOCK_TELEGRAM=false`; `showConfirm` auto-bridges to `window.confirm` so confirm-gated flows work in dev; the mock session is minted by the dev-only `/telegram/auth/dev` endpoint, which needs the backend started with `ALLOW_DEV_AUTH=true`). Remaining items need product decisions (S4, B6) and are listed open in §9/§10.
 
 ## Contents
 
@@ -75,7 +75,7 @@ Routes (all in `App.tsx`, flat under one `Layout`; **no lazy loading**; a catch-
 **`AuthContext.tsx`** — the only session concept:
 - Reads `initDataUnsafe.user` via `useTelegram` → `getStudentById(user.id)`. Found → logged in.
 - Guard by `location.pathname` string compare: renders Loader / `ErrorState` / `<Navigate to="/register">` for unregistered users, and navigates registered users away from `/register`. Error messages narrow `unknown` → `Error` properly.
-- **No Telegram `initData` HMAC validation, no tokens, no refresh, no logout.** Relies on `withCredentials:true` cookies (`services/api.ts`). ⚠️ open as **S2**.
+- ~~No Telegram `initData` HMAC validation, no tokens, no refresh, no logout.~~ **Fixed 2026-09-24 (S2):** `exchangeTelegramInitData()` (AuthContext, one-shot) posts the WebApp `initData` to `POST /telegram/auth`, the server HMAC-verifies it, and the returned student JWT is kept in localStorage and sent as `Authorization: Bearer` by the axios interceptor (`services/api.ts`); dev builds use the dev-only `/telegram/auth/dev` instead. Admin flows still ride `withCredentials:true` cookies. No refresh/logout UI yet (7-day token).
 
 **`NotificationContext.tsx`** — one-shot fetch keyed on `user?.id`; `read_notifications` access is guarded against undefined entries; notifications service (incl. `deleteNotification`) is now actually wired into `NotificationCenter`. No polling/websocket.
 
@@ -157,7 +157,7 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 
 ### Security / integrity
 - **S1. Live bot token in frontend** — ✅ **fixed.** `telegramApi` deleted from `api.ts`; Bot API calls moved behind new backend proxies (`telegramServices.ts` + Go handlers). ⚠️ **The old token is still in git history — revoke it via @BotFather, and deploy the backend.**
-- **S2. No `initData` validation** — ❌ open. Identity is whatever `initDataUnsafe.user.id` says; needs a server-side HMAC validation + real session token (backend work).
+- ~~**S2. No `initData` validation**~~ — ✅ **fixed 2026-09-24.** The app exchanges `initData` once at startup (`exchangeTelegramInitData` in `AuthContext`); the server HMAC-verifies it at `POST /telegram/auth` and returns a 7-day student JWT that the axios interceptor sends as `Bearer` on every request — register/payment/submission calls now run as a verified identity (backend enforces). Dev mock sessions go through `/telegram/auth/dev` (404 unless the backend runs with `ALLOW_DEV_AUTH=true`). Remaining nice-to-haves: proactive refresh and an explicit logout.
 - **S3. ~~Client-computed contest scores~~ ✅ FIXED 2026-09-23** — `Contest.tsx` sends the full answer sheet; the server grades it and returns the official score (see §8 item 2). Selections on the wire are **1-based** option indices matching stored `question.answer` (B6 stays open: a 0-based unification needs prod question migration). ⚠️ Submission wire fix shipped with it: the payload used `student.id` while the API binds `student.student_id`, so every browser submission stored an EMPTY student key and vanished from per-student stats/editorial/leaderboard identity.
 - **S4. Client-declared payment status** — ❌ open. `Payment.tsx` still sends `status:"Approved"`; needs backend reconciliation with Telegram.
 - **S5. XSS via article HTML** — ✅ **fixed.** DOMPurify sanitization before `dangerouslySetInnerHTML`.
@@ -197,7 +197,7 @@ Original IDs from the audit. ✅ fixed in this pass · 🟡 partially fixed · �
 
 **P0 — Security (needs backend + your go-ahead)**
 1. **Revoke the leaked bot token via @BotFather** (it lives in git history even though the code reference is gone) and deploy the backend so `/api/telegram/*` proxies are live.
-2. Validate `initData` server-side (HMAC with bot token) at a login/exchange endpoint; issue a real session token; add a 401→re-auth axios interceptor. (S2)
+2. ~~Validate `initData` server-side (HMAC with bot token) at a login/exchange endpoint; issue a real session token~~ **DONE 2026-09-24 (S2)** — `/telegram/auth` exchange + `Bearer` student JWT interceptor; a 401→re-auth interceptor is still worth adding.
 3. Score contests and confirm payments server-side — submit only answers + real elapsed time; reconcile Stars via backend getUpdates/webhook. (S3, S4)
 
 **P1 — Correctness**
