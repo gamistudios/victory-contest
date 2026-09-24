@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // FeedbackQuestionUsecase interface

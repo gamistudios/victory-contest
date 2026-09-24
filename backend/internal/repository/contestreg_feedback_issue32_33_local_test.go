@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
-	"victor-contest-go/internal/domain"
-	"victor-contest-go/internal/usecase"
+	"victory-contest-go/internal/domain"
+	"victory-contest-go/internal/usecase"
 )
 
 // Repo-level integration coverage for issues #32 and #33, run against the

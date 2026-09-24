@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // ErrInvalidContest marks contest input the client must fix (README §9 #50:

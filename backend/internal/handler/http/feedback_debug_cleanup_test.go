@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"victor-contest-go/internal/domain"
-	"victor-contest-go/internal/usecase"
+	"victory-contest-go/internal/domain"
+	"victory-contest-go/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )

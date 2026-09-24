@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/joho/godotenv"
-	"victor-contest-go/internal/awsconfig"
+	"victory-contest-go/internal/awsconfig"
 )
 
 type gsi struct {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )

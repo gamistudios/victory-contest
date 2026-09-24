@@ -11,7 +11,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/apple-touch-icon.png'],
       manifest: {
-        name: 'Victor Contest Admin',
+        name: 'Victory Contest Admin',
         short_name: 'VC Admin',
         description: 'Admin dashboard for the Victory Contest Telegram mini app',
         start_url: '/dashboard',

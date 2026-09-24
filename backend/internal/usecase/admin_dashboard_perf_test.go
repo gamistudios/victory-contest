@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // Performance regression guards for GET /api/admin/dashboard (client issue #3):

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 
 	"github.com/lithammer/shortuuid/v4"
 )

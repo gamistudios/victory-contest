@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // Fakes for the README §9 #48 aggregation work: the student usecase now

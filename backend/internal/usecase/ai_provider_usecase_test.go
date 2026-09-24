@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // fakeAiProviderRepo is an in-memory AiProviderRepository: handler/usecase

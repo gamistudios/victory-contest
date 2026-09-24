@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"victor-contest-go/internal/awsconfig"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/awsconfig"
+	"victory-contest-go/internal/domain"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"

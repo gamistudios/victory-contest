@@ -3,7 +3,7 @@ package usecase
 import (
 	"errors"
 	"testing"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // fakePaymentSettingsRepo is the in-memory PaymentSettingsRepository mirroring

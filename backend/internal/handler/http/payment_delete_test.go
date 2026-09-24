@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"victor-contest-go/internal/repository"
-	"victor-contest-go/internal/usecase"
+	"victory-contest-go/internal/repository"
+	"victory-contest-go/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )

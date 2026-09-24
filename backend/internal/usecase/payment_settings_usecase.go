@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"log"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // DefaultStarsAmount is the XTR (Telegram Stars) price charged for a premium

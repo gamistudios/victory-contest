@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // Differential test for the issue #3 single-pass trend rewrite.

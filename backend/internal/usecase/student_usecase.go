@@ -6,7 +6,7 @@ import (
 	"log"
 	"sort"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // ErrStudentAlreadyExists is returned by AddStudent when a student row with

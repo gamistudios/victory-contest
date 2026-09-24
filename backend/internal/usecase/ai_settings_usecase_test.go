@@ -3,7 +3,7 @@ package usecase
 import (
 	"errors"
 	"testing"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // fakeAiSettingsRepo is the in-memory AiSettingsRepository mirroring the

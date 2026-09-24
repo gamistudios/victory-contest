@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"victor-contest-go/internal/domain"
-	"victor-contest-go/internal/usecase"
+	"victory-contest-go/internal/domain"
+	"victory-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"

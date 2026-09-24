@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // All wire-adapter tests run against local httptest servers — no real

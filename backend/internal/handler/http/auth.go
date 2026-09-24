@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

@@ -95,7 +95,7 @@ The backend gained auth gating (#6), route renames and response-shape changes wh
 Root cause first:
 
 - **M1 — ✅ fixed (`ebd786d`).** `index.html` now has `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">` — the single line behind most of the client's complaint.
-- **M2 — ✅ fixed (`ebd786d`).** Single `<title>Victor Contest Admin</title>`.
+- **M2 — ✅ fixed (`ebd786d`).** Single `<title>Victory Contest Admin</title>`.
 - **M3 — no mobile navigation (open).** Sidebar is `hidden custom:block` (visible only ≥970px) with **zero fallback** — under 970px there is literally no way to move between pages. `vaul` (Drawer) is already installed and unused; `MenuButton` dead (see §4).
 - **M4 — sidebar layout bugs even on desktop:** `w-64` sidebar inside a `w-60` `overflow-hidden` parent clips ~16px; the collapse FAB toggles nothing.
 - **M5 — ✅ fixed (`ebd786d`).** Appbar profile link now goes to `/dashboard/admins`, and "Admins" is a sidebar entry.

@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"victor-contest-go/internal/usecase"
+	"victory-contest-go/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"

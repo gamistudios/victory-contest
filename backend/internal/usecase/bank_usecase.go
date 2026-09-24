@@ -1,6 +1,6 @@
 package usecase
 
-import "victor-contest-go/internal/domain"
+import "victory-contest-go/internal/domain"
 
 type BankUsecase interface {
 	AddBank(bank domain.Bank) (string, error)

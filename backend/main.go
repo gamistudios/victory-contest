@@ -1,7 +1,7 @@
 package main
 
 import (
-	"victor-contest-go/internal/handler/http"
+	"victory-contest-go/internal/handler/http"
 
 	"os"
 

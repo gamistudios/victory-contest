@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"victor-contest-go/internal/usecase"
+	"victory-contest-go/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )

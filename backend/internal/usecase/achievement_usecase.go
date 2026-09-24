@@ -1,6 +1,6 @@
 package usecase
 
-import "victor-contest-go/internal/domain"
+import "victory-contest-go/internal/domain"
 
 type AchievementUsecase interface {
 	AddAchievement(achievement domain.Achievement) (string, error)

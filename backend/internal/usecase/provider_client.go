@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // Per-protocol LLM wire adapters, one small stdlib net/http client each:

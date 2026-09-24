@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // fakeRegistrationRepo embeds the ContestRegistrationRepository interface and

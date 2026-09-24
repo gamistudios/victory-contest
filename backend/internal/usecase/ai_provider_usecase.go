@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // AiProviderRepository is the persistence port for admin-managed AI

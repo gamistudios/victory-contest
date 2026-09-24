@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // stubSubmissionRepo is a minimal in-memory SubmissionRepository for leaderboard tests.

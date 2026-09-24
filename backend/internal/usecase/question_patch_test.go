@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 type patchFakeRepo struct {

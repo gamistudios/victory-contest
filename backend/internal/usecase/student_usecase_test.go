@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // stubStudentRepo implements only the two student getters the premium-enrichment

@@ -3,9 +3,9 @@ package http
 import (
 	"context"
 	"net/url"
-	"victor-contest-go/internal/awsconfig"
-	"victor-contest-go/internal/repository"
-	"victor-contest-go/internal/usecase"
+	"victory-contest-go/internal/awsconfig"
+	"victory-contest-go/internal/repository"
+	"victory-contest-go/internal/usecase"
 
 	"log"
 	"os"

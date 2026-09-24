@@ -1,4 +1,4 @@
-module victor-contest-go
+module victory-contest-go
 
 go 1.24.4
 

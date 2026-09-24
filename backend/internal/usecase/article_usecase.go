@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // ErrArticleNotFound is returned when an article id does not exist.

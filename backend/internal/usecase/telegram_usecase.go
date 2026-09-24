@@ -15,7 +15,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/google/uuid"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 type TelegramUsecase interface {

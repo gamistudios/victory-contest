@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // envFallbackProvider mirrors the pre-provider-setup deployment: a Gemini

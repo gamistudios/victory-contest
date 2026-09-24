@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // --- fakes for the dashboard aggregation (client issue #5) ---

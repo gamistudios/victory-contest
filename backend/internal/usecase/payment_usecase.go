@@ -3,7 +3,7 @@ package usecase
 import (
 	"errors"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // ErrPaymentNotFound is returned by PaymentRepository.DeletePayment (and

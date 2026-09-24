@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	"victor-contest-go/internal/awsconfig"
-	"victor-contest-go/internal/domain"
-	usecase "victor-contest-go/internal/usecase"
+	"victory-contest-go/internal/awsconfig"
+	"victory-contest-go/internal/domain"
+	usecase "victory-contest-go/internal/usecase"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"

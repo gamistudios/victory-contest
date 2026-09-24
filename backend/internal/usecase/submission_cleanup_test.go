@@ -3,7 +3,7 @@ package usecase
 import (
 	"testing"
 
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 // recordingSubmissionRepo captures the id GetSubmissionByID is called with.

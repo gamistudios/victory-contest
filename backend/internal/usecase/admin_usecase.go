@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 
 	"golang.org/x/crypto/bcrypt"
 )

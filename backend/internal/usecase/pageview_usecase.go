@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 	"time"
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 type PageViewUsecase interface {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"victor-contest-go/internal/domain"
+	"victory-contest-go/internal/domain"
 )
 
 var ErrQuestionNotFound = errors.New("question not found")

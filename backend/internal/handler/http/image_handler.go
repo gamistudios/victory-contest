@@ -3,7 +3,7 @@ package http
 import (
 	"net/http"
 	"strconv"
-	"victor-contest-go/internal/repository"
+	"victory-contest-go/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )
