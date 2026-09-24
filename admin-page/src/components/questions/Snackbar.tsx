@@ -1,6 +1,16 @@
 import { Alert, Snackbar } from "@mui/material";
 
-export default function SnackBar({ snakOpen, handleClose, addStatus }: any) {
+interface SnackBarProps {
+  snakOpen: boolean;
+  handleClose?: () => void;
+  addStatus: number;
+}
+
+export default function SnackBar({
+  snakOpen,
+  handleClose,
+  addStatus,
+}: SnackBarProps) {
   return (
     <div>
       <Snackbar

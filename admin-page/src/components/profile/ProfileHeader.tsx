@@ -48,23 +48,23 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
       {/* Profile Card */}
       <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
         {/* Profile Header */}
-        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-8 py-12">
-          <div className="flex items-center space-x-6">
-            <Avatar className="w-24 h-24 border-4 border-white shadow-lg">
+        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 sm:px-8 py-6 sm:py-12">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-0 sm:space-x-6">
+            <Avatar className="w-16 h-16 sm:w-24 sm:h-24 border-4 border-white shadow-lg shrink-0">
               <AvatarImage
                 src={user.imgurl}
                 alt={user.name}
                 className="object-cover"
               />
-              <AvatarFallback className="text-2xl font-bold bg-white text-emerald-600">
+              <AvatarFallback className="text-xl sm:text-2xl font-bold bg-white text-emerald-600">
                 {getInitials(user.name)}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <h2 className="text-3xl font-bold text-white mb-2">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 break-words">
                 {user.name}
               </h2>
-              <div className="flex items-center space-x-6 text-emerald-100">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-emerald-100">
                 <div className="flex items-center space-x-2">
                   <UserIcon className="w-4 h-4" />
                   <span>Student</span>
@@ -85,8 +85,8 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
         </div>
 
         {/* Profile Details - Adjusted spacing and layout */}
-        <div className="bg-gray-50 px-8 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-gray-50 px-4 sm:px-8 py-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Personal Information */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">
@@ -130,7 +130,7 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
                     {user.region}
                   </span>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 min-w-0">
                   <School className="w-3 h-3 text-gray-400 flex-shrink-0" />
                   <span className="text-sm text-gray-900 truncate">
                     {user.school}

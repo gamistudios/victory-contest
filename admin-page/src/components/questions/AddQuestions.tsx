@@ -16,12 +16,12 @@ export default function AddQuestions() {
   const questionString = searchParams.get("question");
   console.log(questionString);
   return (
-    <Box sx={{ padding: 2 }}>
-      <Box sx={{ mb: 5 }}>
+    <Box sx={{ padding: { xs: 1.5, sm: 2, md: 3 } }}>
+      <Box sx={{ mb: { xs: 3, sm: 4, md: 5 } }}>
         <Typography
           sx={{
             fontFamily: "'Public Sans',sans-serif",
-            fontSize: 20,
+            fontSize: { xs: 18, sm: 20 },
             fontWeight: 700,
           }}
         >
@@ -97,7 +97,7 @@ function CustomTabPanel(props: TabPanelProps) {
       aria-labelledby={`simple-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ py: 4 }}>{children}</Box>}
+      {value === index && <Box sx={{ py: { xs: 2, sm: 4 } }}>{children}</Box>}
     </div>
   );
 }

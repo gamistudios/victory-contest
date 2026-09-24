@@ -220,11 +220,11 @@ export function AddQuestionManual(): JSX.Element {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {/* ... The rest of your beautiful, clean JSX ... */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        <div className="lg:col-span-2 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-start">
+        <div className="lg:col-span-2 min-w-0 space-y-6 lg:space-y-8">
           <Card>
             <CardHeader>
               <CardTitle className="text-[16px] font-bold">
@@ -257,15 +257,18 @@ export function AddQuestionManual(): JSX.Element {
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleFileChange(e, "question_image")}
+                  className="w-full min-w-0 text-xs file:max-w-[40%] file:truncate"
                 />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Multiple Choice Options</CardTitle>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="text-base sm:text-lg">
+                  Multiple Choice Options
+                </CardTitle>
                 <CardDescription>
                   Provide the possible answers. Select the correct one.
                 </CardDescription>
@@ -274,6 +277,7 @@ export function AddQuestionManual(): JSX.Element {
                 type="button"
                 variant="outline"
                 size="sm"
+                className="shrink-0"
                 onClick={() => dispatch({ type: "ADD_OPTION" })}
               >
                 <PlusCircle className="h-4 w-4 mr-2" /> Add Option
@@ -288,10 +292,11 @@ export function AddQuestionManual(): JSX.Element {
                 className="space-y-4"
               >
                 {state.multiple_choice.map((option, index) => (
-                  <div key={index} className="flex items-center gap-4">
+                  <div key={index} className="flex items-center gap-2 sm:gap-4 min-w-0">
                     <RadioGroupItem
                       value={(index + 1).toString()}
                       id={`option-${index}`}
+                      className="shrink-0"
                     />
                     <Label htmlFor={`option-${index}`} className="sr-only">
                       Select option {index + 1}
@@ -306,13 +311,14 @@ export function AddQuestionManual(): JSX.Element {
                           value: e.target.value,
                         })
                       }
-                      className="flex-grow"
+                      className="flex-grow min-w-0"
                     />
                     {state.multiple_choice.length > 2 && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
+                        className="shrink-0"
                         onClick={() =>
                           dispatch({ type: "REMOVE_OPTION", index })
                         }
@@ -325,7 +331,7 @@ export function AddQuestionManual(): JSX.Element {
               </RadioGroup>
             </CardContent>
           </Card>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" className="w-full sm:w-auto" disabled={isLoading}>
             {isLoading
               ? "Saving..."
               : isEditing
@@ -334,15 +340,16 @@ export function AddQuestionManual(): JSX.Element {
           </Button>
         </div>
 
-        <div className="lg:col-span-1 space-y-8">
+        <div className="lg:col-span-1 min-w-0 space-y-6 lg:space-y-8">
           <Card>
             <CardHeader>
               <CardTitle>Metadata</CardTitle>
               <CardDescription>Categorize this question.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {(["grade", "subject"] as const).map((field) => (
-                <div key={field} className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+                {(["grade", "subject"] as const).map((field) => (
+                  <div key={field} className="space-y-2 min-w-0">
                   <Label className="capitalize">{field}</Label>
                   <Select
                     value={state[field]}
@@ -365,7 +372,8 @@ export function AddQuestionManual(): JSX.Element {
                     </SelectContent>
                   </Select>
                 </div>
-              ))}
+                ))}
+              </div>
               <div className="space-y-2">
                 <Label className="capitalize">Chapter</Label>
                 <Input
@@ -412,6 +420,7 @@ export function AddQuestionManual(): JSX.Element {
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleFileChange(e, "explanation_image")}
+                  className="w-full min-w-0 text-xs file:max-w-[40%] file:truncate"
                 />
               </div>
             </CardContent>
@@ -493,20 +502,22 @@ export function EnhancedUploadQuestions() {
   }, [questions, currentPage]);
 
   return (
-    <div className="container mx-auto p-4 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">
+    <div className="container mx-auto p-2 sm:p-4 space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
           Bulk Upload Questions
         </h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
+            className="flex-1 sm:flex-none"
             onClick={handleClear}
             disabled={!file || isFileProcessing || isSubmitting}
           >
             Clear All
           </Button>
           <Button
+            className="flex-1 sm:flex-none"
             onClick={handleSubmit}
             disabled={
               questions.length === 0 || isFileProcessing || isSubmitting
@@ -615,17 +626,17 @@ export function FileDropzone({
 
   if (file) {
     return (
-      <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
-        <div className="flex items-center gap-3">
-          <FileIcon className="h-6 w-6 text-primary" />
-          <div>
-            <p className="font-semibold text-sm">{file.name}</p>
+      <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border rounded-lg bg-muted/20 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <FileIcon className="h-6 w-6 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate">{file.name}</p>
             <p className="text-xs text-muted-foreground">
               {(file.size / 1024).toFixed(2)} KB
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClear}>
+        <Button variant="ghost" size="icon" className="shrink-0" onClick={onClear}>
           <X className="h-5 w-5" />
         </Button>
       </div>
@@ -633,9 +644,9 @@ export function FileDropzone({
   }
 
   return (
-    <label className="flex flex-col items-center justify-center w-full p-8 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-      <UploadCloud className="w-12 h-12 text-muted-foreground" />
-      <p className="mt-4 font-semibold">Click to upload or drag & drop</p>
+    <label className="flex flex-col items-center justify-center w-full max-w-full p-6 sm:p-8 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors text-center">
+      <UploadCloud className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground" />
+      <p className="mt-4 font-semibold">Click to upload or drag &amp; drop</p>
       <p className="text-sm text-muted-foreground">
         Supports: DOC, DOCX, PDF, TXT
       </p>
@@ -715,18 +726,19 @@ export function QuestionItem({
               className="mt-2 space-y-2"
             >
               {editableQuestion.multiple_choice.map((choice, choiceIndex) => (
-                <div key={choiceIndex} className="flex items-center gap-2">
+                <div key={choiceIndex} className="flex items-center gap-2 min-w-0">
                   <RadioGroupItem
                     // CORRECTED: Use the index of the CHOICE
                     value={(choiceIndex + 1).toString()}
                     id={`edit-q${index}-opt${choiceIndex}`}
+                    className="shrink-0"
                   />
                   <Input
                     value={choice}
                     onChange={(e) =>
                       handleOptionChange(choiceIndex, e.target.value)
                     }
-                    className="flex-grow"
+                    className="flex-grow min-w-0"
                   />
                 </div>
               ))}
@@ -757,24 +769,32 @@ export function QuestionItem({
   // VIEW MODE UI (Original Component)
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between">
-        <CardTitle className="text-base font-semibold leading-relaxed pr-4">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+        <CardTitle className="text-base font-semibold leading-relaxed min-w-0 flex-1 break-words">
           {`Q${index + 1}: ${question.question_text}`}
         </CardTitle>
-        <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          onClick={() => setIsEditing(true)}
+        >
           Edit
         </Button>
       </CardHeader>
       <CardContent>
         <RadioGroup value={question.answer?.toString() ?? ""} disabled>
           {question.multiple_choice.map((choice, choiceIndex) => (
-            <div key={choiceIndex} className="flex items-center space-x-2">
+            <div key={choiceIndex} className="flex items-center space-x-2 min-w-0">
               <RadioGroupItem
                 // CORRECTED: Use the index of the CHOICE
                 value={(choiceIndex + 1).toString()}
                 id={`q${index}-opt${choiceIndex}`}
+                className="shrink-0"
               />
-              <Label htmlFor={`q${index}-opt${choiceIndex}`}>{choice}</Label>
+              <Label htmlFor={`q${index}-opt${choiceIndex}`} className="min-w-0 break-words text-left">
+                {choice}
+              </Label>
             </div>
           ))}
         </RadioGroup>

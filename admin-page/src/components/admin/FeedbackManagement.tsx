@@ -387,12 +387,12 @@ export default function FeedbackManagement() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         <div className="space-y-2">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-96" />
+          <Skeleton className="h-8 w-64 max-w-full" />
+          <Skeleton className="h-4 w-96 max-w-full" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {[...Array(6)].map((_, i) => (
             <Card key={i}>
               <CardHeader>
@@ -411,10 +411,10 @@ export default function FeedbackManagement() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header Section */}
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Feedback Management</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Feedback Management</h1>
         <p className="text-muted-foreground">
           Manage student feedback questions, polls, and responses with ease
         </p>
@@ -423,9 +423,9 @@ export default function FeedbackManagement() {
       {/* Error Banner */}
       {error && (
         <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-            <p className="text-sm font-medium text-red-800 dark:text-red-200">{error}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-2 h-2 bg-red-500 rounded-full shrink-0"></div>
+            <p className="text-sm font-medium text-red-800 dark:text-red-200 min-w-0 flex-1 break-words">{error}</p>
             <Button
               variant="ghost"
               size="sm"
@@ -439,7 +439,7 @@ export default function FeedbackManagement() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -499,9 +499,9 @@ export default function FeedbackManagement() {
 
         {/* Questions Tab */}
         <TabsContent value="questions" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Feedback Questions</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl sm:text-2xl font-semibold">Feedback Questions</h2>
               <p className="text-muted-foreground">Create and manage feedback questions for students</p>
             </div>
             <Dialog open={openDialog} onOpenChange={setOpenDialog}>
@@ -517,7 +517,7 @@ export default function FeedbackManagement() {
                   Add Question
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {editingQuestion ? 'Edit Question' : 'Add New Question'}
@@ -566,13 +566,13 @@ export default function FeedbackManagement() {
             </Dialog>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {questions.map((question) => (
               <Card key={question.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg leading-tight">{question.question}</CardTitle>
-                    <Badge variant={question.isActive ? "default" : "secondary"}>
+                  <div className="flex items-start justify-between gap-3">
+                    <CardTitle className="text-base sm:text-lg leading-tight min-w-0 break-words">{question.question}</CardTitle>
+                    <Badge variant={question.isActive ? "default" : "secondary"} className="shrink-0">
                       {question.isActive ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
@@ -595,15 +595,15 @@ export default function FeedbackManagement() {
                     <Label className="text-sm font-medium">Options:</Label>
                     <div className="mt-2 space-y-1">
                       {question.options.map((option, index) => (
-                        <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <div className="w-2 h-2 bg-primary rounded-full"></div>
-                          {option}
+                        <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+                          <div className="w-2 h-2 bg-primary rounded-full shrink-0"></div>
+                          <span className="min-w-0 break-words">{option}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                   <Separator />
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -638,7 +638,7 @@ export default function FeedbackManagement() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Question</AlertDialogTitle>
                             <AlertDialogDescription>
@@ -663,9 +663,9 @@ export default function FeedbackManagement() {
 
         {/* Poll Options Tab */}
         <TabsContent value="polls" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Poll Options</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl sm:text-2xl font-semibold">Poll Options</h2>
               <p className="text-muted-foreground">Configure score ranges and contact requirements</p>
             </div>
             <Dialog open={pollDialog} onOpenChange={setPollDialog}>
@@ -683,7 +683,7 @@ export default function FeedbackManagement() {
                   Add Poll Option
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-[calc(100vw-2rem)]">
                 <DialogHeader>
                   <DialogTitle>
                     {editingPoll ? 'Edit Poll Option' : 'Add Poll Option'}
@@ -744,7 +744,7 @@ export default function FeedbackManagement() {
             </Dialog>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {pollOptions.map((option) => (
               <Card key={option.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -791,7 +791,7 @@ export default function FeedbackManagement() {
                           Delete
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
+                      <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete Poll Option</AlertDialogTitle>
                           <AlertDialogDescription>
@@ -815,15 +815,15 @@ export default function FeedbackManagement() {
 
         {/* Responses Tab */}
         <TabsContent value="responses" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Student Responses</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl sm:text-2xl font-semibold">Student Responses</h2>
               <p className="text-muted-foreground">View and manage student feedback responses</p>
             </div>
-             <div className="flex items-center gap-2">
+             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
             <Button
               onClick={() => navigate('../high-scorers')}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+              className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
             >
               <Star className="h-4 w-4 mr-2" />
               High Scorers Contact List
@@ -832,7 +832,7 @@ export default function FeedbackManagement() {
                  <Button
                    variant="destructive"
                    onClick={() => setShowDeleteAllDialog(true)}
-                   className="bg-red-600 hover:bg-red-700 text-white"
+                   className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                  >
                    <Trash2 className="h-4 w-4 mr-2" />
                    Delete All Responses
@@ -843,18 +843,18 @@ export default function FeedbackManagement() {
 
           {/* Filter by Score Range */}
           <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
                 <h3 className="text-lg font-semibold">Filter Responses</h3>
                 <p className="text-sm text-muted-foreground">
                   Total Responses: {responses.length}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="score-range-filter" className="text-sm">Filter by Score Range:</Label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 min-w-0">
+                <Label htmlFor="score-range-filter" className="text-sm shrink-0">Filter by Score Range:</Label>
                 <select 
                   id="score-range-filter" 
-                  className="w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full sm:w-48 min-w-0 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-background"
                   value={selectedScoreRangeFilter} 
                   onChange={(e) => setSelectedScoreRangeFilter(e.target.value)}
                 >
@@ -882,9 +882,9 @@ export default function FeedbackManagement() {
           <div className="space-y-4">
             {selectedScoreRangeFilter !== 'all' && (
               <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full shrink-0"></div>
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200 min-w-0 break-words">
                     Filtered by: {selectedScoreRangeFilter}
                   </p>
                   <Button
@@ -908,9 +908,9 @@ export default function FeedbackManagement() {
               filteredResponses.map((response) => (
                 <Card key={response.id} className="hover:shadow-lg transition-shadow">
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{response.studentName}</CardTitle>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <CardTitle className="text-base sm:text-lg min-w-0 break-words">{response.studentName}</CardTitle>
                         <CardDescription>
                           Submitted {(() => {
                             try {
@@ -925,7 +925,7 @@ export default function FeedbackManagement() {
                           })()}
                         </CardDescription>
                       </div>
-                      <Badge variant="outline">
+                      <Badge variant="outline" className="shrink-0">
                         {response.contactInfo?.language === 'amharic' ? 'Amharic' : 'English'}
                       </Badge>
                     </div>
@@ -936,11 +936,11 @@ export default function FeedbackManagement() {
                       <div className="space-y-3">
                         <Label className="text-sm font-medium">Question Responses:</Label>
                         {Object.entries(response.questionResponses).map(([questionId, questionResponse]) => (
-                          <div key={questionId} className="pl-4 border-l-2 border-muted">
-                            <p className="text-sm font-medium text-foreground">
+                          <div key={questionId} className="pl-4 border-l-2 border-muted min-w-0">
+                            <p className="text-sm font-medium text-foreground break-words">
                               {getQuestionText(questionId)}:
                             </p>
-                            <p className="text-sm text-muted-foreground ml-2">
+                            <p className="text-sm text-muted-foreground ml-2 break-words">
                               {questionResponse.selected_option}
                             </p>
                           </div>
@@ -1011,7 +1011,7 @@ export default function FeedbackManagement() {
                               
                               if (pollOption && pollOption.minScore !== undefined && pollOption.maxScore !== undefined) {
                                 return (
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground min-w-0">
                                     <span>Score Range:</span>
                                     <code className="bg-muted px-2 py-1 rounded font-mono">
                                       {pollOption.minScore} - {pollOption.maxScore}
@@ -1021,7 +1021,7 @@ export default function FeedbackManagement() {
                               } else {
                                 // If poll option not found, show a fallback message
                                 return (
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground min-w-0">
                                     <span>Score Range:</span>
                                     <code className="bg-muted px-2 py-1 rounded font-mono">
                                       Not available
@@ -1049,11 +1049,11 @@ export default function FeedbackManagement() {
                     {response.contactInfo && (
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Contact Information:</Label>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
+                          <div className="min-w-0 break-words">
                             <span className="font-medium">Score:</span> {response.contactInfo.score}
                           </div>
-                          <div>
+                          <div className="min-w-0 break-words">
                             <span className="font-medium">Phone:</span> {response.contactInfo.phoneNumber}
                           </div>
                         </div>
@@ -1064,7 +1064,7 @@ export default function FeedbackManagement() {
                     {response.comment && (
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Additional Comment:</Label>
-                        <p className="text-sm text-muted-foreground italic">"{response.comment}"</p>
+                        <p className="text-sm text-muted-foreground italic break-words">"{response.comment}"</p>
                       </div>
                     )}
 
@@ -1082,7 +1082,7 @@ export default function FeedbackManagement() {
                             Delete Response
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Response</AlertDialogTitle>
                             <AlertDialogDescription>
@@ -1131,7 +1131,7 @@ export default function FeedbackManagement() {
 
        {/* Delete All Responses Confirmation Dialog */}
        <AlertDialog open={showDeleteAllDialog} onOpenChange={setShowDeleteAllDialog}>
-         <AlertDialogContent>
+         <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
            <AlertDialogHeader>
              <AlertDialogTitle>Delete All Responses</AlertDialogTitle>
                            <AlertDialogDescription>

@@ -81,10 +81,12 @@ export default function QuestionTable({
   return (
     <div className="space-y-4">
       <div className="rounded-md border">
-        <Table>
+        <Table className="min-w-[640px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[60%]">Question</TableHead>
+              <TableHead className="w-auto max-w-[280px] sm:w-[60%]">
+                Question
+              </TableHead>
               <TableHead>Subject</TableHead>
               <TableHead>Grade</TableHead>
               <TableHead>Chapter</TableHead>
@@ -94,7 +96,7 @@ export default function QuestionTable({
           <TableBody>
             {paginatedQuestions.map((question) => (
               <TableRow key={question.id}>
-                <TableCell className="font-medium truncate max-w-sm">
+                <TableCell className="font-medium truncate max-w-[240px] sm:max-w-sm">
                   {question.question_text}
                 </TableCell>
                 <TableCell>{question.subject}</TableCell>
@@ -205,7 +207,7 @@ export function QuestionActions({
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="max-w-[calc(100vw-2rem)]">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
 
             {/* NEW: View Details Item */}
@@ -230,7 +232,7 @@ export function QuestionActions({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -250,12 +252,12 @@ export function QuestionActions({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[80vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="text-lg leading-relaxed">
+          <DialogTitle className="text-base sm:text-lg leading-relaxed break-words">
             {question.question_text}
           </DialogTitle>
-          <DialogDescription className="flex items-center gap-2 pt-2">
+          <DialogDescription className="flex flex-wrap items-center gap-2 pt-2">
             <Badge variant="outline">{question.subject}</Badge>
             <Badge variant="outline">Grade {question.grade}</Badge>
             <Badge variant="outline">{question.chapter}</Badge>
@@ -316,11 +318,11 @@ export function DataTablePagination({
   itemCount,
 }: DataTablePaginationProps) {
   return (
-    <div className="flex items-center justify-between px-2 py-4">
-      <div className="flex-1 text-sm text-muted-foreground">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 py-4">
+      <div className="text-sm text-muted-foreground">
         {itemCount} total rows
       </div>
-      <div className="flex items-center space-x-6 lg:space-x-8">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 sm:gap-x-6 lg:gap-x-8">
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Rows per page</p>
           <Select

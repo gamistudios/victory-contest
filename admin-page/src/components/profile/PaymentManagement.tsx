@@ -424,12 +424,14 @@ export function PaymentManagement({
   return (
     <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
       <CardHeader className="border-b border-gray-100 ">
-        <CardTitle className="flex items-center space-x-3 text-gray-900">
-          <div className="rounded-xl shadow-sm">
+        <CardTitle className="flex items-center space-x-3 text-gray-900 min-w-0">
+          <div className="rounded-xl shadow-sm shrink-0">
             <CreditCard className="w-6 h-6 text-gray-500" />
           </div>
-          <div>
-            <span className="text-lg font-bold">Payment Management</span>
+          <div className="min-w-0">
+            <span className="text-base sm:text-lg font-bold break-words">
+              Payment Management
+            </span>
             <br />
             <span className="text-sm text-gray-600 font-normal">
               Manage subscription and billing
@@ -438,7 +440,7 @@ export function PaymentManagement({
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="p-6 space-y-6">
+      <CardContent className="p-4 sm:p-6 space-y-6">
         {/* Enhanced Payment Status */}
         <div
           className={`${statusInfo.bgColor} border-2 ${
@@ -487,7 +489,7 @@ export function PaymentManagement({
                 <div className="p-2 border-2 rounded-xl">
                   <Calendar className="w-6 h-6 text-gray-500" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm">
                     Last Payment
                   </p>
@@ -506,7 +508,7 @@ export function PaymentManagement({
                 <div className="p-2 rounded-xl border-2">
                   <Clock className="w-6 h-6 text-gray-500 " />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm">
                     Next Payment Due
                   </p>
@@ -530,7 +532,7 @@ export function PaymentManagement({
             <div className="p-3 bg-gray-100 rounded-xl">
               <DollarSign className="w-6 h-6 text-gray-600" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="font-bold text-gray-900 text-lg">Monthly Fee</p>
               <p className="text-gray-700 font-medium text-2xl">$49.99</p>
               <p className="text-gray-600 text-sm">
@@ -555,7 +557,7 @@ export function PaymentManagement({
                   Delete User Account
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="bg-white max-w-md">
+              <AlertDialogContent className="bg-white max-w-[calc(100vw-2rem)] sm:max-w-md">
                 <AlertDialogHeader>
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="p-3 bg-red-100 rounded-xl">

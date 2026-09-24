@@ -170,10 +170,15 @@ export default function HighScorersContactList() {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
       <Typography
         variant="h4"
-        sx={{ fontWeight: 700, mb: 3, color: "#1a237e" }}
+        sx={{
+          fontWeight: 700,
+          mb: 3,
+          color: "#1a237e",
+          fontSize: { xs: "1.25rem", sm: "2.125rem" },
+        }}
       >
         🏆 High Scorers Contact List (500-600 Range)
       </Typography>
@@ -235,11 +240,13 @@ export default function HighScorersContactList() {
       </div>
 
       <Paper sx={{ width: "100%", overflow: "hidden" }}>
-        <TableContainer>
-          <Table>
+        <TableContainer sx={{ overflowX: "auto" }}>
+          <Table sx={{ minWidth: 720 }}>
             <TableHead>
               <TableRow sx={{ backgroundColor: "#f8f9fa" }}>
-                <TableCell sx={{ fontWeight: 600 }}>Student Name</TableCell>
+                <TableCell sx={{ fontWeight: 600, minWidth: 160 }}>
+                  Student Name
+                </TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Score</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Phone Number</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Submitted Date</TableCell>
@@ -331,9 +338,9 @@ export default function HighScorersContactList() {
                       <IconButton
                         onClick={() => handleDeleteClick(scorer)}
                         color="error"
-                        size="small"
                         title="Delete this contact"
                         sx={{
+                          p: 1.5,
                           "&:hover": {
                             backgroundColor: "rgba(244, 67, 54, 0.1)",
                           },

@@ -126,17 +126,18 @@ export default function QuestionsPage() {
   return (
     <div className="container mx-auto p-4 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Questions</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Questions</h1>
         <p className="text-muted-foreground">
           Browse, filter, and manage all questions.
         </p>
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>All Questions ({filteredQuestions.length})</CardTitle>
-            <div className="flex items-center gap-2">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="min-w-0 break-words">
+            All Questions ({filteredQuestions.length})
+          </CardTitle>
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
               {/* Subject Filter Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -149,7 +150,10 @@ export default function QuestionsPage() {
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent
+                  align="end"
+                  className="max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto"
+                >
                   <DropdownMenuLabel>Filter by Subject</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {Subjects.map((subject) => (
@@ -178,7 +182,10 @@ export default function QuestionsPage() {
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent
+                  align="end"
+                  className="max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto"
+                >
                   <DropdownMenuLabel>Filter by Grade</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {grades.map((grade) => (
@@ -204,7 +211,6 @@ export default function QuestionsPage() {
                   Clear filters
                 </Button>
               )}
-            </div>
           </div>
         </CardHeader>
         <CardContent>{renderContent()}</CardContent>

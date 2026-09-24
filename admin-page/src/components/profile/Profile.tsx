@@ -156,7 +156,7 @@ function Profile() {
   if (!user) {
     return (
       <div className="min-h-screen font-sans">
-        <div className="max-w-3xl px-8 py-16">
+        <div className="max-w-3xl mx-auto px-4 sm:px-8 py-8 sm:py-16">
           <Card>
             <CardContent className="p-8 space-y-4">
               <h1 className="text-xl font-bold text-gray-900">
@@ -181,11 +181,11 @@ function Profile() {
       <div className="max-w-7xl">
         <ProfileHeader user={user} stats={stats} />
 
-        <div className="px-8 pb-8">
+        <div className="px-4 sm:px-6 lg:px-8 pb-6 lg:pb-8">
           <StatsCards stats={stats} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            <div className="lg:col-span-1 min-w-0">
               <PaymentManagement
                 user={user}
                 isNotifying={isNotifying}
@@ -193,7 +193,7 @@ function Profile() {
                 onNotifyUser={handleNotifyUser}
               />
             </div>
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 min-w-0">
               <ContestStatistics stat={detailStats ?? undefined} />
             </div>
           </div>

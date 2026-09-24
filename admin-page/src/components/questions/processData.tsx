@@ -80,9 +80,9 @@ export function ProcessFile(file: File): Promise<Question[]> {
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (event: any) => {
+    reader.onload = (event: ProgressEvent<FileReader>) => {
       try {
-        const text = event.target.result;
+        const text = String(event.target?.result ?? "");
         console.log(text);
         const questions = parseQuestionsWithChoices(text);
         // console.log(questions);
