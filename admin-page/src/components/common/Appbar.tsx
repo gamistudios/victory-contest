@@ -1,5 +1,5 @@
 // src/components/layout/Header.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext"; // Assuming this context returns your Notification struct
@@ -54,13 +54,13 @@ function GlobalSearch() {
     <>
       <Button
         variant="outline"
-        className="relative h-9 w-full justify-start text-muted-foreground sm:w-64"
+        className="relative h-9 w-9 justify-center px-0 text-muted-foreground sm:w-64 sm:justify-start sm:px-3"
         onClick={() => setIsOpen(true)}
+        aria-label="Search"
       >
-        <Search className="mr-2 h-4 w-4" />
-        <span className="hidden lg:inline-flex">Search anything...</span>
-        <span className="inline-flex lg:hidden">Search...</span>
-        <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs font-medium opacity-100 sm:flex">
+        <Search className="h-4 w-4 sm:mr-2" />
+        <span className="sr-only sm:not-sr-only">Search...</span>
+        <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs font-medium opacity-100 lg:flex">
           <span className="text-lg">⌘</span>K
         </kbd>
       </Button>
@@ -163,7 +163,7 @@ function NotificationBell() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-80 p-2" align="end">
+      <DropdownMenuContent className="w-[min(20rem,calc(100vw-1.5rem))] p-2" align="end">
         <DropdownMenuLabel>
           <div className="flex items-center justify-between">
             <span className="font-semibold">Notifications</span>
@@ -309,12 +309,11 @@ function UserProfileNav() {
 }
 
 // Main Header component that assembles everything
-export default function Header() {
+export default function Header({ mobileNav }: { mobileNav?: ReactNode }) {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 max-w-screen-2xl items-center justify-between gap-4">
-        {/* You can add a logo or sidebar toggle here if needed */}
-        {/* <p className="font-bold">Dashboard</p> */}
+      <div className="flex h-14 max-w-screen-2xl items-center gap-2 px-4 sm:h-16 sm:gap-4 sm:px-6 lg:px-8">
+        {mobileNav}
 
         {/* This div pushes the right-side icons to the end */}
         <div className="flex-1" />

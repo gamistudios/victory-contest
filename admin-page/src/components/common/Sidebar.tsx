@@ -34,7 +34,7 @@ export default function Sidebar() {
   return (
     <aside
       className={cn(
-        "relative flex h-screen flex-col border-r bg-background p-4 transition-all duration-300 ease-in-out",
+        "relative flex h-full shrink-0 flex-col border-r bg-background p-4 transition-all duration-300 ease-in-out",
         isCollapsed ? "w-20" : "w-64"
       )}
     >
@@ -51,7 +51,8 @@ export default function Sidebar() {
           <Button
             variant="ghost"
             size="icon"
-            className="absolute -right-4 top-8 rounded-full border bg-background text-foreground hover:bg-muted"
+            className="tight absolute right-0 top-8 h-8 w-8 translate-x-1/2 rounded-full border bg-background text-foreground hover:bg-muted"
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             onClick={toggleSidebar}
           >
             {isCollapsed ? (
@@ -93,9 +94,10 @@ export default function Sidebar() {
 
 interface NavLinksProps {
   isCollapsed: boolean;
+  onNavigate?: () => void;
 }
 
-export function NavLinks({ isCollapsed }: NavLinksProps) {
+export function NavLinks({ isCollapsed, onNavigate }: NavLinksProps) {
   const location = useLocation();
 
   return (
@@ -116,6 +118,7 @@ export function NavLinks({ isCollapsed }: NavLinksProps) {
                 <TooltipTrigger asChild>
                   <Link
                     to={item.path}
+                    onClick={onNavigate}
                     className={`flex rounded-md py-4 mb-2 cursor-pointer items-center px-4 text-sm outline-none transition-all duration-100 ease-in-out hover:border-l-4 hover:border-[#00AB55] hover:text-[#00AB55] ${isActive
                         ? "border-l-4 bg-[#00AB5514] border-l-[#00AB55] text-[#00AB55] font-bold"
                         : "border-l-0 text-gray-600 font-medium"
@@ -153,19 +156,9 @@ interface UserProfileProps {
 }
 
 export function UserProfile({ isCollapsed }: UserProfileProps) {
-  // Add try-catch to handle potential useAuth errors
-  let authData;
-  try {
-    authData = useAuth();
-  } catch (error) {
-    // If useAuth fails, show loading state
-    authData = { user: null, loading: true };
-  }
-  
-  const { user, loading } = authData;
-  
-  // Show loading state while auth is being initialized
-  if (loading || !user) {
+  const { user } = useAuth();
+
+  if (!user) {
     return (
       <Card
         className={cn(

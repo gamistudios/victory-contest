@@ -2,6 +2,7 @@ import Sidebar from "../components/common/Sidebar.tsx";
 import { Outlet, useNavigate } from "react-router-dom";
 
 import Appbar from "../components/common/Appbar.js";
+import MobileNav from "../components/common/MobileNav.tsx";
 import { useAuth } from "@/context/AuthContext.tsx";
 import { useEffect, useState } from "react";
 import { Loading } from "../components/common/Stauts.tsx";
@@ -9,20 +10,9 @@ import { Loading } from "../components/common/Stauts.tsx";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [status, setstatus] = useState("pending");
-  
-  // Add try-catch to handle potential useAuth errors
-  let authData;
-  try {
-    authData = useAuth();
-  } catch (error) {
-    // If useAuth fails, redirect to login
-    navigate("/");
-    return null;
-  }
-  
-  const { user } = authData;
-  
+
   useEffect(() => {
     if (!user) {
       navigate("/");
@@ -33,7 +23,7 @@ export default function Dashboard() {
   
   if (status === "pending") {
     return (
-      <div className="w-screen h-screen">
+      <div className="h-dvh w-full">
         <Loading />
       </div>
     );
@@ -44,13 +34,15 @@ export default function Dashboard() {
     return null;
   }
   return (
-    <div className="flex h-screen">
-      <div className="hidden custom:block w-60 border-r border-dashed border-gray-500 bg-[#faf9f7] overflow-hidden">
+    <div className="flex h-dvh overflow-hidden bg-[#faf9f7]">
+      <div className="hidden h-full lg:block">
         <Sidebar />
       </div>
-      <div className="flex-1 h-full px-6 overflow-auto bg-[#faf9f7]">
-        <Appbar />
-        <Outlet />
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        <Appbar mobileNav={<MobileNav />} />
+        <main className="flex-1 overflow-y-auto px-4 pb-10 sm:px-6 lg:px-8">
+          <Outlet />
+        </main>
       </div>
     </div>
   );

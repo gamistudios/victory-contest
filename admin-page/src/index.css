@@ -5,6 +5,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+   Responsive foundation
+   Text/spacing in this app is rem-based (Tailwind defaults), so stepping the
+   root font-size by viewport band is what makes type, controls and spacing
+   *resize* between mobile and desktop instead of stretching/compressing.
+--------------------------------------------------------------------------- */
+@layer base {
+  html {
+    font-size: 15px; /* phones */
+  }
+  @media (min-width: 640px) {
+    html {
+      font-size: 16px; /* tablets / small laptops (browser default) */
+    }
+  }
+  @media (min-width: 1440px) {
+    html {
+      font-size: 17px; /* large desktops */
+    }
+  }
+
+  /* iOS Safari auto-zooms the page when a focused control renders < 16px. */
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Touch devices get tappable targets even when the CSS box is small. */
+  @media (pointer: coarse) {
+    button:not(.tight),
+    [role='menuitem'],
+    [role='option'] {
+      min-height: 2.25rem;
+    }
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
