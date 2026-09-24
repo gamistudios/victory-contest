@@ -194,7 +194,7 @@ export function UserProfile({ isCollapsed }: UserProfileProps) {
     >
       <CardHeader className="flex flex-row items-center gap-3 p-2">
         <Avatar>
-          <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+          <AvatarImage src={user.imgurl} alt={user.name} />
           <AvatarFallback>{user.name?.charAt(0) || "U"}</AvatarFallback>
         </Avatar>
         <div className={cn("truncate", isCollapsed ? "hidden" : "block")}>

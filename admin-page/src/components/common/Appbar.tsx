@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { LogOut, User, Bell, BellRing, Search, Settings } from "lucide-react";
+import { LogOut, User, Bell, BellRing, Search } from "lucide-react";
 
 // Sub-component for the global search functionality
 function GlobalSearch() {
@@ -150,7 +150,14 @@ function NotificationBell() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9"
+          aria-label={
+            unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"
+          }
+        >
           {unreadCount > 0 ? (
             <BellRing className="h-5 w-5 animate-tada" />
           ) : (
@@ -238,9 +245,6 @@ function NotificationBell() {
                       Delete
                     </Button>
                   </div>
-                  <div className="text-xs text-blue-600 mt-1">
-                    💡 Click to navigate to related page
-                  </div>
                 </div>
               </DropdownMenuItem>
             ))
@@ -290,10 +294,6 @@ function UserProfileNav() {
         <DropdownMenuItem onClick={() => navigate("/dashboard/admins")}>
           <User className="mr-2 h-4 w-4" />
           <span>Admins</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Settings</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
