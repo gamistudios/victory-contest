@@ -102,10 +102,17 @@ func (h *StudentHandler) GetPaidStudents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"students": students})
 }
 
+// GetQuickStat serves GET /api/student/quickstat/:id (admin-gated). The
+// usecase aggregates real points/submissions/payment data; an unknown student
+// id is a 404 instead of a 200 with a fabricated placeholder (README §9 #48).
 func (h *StudentHandler) GetQuickStat(c *gin.Context) {
 	id := c.Param("id")
 	stat, err := h.usecase.GetQuickStat(id)
 	if err != nil {
+		if errors.Is(err, usecase.ErrStudentNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -121,10 +128,17 @@ func (h *StudentHandler) GetStudentRankings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"rankings": rankings})
 }
 
+// GetStudentRankingsByContest serves GET /api/student/rank/:contest_id. An
+// unknown contest id is a 404 so clients can distinguish it from a contest
+// with no submissions yet (empty but 200).
 func (h *StudentHandler) GetStudentRankingsByContest(c *gin.Context) {
 	contestID := c.Param("contest_id")
 	rankings, err := h.usecase.GetStudentRankingsByContest(contestID)
 	if err != nil {
+		if errors.Is(err, usecase.ErrContestNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

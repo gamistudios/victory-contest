@@ -354,30 +354,11 @@ func (r *StudentDynamoRepository) GetUserProfile(studentID string) (map[string]i
 	return profile, nil
 }
 
-func (r *StudentDynamoRepository) GetQuickStat(studentID string) (map[string]interface{}, error) {
-	student, err := r.GetStudentByID(studentID)
-	if err != nil || student == nil {
-		return nil, err
-	}
-	// Placeholder: In a real implementation, aggregate stats from submissions, etc.
-	return map[string]interface{}{
-		"telegram_id":        student.TelegramID,
-		"name":               student.Name,
-		"totalPoints":        0,   // TODO: Calculate from submissions
-		"payment":            nil, // TODO: Integrate with payment table
-		"contestSubmissions": nil, // TODO: Integrate with submissions
-	}, nil
-}
-
-func (r *StudentDynamoRepository) GetStudentRankings() ([]map[string]interface{}, error) {
-	// TODO: Implement aggregation logic across students and submissions
-	return nil, nil
-}
-
-func (r *StudentDynamoRepository) GetStudentRankingsByContest(contestID string) ([]map[string]interface{}, error) {
-	// TODO: Implement aggregation logic for rankings by contest
-	return nil, nil
-}
+// GetQuickStat / GetStudentRankings / GetStudentRankingsByContest used to live
+// here returning hardcoded placeholders and nil stubs (README §9 #48). The
+// aggregation spans the submission, contest and payment tables, so it now
+// lives in the student usecase (internal/usecase/student_usecase.go), which
+// already receives those repositories.
 
 func (r *StudentDynamoRepository) DeleteStudent(id string) error {
 	_, err := r.db.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
