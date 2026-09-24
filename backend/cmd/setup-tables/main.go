@@ -66,6 +66,7 @@ var tables = []table{
 	{Name: "feedback_responses"},
 	{Name: "ai_providers"},
 	{Name: "ai_settings"},
+	{Name: "payment_settings"},
 	{Name: "submissions", gsis: []gsi{
 		{name: "contest_id-index", partition: "contest_id", partType: types.ScalarAttributeTypeS},
 		{name: "student_id-index", partition: "student_id", partType: types.ScalarAttributeTypeS},

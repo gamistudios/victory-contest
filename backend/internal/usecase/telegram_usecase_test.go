@@ -170,9 +170,10 @@ func TestPremiumPayloadBinding(t *testing.T) {
 
 // TestCreatePremiumInvoiceLinkBindsUser asserts the buyer id reaches the
 // payload and that bad ids fail before any network call (bot == nil would
-// surface "not configured" if validation passed).
+// surface "not configured" if validation passed). Stars is switched ON via
+// the stub settings so the call proceeds to the (disabled) bot.
 func TestCreatePremiumInvoiceLinkBindsUser(t *testing.T) {
-	uc := &telegramUsecase{}
+	uc := &telegramUsecase{settings: &stubPaymentSettings{allow: true}}
 	if _, err := uc.CreatePremiumInvoiceLink("not-a-number"); err == nil {
 		t.Fatal("expected invalid user id to be rejected")
 	} else if !strings.Contains(err.Error(), "numeric") {
@@ -181,6 +182,21 @@ func TestCreatePremiumInvoiceLinkBindsUser(t *testing.T) {
 	_, err := uc.CreatePremiumInvoiceLink("424242")
 	if err == nil || !strings.Contains(err.Error(), "not configured") {
 		t.Fatalf("valid id should reach the (disabled) bot call, got: %v", err)
+	}
+}
+
+// TestCreatePremiumInvoiceLinkBlockedWhenDisabled asserts the global Stars
+// switch is checked before any Telegram call: a disabled (or unwired) bot
+// must report "disabled", never reach the network.
+func TestCreatePremiumInvoiceLinkBlockedWhenDisabled(t *testing.T) {
+	uc := &telegramUsecase{settings: &stubPaymentSettings{allow: false}}
+	if _, err := uc.CreatePremiumInvoiceLink("424242"); err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("allow_stars=false must block the invoice, got: %v", err)
+	}
+	// Unwired settings (nil) is the same safe default.
+	unwired := &telegramUsecase{}
+	if _, err := unwired.CreatePremiumInvoiceLink("424242"); err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("nil settings must block the invoice, got: %v", err)
 	}
 }
 

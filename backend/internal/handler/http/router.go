@@ -31,6 +31,7 @@ type Server struct {
 	pollOptionHandler          *PollOptionHandler
 	feedbackResponseHandler    *FeedbackResponseHandler
 	paymentHandler             *PaymentHandler
+	paymentSettingsHandler     *PaymentSettingsHandler
 	aiHandler                  *AiHandler
 	aiAdminHandler             *AiAdminHandler
 	telegramHandler            *telegramHandler
@@ -90,6 +91,7 @@ func NewServer() *Server {
 	commentRepo := repository.NewCommentDynamoRepository(ddb, "comments")
 	aiProviderRepo := repository.NewAiProviderDynamoRepository(ddb, "ai_providers")
 	aiSettingsRepo := repository.NewAiSettingsDynamoRepository(ddb, "ai_settings")
+	paymentSettingsRepo := repository.NewPaymentSettingsDynamoRepository(ddb, "payment_settings")
 
 	// --- Initialize Feedback Repositories ---
 	feedbackQuestionRepo := repository.NewFeedbackQuestionDynamoRepository(ddb, "feedback_questions")
@@ -112,7 +114,8 @@ func NewServer() *Server {
 	aiUsecase := usecase.NewAiUsecase(submissionRepo, aiProviderRepo)
 	aiProviderUsecase := usecase.NewAiProviderUsecase(aiProviderRepo)
 	aiSettingsUsecase := usecase.NewAiSettingsUsecase(aiSettingsRepo, paymentRepo)
-	telegramUsecase := usecase.NewTelegramUsecase(bot, studentRepo, paymentUsecase)
+	paymentSettingsUsecase := usecase.NewPaymentSettingsUsecase(paymentSettingsRepo)
+	telegramUsecase := usecase.NewTelegramUsecase(bot, studentRepo, paymentUsecase, paymentSettingsUsecase)
 
 	// --- Initialize Contest Statistics Use Case ---
 	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil)
@@ -137,6 +140,7 @@ func NewServer() *Server {
 		pollOptionHandler:          NewPollOptionHandler(pollOptionUsecase),
 		feedbackResponseHandler:    NewFeedbackResponseHandler(feedbackResponseUsecase, notificationUsecase),
 		paymentHandler:             NewPaymentHandler(paymentUsecase, *imgRepo),
+		paymentSettingsHandler:     NewPaymentSettingsHandler(paymentSettingsUsecase),
 		aiHandler:                  NewAiHandler(aiUsecase, aiSettingsUsecase, jwtSecret),
 		aiAdminHandler:             NewAiAdminHandler(aiProviderUsecase, aiSettingsUsecase),
 		telegramHandler:            NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")),
@@ -263,6 +267,10 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.pollOptionHandler.RegisterRoutes(api.Group("/poll-option"), adminAuthMw)
 	s.feedbackResponseHandler.RegisterRoutes(api.Group("/feedback-response"), adminAuthMw)
 	s.paymentHandler.RegisterRoutes(api.Group("/payment"), adminAuthMw)
+	// Telegram Stars visibility: the admin-only switch CRUD plus the single
+	// unauthenticated read the student payment page polls to decide whether
+	// to show the Stars option at all.
+	s.paymentSettingsHandler.RegisterRoutes(api, adminAuthMw)
 	// Gemini-backed endpoints are the most expensive public surface: cap
 	// them per client (issue #9). /api/payment/update needed no limiter —
 	// it is admin-gated since #6.

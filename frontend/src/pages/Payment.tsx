@@ -20,7 +20,7 @@ import {
 import { Upload, CheckCircle, Loader2, HelpCircle, Send } from "lucide-react";
 import { useTelegram } from "../hooks/useTelegram";
 import { toast } from "sonner";
-import { sendPaymentInfo } from "../services/paymentServices";
+import { sendPaymentInfo, getPaymentSettings } from "../services/paymentServices";
 import {
   Drawer,
   DrawerContent,
@@ -56,6 +56,7 @@ const Payment: FC = () => {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [banksLoading, setBanksLoading] = useState<boolean>(true);
   const [banksError, setBanksError] = useState<boolean>(false);
+  const [allowStars, setAllowStars] = useState<boolean>(false);
   const { user, openInvoice, showBackButton } = useTelegram();
   const navigate = useNavigate();
 
@@ -96,6 +97,26 @@ const Payment: FC = () => {
     })();
     return () => {
       ignore = true;
+    };
+  }, []);
+
+  // Telegram Stars is hidden by default: this unauthenticated read reveals it
+  // only once an admin has switched it on. Aborted reads (StrictMode double
+  // mount / dev reload) must not set state from a dead request.
+  useEffect(() => {
+    const controller = new AbortController();
+    let ignore = false;
+    (async () => {
+      try {
+        const settings = await getPaymentSettings(controller.signal);
+        if (!ignore) setAllowStars(settings.allow_stars);
+      } catch (err) {
+        if (!ignore && !isAbortedRequest(err)) setAllowStars(false);
+      }
+    })();
+    return () => {
+      ignore = true;
+      controller.abort();
     };
   }, []);
 
@@ -222,6 +243,12 @@ const Payment: FC = () => {
     setIsSuccess(false);
   };
   const handlePayWithTG = async () => {
+    if (!allowStars) {
+      toast.error("Telegram Stars payment is not available right now.", {
+        position: "top-center",
+      });
+      return;
+    }
     try {
       if (!user?.id) {
         toast.error("Your Telegram session is missing a user ID. Please reopen the app from Telegram.");
@@ -489,16 +516,20 @@ const Payment: FC = () => {
             </Button>
           </form>
         </CardContent>
-        <span className="text-center">or</span>
-        <CardFooter className="flex-col items-start text-xs text-muted-foreground">
-          <div
-            onClick={handlePayWithTG}
-            className=" gap-2 rounded-lg bg-[#24A1DE] flex items-center text-white p-3 mx-auto text-sm"
-          >
-            <Send className="text-white w-6 h-6" />
-            Pay with Telegram
-          </div>
-        </CardFooter>
+        {allowStars && (
+          <>
+            <span className="text-center">or</span>
+            <CardFooter className="flex-col items-start text-xs text-muted-foreground">
+              <div
+                onClick={handlePayWithTG}
+                className=" gap-2 rounded-lg bg-[#24A1DE] flex items-center text-white p-3 mx-auto text-sm"
+              >
+                <Send className="text-white w-6 h-6" />
+                Pay with Telegram
+              </div>
+            </CardFooter>
+          </>
+        )}
       </Card>
     </div>
   );

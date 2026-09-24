@@ -28,6 +28,9 @@ type telegramUsecase struct {
 	bot            *tgbotapi.BotAPI
 	studentRepo    StudentRepository
 	paymentUsecase PaymentUsecase
+	// settings gates the Stars invoice surface and supplies its XTR price; nil
+	// (stripped wiring / tests) means Stars is disabled, the safe default.
+	settings PaymentSettingsUsecase
 }
 
 // StartCommand implements TelegramUsecase.
@@ -230,6 +233,9 @@ func (t *telegramUsecase) handleSuccessfulPayment(sp *tgbotapi.SuccessfulPayment
 // Telegram id) is embedded in the invoice payload so the webhook can bind the
 // eventual successful_payment update back to them.
 func (t *telegramUsecase) CreatePremiumInvoiceLink(userID string) (string, error) {
+	if t.settings == nil || !t.settings.AllowStars() {
+		return "", errors.New("telegram stars payments are disabled")
+	}
 	payload, err := buildPremiumPayload(userID)
 	if err != nil {
 		return "", err
@@ -239,7 +245,7 @@ func (t *telegramUsecase) CreatePremiumInvoiceLink(userID string) (string, error
 		"description": "Victory Learning premium plan",
 		"payload":     payload,
 		"currency":    "XTR",
-		"prices":      []map[string]any{{"label": "Victory Premium", "amount": 50}},
+		"prices":      []map[string]any{{"label": "Victory Premium", "amount": t.settings.StarsAmount()}},
 	})
 	if err != nil {
 		return "", err
@@ -268,6 +274,10 @@ func (t *telegramUsecase) SavePreparedInlineMessage(userID int64, result json.Ra
 	})
 }
 
-func NewTelegramUsecase(bot *tgbotapi.BotAPI, studentRepo StudentRepository, paymentUsecase PaymentUsecase) TelegramUsecase {
-	return &telegramUsecase{bot: bot, studentRepo: studentRepo, paymentUsecase: paymentUsecase}
+func NewTelegramUsecase(bot *tgbotapi.BotAPI, studentRepo StudentRepository, paymentUsecase PaymentUsecase, settings ...PaymentSettingsUsecase) TelegramUsecase {
+	uc := &telegramUsecase{bot: bot, studentRepo: studentRepo, paymentUsecase: paymentUsecase}
+	if len(settings) > 0 {
+		uc.settings = settings[0]
+	}
+	return uc
 }
