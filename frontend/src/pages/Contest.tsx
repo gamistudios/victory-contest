@@ -379,6 +379,23 @@ const ContestComponent: React.FC = () => {
     );
   };
 
+  // A bare /contest visit (no ?con=) never fetches anything — the load
+  // effect below returns early — so it must not sit on the spinner forever.
+  if (!conId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
+        <XCircle className="w-12 h-12 mb-4 text-gray-400" />
+        <p className="text-lg font-semibold text-gray-800 dark:text-white">
+          No contest selected
+        </p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Open a contest from the home page to start answering.
+        </p>
+        <Button onClick={() => navigate("/")}>Back to contests</Button>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
