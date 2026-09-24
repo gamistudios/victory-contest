@@ -17,7 +17,6 @@ import { AuthProvider } from "./context/AuthContext";
 import ArticlesPage from "./pages/Articles";
 import { ArticleView } from "./components/article/ArticleView";
 import NotFound from "./components/not-found";
-// import ScreenshotProtection from "./components/ScreenProtection";
 
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";

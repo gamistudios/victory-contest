@@ -1,286 +1,133 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTelegram } from "./useTelegram";
 
-export const useScreenshotProtection = () => {
+// How long the dark "screenshot shortcut" warning stays on screen.
+const SHORTCUT_WARNING_MS = 3000;
+
+// Key combos that commonly start an OS/browser screenshot capture. These
+// cannot truly block OS-level capture, but intercepting them is a deterrent
+// signal during the exam (desktop Telegram webviews do receive keydown).
+const FORBIDDEN_SHORTCUTS: Array<{
+  key: string;
+  ctrl?: boolean;
+  shift?: boolean;
+  meta?: boolean;
+}> = [
+  { key: "PrintScreen" },
+  { ctrl: true, shift: true, key: "S" },
+  { meta: true, shift: true, key: "3" },
+  { meta: true, shift: true, key: "4" },
+  { meta: true, shift: true, key: "5" },
+];
+
+export interface ScreenshotProtectionState {
+  /** How many times the student switched away from the page. */
+  tabSwitches: number;
+  /** True while the dismiss-by-tap cover should be shown on return. */
+  isCoverVisible: boolean;
+  /** True while the dark screenshot-shortcut warning should be shown. */
+  isShortcutWarningVisible: boolean;
+  /** Acknowledge the tab-switch cover and resume the exam. */
+  acknowledgeCover: () => void;
+}
+
+interface Options {
+  /** Attach listeners only while the protection is actually needed. */
+  enabled?: boolean;
+}
+
+export const useScreenshotProtection = ({
+  enabled = true,
+}: Options = {}): ScreenshotProtectionState => {
   const { hapticFeedback } = useTelegram();
-  const overlayRef = useRef<HTMLDivElement | null>(null);
-  const isShowingWarning = useRef(false);
-  const lastVisibilityChange = useRef(0);
-  const suspiciousActivityCount = useRef(0);
+  const [tabSwitches, setTabSwitches] = useState(0);
+  const [isCoverVisible, setCoverVisible] = useState(false);
+  const [isShortcutWarningVisible, setShortcutWarningVisible] = useState(false);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set when the page goes hidden during an enabled session; on return we
+  // show the cover so the student must acknowledge the switch.
+  const wentHiddenRef = useRef(false);
+
+  const acknowledgeCover = useCallback(() => {
+    setCoverVisible(false);
+    wentHiddenRef.current = false;
+  }, []);
 
   useEffect(() => {
-    const createOverlay = (message = "Screenshots are not allowed") => {
-      if (overlayRef.current || isShowingWarning.current) return;
+    if (!enabled) {
+      // Leaving the exam window: drop any pending protection UI.
+      setCoverVisible(false);
+      setShortcutWarningVisible(false);
+      wentHiddenRef.current = false;
+      return;
+    }
 
-      isShowingWarning.current = true;
-      const overlay = document.createElement("div");
-      overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.9);
-        z-index: 999999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 18px;
-        font-weight: bold;
-        text-align: center;
-        backdrop-filter: blur(20px);
-        pointer-events: none;
-      `;
-      overlay.innerHTML = `
-        <div>
-          <div style="font-size: 48px; margin-bottom: 16px;">🚫</div>
-          <div>${message}</div>
-          <div style="font-size: 14px; margin-top: 8px; opacity: 0.8;">Contest content is protected</div>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-      overlayRef.current = overlay;
-
-      // Auto-remove after 3 seconds
-      setTimeout(removeOverlay, 3000);
-    };
-
-    const removeOverlay = () => {
-      if (overlayRef.current) {
-        document.body.removeChild(overlayRef.current);
-        overlayRef.current = null;
-        isShowingWarning.current = false;
+    const showShortcutWarning = () => {
+      setShortcutWarningVisible(true);
+      if (warningTimerRef.current) {
+        clearTimeout(warningTimerRef.current);
       }
+      warningTimerRef.current = setTimeout(() => {
+        setShortcutWarningVisible(false);
+        warningTimerRef.current = null;
+      }, SHORTCUT_WARNING_MS);
+      hapticFeedback("notification", "error");
     };
 
-    const preventScreenshotShortcuts = (e: KeyboardEvent) => {
-      // 1. Correct the key value here
-      const forbiddenCombinations = [
-        { key: "PrintScreen" },
-        { ctrl: true, shift: true, key: "S" },
-        { meta: true, shift: true, key: "3" },
-        { meta: true, shift: true, key: "4" },
-        { meta: true, shift: true, key: "5" },
-      ];
-
-      for (const combo of forbiddenCombinations) {
-        let matches = true;
-
-        // These checks are sufficient now
-        if (combo.ctrl && !e.ctrlKey) matches = false;
-        if (combo.shift && !e.shiftKey) matches = false;
-        if (combo.meta && !e.metaKey) matches = false;
-        if (combo.key && e.key !== combo.key) matches = false;
-
-        // 2. The redundant 'if' statement has been removed
-
+    const handleKeyDown = (e: KeyboardEvent) => {
+      for (const combo of FORBIDDEN_SHORTCUTS) {
+        const matches =
+          e.key === combo.key &&
+          (!combo.ctrl || e.ctrlKey) &&
+          (!combo.shift || e.shiftKey) &&
+          (!combo.meta || e.metaKey);
         if (matches) {
           e.preventDefault();
-          createOverlay("Desktop screenshots are blocked");
-          if (hapticFeedback) {
-            hapticFeedback("notification", "error");
-          }
-          return false;
+          showShortcutWarning();
+          return;
         }
       }
     };
 
-    // Mobile screenshot detection
-    const detectMobileScreenshot = () => {
-      const now = Date.now();
-
-      // Detect rapid visibility changes (common during mobile screenshots)
-      if (now - lastVisibilityChange.current < 1000) {
-        suspiciousActivityCount.current++;
-
-        if (suspiciousActivityCount.current >= 2) {
-          createOverlay("Mobile screenshots detected");
-          if (hapticFeedback) {
-            hapticFeedback("notification", "warning");
-          }
-          suspiciousActivityCount.current = 0;
-        }
-      } else {
-        suspiciousActivityCount.current = 0;
-      }
-
-      lastVisibilityChange.current = now;
-    };
-
-    // Mobile-specific detection methods
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        detectMobileScreenshot();
+        wentHiddenRef.current = true;
+        setTabSwitches((count) => count + 1);
+      } else if (wentHiddenRef.current) {
+        // Back on the exam: cover the content until it is acknowledged.
+        setCoverVisible(true);
+        hapticFeedback("notification", "warning");
       }
     };
 
-    // Detect power button + volume down (Android screenshot)
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Volume keys detection (limited browser support)
-      if (e.key === "VolumeDown" || e.key === "VolumeUp") {
-        setTimeout(() => {
-          if (document.hidden) {
-            createOverlay("Screenshot attempt detected");
-            if (hapticFeedback) {
-              hapticFeedback("notification", "error");
-            }
-          }
-        }, 100);
-      }
-    };
-
-    // Detect three-finger screenshot (iOS)
-    let touchCount = 0;
-    const handleTouchStart = (e: TouchEvent) => {
-      touchCount = e.touches.length;
-
-      // Three finger touch (iOS screenshot gesture)
-      if (touchCount === 3) {
-        setTimeout(() => {
-          createOverlay("Three-finger screenshot blocked");
-          if (hapticFeedback) {
-            hapticFeedback("notification", "error");
-          }
-        }, 100);
-      }
-    };
-
-    // Detect long press (Android screenshot in some devices)
-    let longPressTimer: NodeJS.Timeout;
-    const handleTouchStartLongPress = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        longPressTimer = setTimeout(() => {
-          // Check if still touching and app becomes hidden
-          if (document.hidden) {
-            createOverlay("Long press screenshot detected");
-            if (hapticFeedback) {
-              hapticFeedback("notification", "warning");
-            }
-          }
-        }, 1000);
-      }
-    };
-
-    const handleTouchEnd = () => {
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
-      }
-    };
-
-    // Prevent right-click context menu
+    // Silence the right-click/long-press context menu during the exam
+    // (no overlay; preventDefault alone is the deterrent).
     const preventContextMenu = (e: MouseEvent) => {
       e.preventDefault();
-      createOverlay("Context menu blocked");
-      if (hapticFeedback) {
-        hapticFeedback("impact", "medium");
-      }
-      return false;
     };
 
-    // Detect screen recording (limited support)
-    const detectScreenRecording = () => {
-      if (
-        "mediaDevices" in navigator &&
-        "getDisplayMedia" in navigator.mediaDevices
-      ) {
-        navigator.mediaDevices.getDisplayMedia = function () {
-          createOverlay("Screen recording is not allowed");
-          if (hapticFeedback) {
-            hapticFeedback("notification", "error");
-          }
-          return Promise.reject(new Error("Screen recording blocked"));
-        };
-      }
-    };
+    // Printing the exam page produces a blank sheet while mounted.
+    const printStyle = document.createElement("style");
+    printStyle.textContent = `@media print { body { display: none !important; } }`;
+    document.head.appendChild(printStyle);
 
-    // Add event listeners
-    document.addEventListener("contextmenu", preventContextMenu);
-    document.addEventListener("keydown", preventScreenshotShortcuts);
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    document.addEventListener("touchstart", handleTouchStart, {
-      passive: true,
-    });
-    document.addEventListener("touchstart", handleTouchStartLongPress, {
-      passive: true,
-    });
-    document.addEventListener("touchend", handleTouchEnd, { passive: true });
+    document.addEventListener("contextmenu", preventContextMenu);
 
-    // Initialize screen recording detection
-    detectScreenRecording();
-
-    // Mobile-specific CSS protection
-    const style = document.createElement("style");
-    style.textContent = `
-      * {
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
-        -webkit-touch-callout: none;
-        -webkit-tap-highlight-color: transparent;
-        -webkit-user-drag: none;
-        -khtml-user-drag: none;
-        -moz-user-drag: none;
-        -o-user-drag: none;
-        user-drag: none;
-      }
-      
-      input, textarea, button {
-        -webkit-user-select: auto;
-        -moz-user-select: auto;
-        -ms-user-select: auto;
-        user-select: auto;
-      }
-      
-      @media print {
-        body { display: none !important; }
-      }
-      
-      /* Prevent screenshot on iOS Safari */
-      @media screen and (-webkit-min-device-pixel-ratio: 0) {
-        body {
-          -webkit-user-select: none;
-          -webkit-touch-callout: none;
-        }
-      }
-      
-      /* Android specific */
-      @media screen and (max-width: 768px) {
-        * {
-          -webkit-user-select: none !important;
-          -moz-user-select: none !important;
-          -ms-user-select: none !important;
-          user-select: none !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-
-    // Cleanup function
     return () => {
-      document.removeEventListener("contextmenu", preventContextMenu);
-      document.removeEventListener("keydown", preventScreenshotShortcuts);
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      document.removeEventListener("touchstart", handleTouchStart);
-      document.removeEventListener("touchstart", handleTouchStartLongPress);
-      document.removeEventListener("touchend", handleTouchEnd);
-
-      removeOverlay();
-
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
+      document.removeEventListener("contextmenu", preventContextMenu);
+      if (warningTimerRef.current) {
+        clearTimeout(warningTimerRef.current);
+        warningTimerRef.current = null;
       }
-
-      if (style.parentNode) {
-        style.parentNode.removeChild(style);
+      if (printStyle.parentNode) {
+        printStyle.parentNode.removeChild(printStyle);
       }
     };
-  }, [hapticFeedback]);
+  }, [enabled, hapticFeedback]);
 
-  return {
-    isProtected: true,
-  };
+  return { tabSwitches, isCoverVisible, isShortcutWarningVisible, acknowledgeCover };
 };

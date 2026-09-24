@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import api, { isAbortedRequest } from "../services/api";
 import { submitContestResult } from "../services/contestApi";
 import { Button } from "../components/ui/button";
+import { useContestTimer } from "../hooks/useContestTimer";
+import ScreenshotProtection from "../components/ScreenProtection";
 import axios from "axios";
 
 const ContestComponent: React.FC = () => {
@@ -43,6 +45,14 @@ const ContestComponent: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const { user } = useTelegram();
   const [isImageModalOpen, setIsImageModalOpen] = useState(false); // State for the image modal
+
+  // Contest-window status for the screenshot protection gate: the anti-cheat
+  // layer must be live only while the student is actually answering (ACTIVE),
+  // not on the loading/error/results screens below.
+  const { status: contestTimerStatus } = useContestTimer(
+    contest?.start_time || "",
+    contest?.end_time || ""
+  );
 
   useEffect(() => {
     if (timeLeft > 0 && !contestEnded) {
@@ -425,7 +435,7 @@ const ContestComponent: React.FC = () => {
     );
   }
 
-  return (
+  const examView = (
     <div className="p-4 max-w-2xl mx-auto font-sans">
       {/* Header */}
       <div className="mb-6">
@@ -582,6 +592,15 @@ const ContestComponent: React.FC = () => {
       {/* --- END: Image Modal --- */}
     </div>
   );
+
+  // Mount the protection around the exam view only while the contest window
+  // is ACTIVE: entering this branch already means !loading, !error and
+  // !contestEnded (the results screen returns earlier), so this is exactly
+  // the answering session. Unmounting detaches all listeners.
+  if (contestTimerStatus === "ACTIVE") {
+    return <ScreenshotProtection>{examView}</ScreenshotProtection>;
+  }
+  return examView;
 };
 
 export default ContestComponent;
