@@ -58,33 +58,16 @@ const grades = ["Grade 12", "Grade 11", "Grade 10", "Default"];
 
 const cities = ["Adama", "Addis Ababa", "Dire Dewa", "Bishoftu", "Default"];
 
-// Helper function for better readability
+// GET /api/student/ derives is_premium server-side from the student's
+// unexpired approved payments; the list row carries no payment object, so any
+// payment_date-style field read here would always be undefined.
 const getPaymentStatus = (
   student: Student
 ): { label: string; variant: "default" | "secondary" | "destructive" } => {
-  if (!student.payment?.payment_date) {
-    return { label: "Unpaid", variant: "destructive" };
+  if (student.is_premium) {
+    return { label: "Paid", variant: "default" };
   }
-
-  try {
-    const paymentDate = new Date(student.payment.payment_date);
-    if (isNaN(paymentDate.getTime())) {
-      return { label: "Invalid Date", variant: "secondary" };
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    paymentDate.setHours(0, 0, 0, 0);
-
-    if (paymentDate >= today) {
-      return { label: "Paid", variant: "default" };
-    } else {
-      return { label: "Expired", variant: "destructive" };
-    }
-  } catch (error) {
-    console.warn("Error processing payment date:", error);
-    return { label: "Error", variant: "secondary" };
-  }
+  return { label: "Unpaid", variant: "destructive" };
 };
 
 export default function UserListPage() {

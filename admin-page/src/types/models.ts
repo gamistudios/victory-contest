@@ -11,8 +11,9 @@ export interface Student {
   city?: string;
   region?: string;
   imgurl?: string;
+  /** Derived server-side from the student's unexpired approved payments. */
+  is_premium?: boolean;
   contests: Contest[];
-  payment?: Payment;
 }
 export interface Admin {
   /** Backend domain.Admin row key; GET /api/admin/ always includes it. */
@@ -43,19 +44,15 @@ export interface APIContest extends Omit<Contest, "questions"> {
 }
 export interface Payment {
   id?: string;
-  student: {
-    student_id: string;
-    imgurl: string;
-    name: string;
-  };
-  contest_id: string;
-  payment_date: string;
-  amount: number;
-  payment_status: "active" | "overdue" | "pending" | "unpaid" | "inactive";
-  payment_method?: "cash" | "bank_transfer" | "mobile_money";
-  transaction_id?: string;
-  receipt_url?: string;
-  notes?: string;
+  user_id?: string;
+  fullName?: string;
+  bankName?: string;
+  billScreenshotUrl?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  /** Absent until an admin (or the Stars webhook) approves a payment. */
+  expirationDate?: string;
 }
 export interface Question {
   id?: string;

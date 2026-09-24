@@ -16,6 +16,7 @@ type stubStudentRepo struct {
 	StudentRepository
 	byID       map[string]*domain.Student
 	byTelegram map[string]*domain.Student
+	list       []*domain.Student
 	repoErr    error // simulates a failure of the student-table lookup itself
 }
 
@@ -46,12 +47,29 @@ func (s *stubStudentRepo) GetStudentByTelegramID(telegramID string) (*domain.Stu
 	return nil, nil
 }
 
-// stubPaymentRepo implements PaymentRepository.ListByUser, the single method the
-// enrichment helper calls, and can be told to fail it to exercise the
-// non-fatal-error path.
+// GetStudents returns a fresh slice whose rows carry the stale stored
+// is_premium attribute (the stub presets it to true) so tests prove the
+// usecase overwrites it rather than passing it through.
+func (s *stubStudentRepo) GetStudents() ([]domain.Student, error) {
+	if s.repoErr != nil {
+		return nil, s.repoErr
+	}
+	out := make([]domain.Student, 0, len(s.list))
+	for _, st := range s.list {
+		cp := *st
+		cp.IsPremium = true
+		out = append(out, cp)
+	}
+	return out, nil
+}
+
+// stubPaymentRepo implements the two payment reads the enrichment paths call
+// (ListByUser for one student, ListAll for the student list) and can be told to
+// fail them to exercise the non-fatal-error path.
 type stubPaymentRepo struct {
 	PaymentRepository
 	byUser map[string][]domain.PaymentRequest
+	all    []domain.PaymentRequest
 	err    error
 	calls  int
 }
@@ -62,6 +80,14 @@ func (p *stubPaymentRepo) ListByUser(userID string) ([]domain.PaymentRequest, er
 		return nil, p.err
 	}
 	return p.byUser[userID], nil
+}
+
+func (p *stubPaymentRepo) ListAll() ([]domain.PaymentRequest, error) {
+	p.calls++
+	if p.err != nil {
+		return nil, p.err
+	}
+	return p.all, nil
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
@@ -204,5 +230,52 @@ func TestStudentRepoErrorStillPropagates(t *testing.T) {
 	}
 	if got, err := uc.GetStudentByTelegramID("999001"); err == nil {
 		t.Fatalf("expected repo error to propagate, got student %+v, nil", got)
+	}
+}
+
+// The admin user list must report the same premium derivation the single-student
+// getters do. The stored is_premium attribute is only ever written on
+// registration, so passing it through showed every paid student as unpaid (the
+// stub presets it to true to prove it is overwritten).
+func TestGetStudentsDerivesPremiumFromPayments(t *testing.T) {
+	repo := &stubStudentRepo{list: []*domain.Student{
+		{ID: "paid", TelegramID: "111", Name: "Paid"},
+		{ID: "expired", TelegramID: "222", Name: "Expired"},
+		{ID: "none", TelegramID: "333", Name: "None"},
+	}}
+	pay := &stubPaymentRepo{all: []domain.PaymentRequest{
+		{UserID: "paid", Status: domain.StatusApproved, ExpirationDate: ptrTime(futureTime())},
+		{UserID: "expired", Status: domain.StatusApproved, ExpirationDate: ptrTime(pastTime())},
+		{UserID: "none", Status: domain.StatusPending, ExpirationDate: ptrTime(futureTime())},
+	}}
+	uc := NewStudentUsecase(repo, pay, nil, nil)
+
+	students, err := uc.GetStudents()
+	if err != nil {
+		t.Fatalf("GetStudents: %v", err)
+	}
+	want := map[string]bool{"paid": true, "expired": false, "none": false}
+	if len(students) != len(want) {
+		t.Fatalf("got %d students, want %d", len(students), len(want))
+	}
+	for _, st := range students {
+		if st.IsPremium != want[st.ID] {
+			t.Errorf("%s: IsPremium=%v, want %v", st.ID, st.IsPremium, want[st.ID])
+		}
+	}
+	if pay.calls != 1 {
+		t.Errorf("expected one payment read for the whole list, got %d", pay.calls)
+	}
+}
+
+// Rows written before the expiration attribute existed unmarshal with a nil
+// ExpirationDate; dereferencing them panicked the read paths.
+func TestGrantsAccessToleratesMissingExpiration(t *testing.T) {
+	now := time.Now().UTC()
+	if grantsAccess(domain.PaymentRequest{Status: domain.StatusApproved}, now) {
+		t.Fatal("an approved payment without an expiration must not grant access")
+	}
+	if !grantsAccess(domain.PaymentRequest{Status: domain.StatusApproved, ExpirationDate: ptrTime(now.Add(time.Hour))}, now) {
+		t.Fatal("an approved unexpired payment must grant access")
 	}
 }

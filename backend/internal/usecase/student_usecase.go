@@ -66,8 +66,53 @@ func (u *studentUsecase) VerifyStudentPaid(telegramID string) (bool, error) {
 func (u *studentUsecase) GetPaidStudents() ([]domain.Student, error) {
 	return u.repo.GetPaidStudents()
 }
+
+// GetStudents lists students with IsPremium derived the same way
+// enrichStudent derives it for a single student. One ListAll over payments
+// replaces a per-student lookup so the admin user table stays a constant
+// number of reads; the stored is_premium attribute is written only on
+// registration, so reporting it verbatim would show every paid student as
+// unpaid.
 func (u *studentUsecase) GetStudents() ([]domain.Student, error) {
-	return u.repo.GetStudents()
+	students, err := u.repo.GetStudents()
+	if err != nil {
+		return nil, err
+	}
+	payers, err := u.activePayerIDs()
+	if err != nil {
+		log.Printf("students: payment lookup failed, reporting everyone as unpaid: %v", err)
+	}
+	for i := range students {
+		students[i].IsPremium = payers[students[i].ID]
+	}
+	return students, nil
+}
+
+// grantsAccess reports whether a payment currently entitles its owner to
+// premium access. ExpirationDate is a pointer because rows written before the
+// attribute existed (and rejected/pending rows) simply carry no expiration —
+// dereferencing those panicked the admin profile and student-login read paths.
+func grantsAccess(pay domain.PaymentRequest, now time.Time) bool {
+	return pay.Status == domain.StatusApproved &&
+		pay.ExpirationDate != nil &&
+		pay.ExpirationDate.After(now)
+}
+
+// activePayerIDs returns the set of student ids holding an Approved payment
+// whose expiration date is still in the future.
+func (u *studentUsecase) activePayerIDs() (map[string]bool, error) {
+	payments, err := u.paymentRepo.ListAll()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	payers := make(map[string]bool, len(payments))
+	for _, pay := range payments {
+		if grantsAccess(pay, now) {
+			payers[pay.UserID] = true
+		}
+	}
+	return payers, nil
 }
 func (u *studentUsecase) GetStudentByID(id string) (*domain.Student, error) {
 	student, err := u.repo.GetStudentByID(id)
@@ -111,7 +156,7 @@ func (u *studentUsecase) enrichStudent(student *domain.Student) {
 	}
 	now := time.Now().UTC()
 	for _, pay := range payments {
-		if pay.Status == "Approved" && pay.ExpirationDate.After(now) {
+		if grantsAccess(pay, now) {
 			student.IsPremium = true
 			break
 		}
