@@ -50,7 +50,6 @@ export const NotificationProvider = ({
       const response = await api.get("/api/notification/recipient/admin");
       const nots = response.data.notifications;
       setNotifications(nots);
-      console.log(nots.filter((n: Notification) => !n.is_read).length);
       setUnreadCount(nots.filter((n: Notification) => !n.is_read).length);
     } catch (error) {
       console.error("Failed to fetch notifications", error);
