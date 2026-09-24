@@ -34,6 +34,9 @@ func (h *AdminHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.Hand
 	auth.GET("/", h.GetAllAdmins)
 	auth.GET("/dashboard", h.GetDashboardStats)
 	rg.POST("/login", h.SignIn)
+	// Logout is public: clearing the cookie must work even with an
+	// expired/invalid token, and the panel's api already calls it.
+	rg.POST("/logout", h.Logout)
 }
 func (h *AdminHandler) GetMe(c *gin.Context) {
 	tokenString, err := c.Cookie("token")
@@ -64,21 +67,12 @@ func (h *AdminHandler) GetMe(c *gin.Context) {
 }
 
 type adminInput struct {
-	ID         string `json:"id"`
-	Email      string `json:"email"`
-	Name       string `json:"name"`
-	IsApproved bool   `json:"is_approved"`
-	Password   string `json:"password"`
-}
-
-func (i adminInput) toDomain() domain.Admin {
-	return domain.Admin{
-		ID:         i.ID,
-		Email:      i.Email,
-		Name:       i.Name,
-		IsApproved: i.IsApproved,
-		Password:   i.Password,
-	}
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
+	// Pointer so a PUT body without is_approved means "unchanged" instead of
+	// silently revoking an approved admin.
+	IsApproved *bool `json:"is_approved"`
 }
 
 func (h *AdminHandler) AddAdmin(c *gin.Context) {
@@ -91,7 +85,11 @@ func (h *AdminHandler) AddAdmin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "email and password are required"})
 		return
 	}
-	id, err := h.usecase.AddAdmin(req.toDomain())
+	id, err := h.usecase.AddAdmin(domain.Admin{
+		Email:    req.Email,
+		Name:     req.Name,
+		Password: req.Password,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -106,7 +104,20 @@ func (h *AdminHandler) UpdateAdmin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	err := h.usecase.UpdateAdmin(id, req.toDomain())
+	// Flat, partial-safe update: the usecase loads the stored row by id and
+	// merges only these fields, so the panel must key on admin.id (not email).
+	upd := usecase.AdminUpdate{IsApproved: req.IsApproved}
+	if req.Name != "" {
+		upd.Name = &req.Name
+	}
+	if req.Password != "" {
+		upd.Password = &req.Password
+	}
+	err := h.usecase.UpdateAdmin(id, upd)
+	if errors.Is(err, usecase.ErrAdminNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "admin not found"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -117,6 +128,10 @@ func (h *AdminHandler) UpdateAdmin(c *gin.Context) {
 func (h *AdminHandler) DeleteAdmin(c *gin.Context) {
 	id := c.Param("id")
 	err := h.usecase.DeleteAdmin(id)
+	if errors.Is(err, usecase.ErrAdminNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "admin not found"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -157,6 +172,13 @@ func (h *AdminHandler) SignIn(c *gin.Context) {
 		return
 	}
 	admin, err := h.usecase.SignIn(req.Email, req.Password)
+	if errors.Is(err, usecase.ErrNotApproved) {
+		// Valid credentials, but another admin must approve the account
+		// first: answer 403 with a stable machine-readable error and set
+		// NO session cookie.
+		c.JSON(http.StatusForbidden, gin.H{"error": "account not approved"})
+		return
+	}
 	if errors.Is(err, usecase.ErrInvalidCredentials) || admin == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
@@ -195,6 +217,25 @@ func (h *AdminHandler) SignIn(c *gin.Context) {
 	http.SetCookie(c.Writer, cookie)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful, cookie set"})
+}
+
+// Logout clears the admin session cookie. It is intentionally registered
+// outside adminAuth: expiring the cookie is safe (and needed) even when the
+// incoming token is already invalid or expired. The attributes must match the
+// ones used when the cookie was issued (Path, Secure, SameSite=None), or the
+// browser will not overwrite it.
+func (h *AdminHandler) Logout(c *gin.Context) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 
 func (h *AdminHandler) GetDashboardStats(c *gin.Context) {

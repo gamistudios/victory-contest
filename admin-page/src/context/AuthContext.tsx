@@ -8,9 +8,21 @@ import {
   useEffect,
   useState,
 } from "react";
+import { isAxiosError } from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
+
+// Shape returned by GET /api/admin/me (domain.Admin JSON) plus the optional
+// avatar field the header/sidebar read.
+export interface AuthUser {
+  id?: string;
+  name: string;
+  email: string;
+  imgurl?: string;
+  is_approved?: boolean;
+}
+
 interface AuthContextType {
-  user: any;
+  user: AuthUser | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   register: (data: {
@@ -24,7 +36,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState(null as any); // Initialize user state
+  const [user, setUser] = useState<AuthUser | null>(null); // Initialize user state
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,31 +59,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    // Backend contract (POST /api/admin/login): 200 + Set-Cookie on success,
+    // 401 invalid credentials, 403 valid-but-unapproved account. The old
+    // {message:{auth,isApproved}} destructure matched nothing the API returns.
     try {
-      const res = await loginUser(email, password);
-      const {
-        message,
-      }: { message: null | { isApproved: boolean; auth: boolean } } = res;
-      console.log(message);
-      if (message === null) {
-        throw new Error("user not found");
-      }
-
-      if (message.auth == false) {
-        throw new Error("Wrong password!");
-      }
-      if (message.isApproved == false) {
-        throw new Error(
-          "Your are not approve by another admin. Please wait until you approved!"
-        );
-      }
+      await loginUser(email, password);
       window.location.reload();
     } catch (err) {
-      if (err instanceof Error) {
-        throw new Error(err.message);
-      } else {
-        throw new Error("Connection issue");
+      if (isAxiosError(err)) {
+        const status = err.response?.status;
+        if (status === 401) {
+          throw new Error("Wrong email or password");
+        }
+        if (status === 403) {
+          throw new Error("Your account is not approved by another admin yet");
+        }
+        throw new Error("Login failed. Please try again.");
       }
+      throw new Error("Connection issue");
     }
   };
   const register = async (data: {
@@ -92,17 +97,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    // Ask the backend to expire the HttpOnly session cookie, then clear the
+    // local auth state and send the user back to the login page. Even if the
+    // request fails (e.g. offline) the client-side state must reset.
     try {
       await userLogout();
-      window.location.reload();
     } catch (err) {
-      if (err instanceof Error) {
-        throw new Error(err.message);
-      } else {
-        throw new Error("Connection issue");
-      }
+      console.error("Logout request failed:", err);
     }
-    window.location.reload();
+    setUser(null);
+    navigate("/");
   };
   if (loading) {
     return <LoadingOverlay />;

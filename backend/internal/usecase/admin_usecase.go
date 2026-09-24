@@ -16,6 +16,25 @@ import (
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
+// ErrNotApproved is returned by SignIn when the email/password pair is valid
+// but the admin account has not been approved by an existing admin yet. The
+// handler maps it to HTTP 403 and must NOT issue a session cookie.
+var ErrNotApproved = errors.New("account not approved")
+
+// ErrAdminNotFound is returned by UpdateAdmin/DeleteAdmin when no row is
+// keyed by the requested id; the handler maps it to HTTP 404 instead of
+// blindly writing a new (or orphan) item.
+var ErrAdminNotFound = errors.New("admin not found")
+
+// AdminUpdate carries the mutable fields accepted by PUT /api/admin/:id.
+// A nil field means "leave the stored value untouched", so a partial body
+// can never blank an admin's email, name or approval flag (id-vs-email fix).
+type AdminUpdate struct {
+	Name       *string
+	IsApproved *bool
+	Password   *string
+}
+
 // contestTimeLayouts is the superset of timestamp layouts observed in stored
 // contest start/end times (issue #38): RFC 3339 (with Z or numeric offset)
 // plus the legacy layouts — no-offset ISO, minute precision, and date only.
@@ -96,7 +115,7 @@ func parseContestTime(value string) (t time.Time, ok bool) {
 
 type AdminUsecase interface {
 	AddAdmin(admin domain.Admin) (string, error)
-	UpdateAdmin(id string, update domain.Admin) error
+	UpdateAdmin(id string, update AdminUpdate) error
 	DeleteAdmin(id string) error
 	GetAdminByID(id string) (*domain.Admin, error)
 	GetAllAdmins() ([]domain.Admin, error)
@@ -140,17 +159,45 @@ func (u *adminUsecase) AddAdmin(admin domain.Admin) (string, error) {
 	admin.Password = string(hash)
 	return u.repo.AddAdmin(admin)
 }
-func (u *adminUsecase) UpdateAdmin(id string, update domain.Admin) error {
-	if update.Password != "" {
-		hash, err := bcrypt.GenerateFromPassword([]byte(update.Password), bcrypt.DefaultCost)
+// UpdateAdmin performs a read-modify-write on the row keyed by id: the stored
+// item is loaded first (404-equivalent ErrAdminNotFound when absent, so a PUT
+// can never mint a brand-new admin), then only the non-nil fields of the
+// update are merged. Email is not mutable through this path; the id is the
+// single key the panel uses.
+func (u *adminUsecase) UpdateAdmin(id string, update AdminUpdate) error {
+	existing, err := u.repo.GetAdminByID(id)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return ErrAdminNotFound
+	}
+	if update.Name != nil && *update.Name != "" {
+		existing.Name = *update.Name
+	}
+	if update.IsApproved != nil {
+		existing.IsApproved = *update.IsApproved
+	}
+	if update.Password != nil && *update.Password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(*update.Password), bcrypt.DefaultCost)
 		if err != nil {
 			return err
 		}
-		update.Password = string(hash)
+		existing.Password = string(hash)
 	}
-	return u.repo.UpdateAdmin(id, update)
+	return u.repo.UpdateAdmin(id, *existing)
 }
+
+// DeleteAdmin removes the row keyed by id, answering ErrAdminNotFound for an
+// unknown id so a typo cannot silently "succeed" against a non-existent key.
 func (u *adminUsecase) DeleteAdmin(id string) error {
+	existing, err := u.repo.GetAdminByID(id)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return ErrAdminNotFound
+	}
 	return u.repo.DeleteAdmin(id)
 }
 func (u *adminUsecase) GetAdminByID(id string) (*domain.Admin, error) {
@@ -178,6 +225,13 @@ func (u *adminUsecase) SignIn(email, password string) (*domain.Admin, error) {
 	}
 	if !ok {
 		return nil, ErrInvalidCredentials
+	}
+
+	// Credentials are valid but the account still awaits approval by another
+	// admin: refuse the session (the handler answers 403) and never hand back
+	// an admin object the caller could turn into a cookie.
+	if !admin.IsApproved {
+		return nil, ErrNotApproved
 	}
 
 	if !hashed {

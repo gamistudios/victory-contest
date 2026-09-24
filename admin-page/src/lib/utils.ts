@@ -178,17 +178,26 @@ export async function registerUser(data: {
   password: string;
   email: string;
 }) {
+  // Flat payload matching the backend adminInput binding. NOTE: POST
+  // /api/admin/register sits behind the adminAuth cookie middleware, so
+  // registering a new admin requires an already-authenticated admin session.
   const res = await api.post(`/api/admin/register`, {
-    data,
+    email: data.email,
+    password: data.password,
+    name: data.name,
   });
   return res.data;
 }
 
 export async function approveAdmin(
-  email: string,
-  data: { isApproved: boolean }
+  id: string,
+  data: { is_approved: boolean }
 ) {
-  const res = await api.put(`/api/admin/${email}`, { data });
+  // The backend PUT /api/admin/:id now read-modify-writes the row keyed by
+  // the admin ID (never an email), with a flat partial-safe body.
+  const res = await api.put(`/api/admin/${id}`, {
+    is_approved: data.is_approved,
+  });
   return res.data;
 }
 
@@ -198,7 +207,7 @@ export async function getAllAdmins() {
   return admins;
 }
 
-export async function deleteAdmin(email: string) {
-  const res = await api.delete(`/api/admin/${email}`);
+export async function deleteAdmin(id: string) {
+  const res = await api.delete(`/api/admin/${id}`);
   return res.data;
 }

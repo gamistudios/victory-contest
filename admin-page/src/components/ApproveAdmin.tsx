@@ -21,6 +21,11 @@ import { Admin } from "@/types/models";
 import { approveAdmin, getAllAdmins } from "@/lib/utils";
 
 const headers = ["Name", "Email", "Status"];
+
+// The backend returns every admin with its DynamoDB primary key `id`; the
+// shared Admin model does not carry it yet, so extend it locally here.
+type AdminRow = Admin & { id?: string };
+
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   [`&.${tableCellClasses.head}`]: {
     backgroundColor: theme.palette.action.hover,
@@ -41,18 +46,16 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
 }));
 
 export default function ApproveAdmin() {
-  const [admins, setAdmins] = useState<Admin[]>([]);
+  const [admins, setAdmins] = useState<AdminRow[]>([]);
   const [status, setStatus] = useState("pending");
   const [search, setSearch] = useState("");
 
   const fetchAdmins = async () => {
     try {
       const response = await getAllAdmins();
-      // --- DEBUGGING: Log the raw response from getAllAdmins() ---
-      console.log("Raw response from getAllAdmins:", response);
-
-      // ✨ CRITICAL CHANGE HERE: Use response directly, as it's already the array
-      const fetchedAdmins = response || []; // No need for '.admins'
+      // getAllAdmins() already unwraps the {admins:[...]} envelope from
+      // GET /api/admin/; every row carries its backend `id`.
+      const fetchedAdmins: AdminRow[] = response || [];
 
       setAdmins(fetchedAdmins);
       setStatus("success");
@@ -66,12 +69,16 @@ export default function ApproveAdmin() {
     fetchAdmins();
   }, []);
 
-  const handleAdminApproval = async (email: string, isApproved: boolean) => {
+  const handleAdminApproval = async (id: string, isApproved: boolean) => {
+    if (!id) {
+      console.error("Admin row without an id cannot be approved");
+      return;
+    }
     try {
-      await approveAdmin(email, { isApproved });
+      await approveAdmin(id, { is_approved: isApproved });
       setAdmins((prevAdmins) =>
         prevAdmins.map((admin) =>
-          admin.email === email ? { ...admin, isApproved: true } : admin
+          admin.id === id ? { ...admin, is_approved: isApproved } : admin
         )
       );
     } catch (error) {
@@ -84,8 +91,6 @@ export default function ApproveAdmin() {
       admin.name.toLowerCase().includes(search.toLowerCase()) ||
       (admin.email && admin.email.toLowerCase().includes(search.toLowerCase()))
   );
-  // --- DEBUGGING: Log the final filteredAdmins array that should be displayed ---
-  console.log("Final filteredAdmins (should be displayed):", filteredAdmins);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", p: 2 }}>
@@ -198,7 +203,7 @@ export default function ApproveAdmin() {
             <TableBody>
               {filteredAdmins.map((row, index) => (
                 <Row
-                  key={index}
+                  key={row.id ?? index}
                   student={row}
                   onApprove={handleAdminApproval}
                 />
@@ -216,13 +221,15 @@ export default function ApproveAdmin() {
 }
 
 interface RowProps {
-  student: Admin;
-  onApprove: (email: string, isApproved: boolean) => void;
+  student: AdminRow;
+  onApprove: (id: string, isApproved: boolean) => void;
 }
 
 function Row({ student, onApprove }: RowProps) {
   const handleApprove = async () => {
-    await onApprove(student.email, true);
+    // Approve by the admin's backend id (DynamoDB primary key), not email —
+    // PUT /api/admin/:id read-modify-writes the row keyed by that id.
+    await onApprove(student.id ?? "", true);
   };
 
   return (
