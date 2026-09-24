@@ -8,10 +8,14 @@ import {
 } from "@/components/ui/select";
 import { grades, Subjects } from "./Data";
 import { ProcessFile } from "./processData";
-import { updateQuestion } from "@/lib/utils";
 import { Question } from "../../types/models";
 import { useSearchParams } from "react-router-dom";
-import { addMultipleQuestions, addQuestion } from "@/services/questionServices";
+import {
+  addMultipleQuestions,
+  addQuestion,
+  updateQuestion,
+  type UpdateQuestionInput,
+} from "@/services/questionServices";
 import * as React from "react";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -88,7 +92,7 @@ const formReducer = (state: FormState, action: Action): FormState => {
       return { ...state, [action.field]: action.value };
     case "ADD_OPTION":
       return { ...state, multiple_choice: [...state.multiple_choice, ""] };
-    case "REMOVE_OPTION":
+    case "REMOVE_OPTION": {
       const newOptions = state.multiple_choice.filter(
         (_, i) => i !== action.index
       );
@@ -99,10 +103,12 @@ const formReducer = (state: FormState, action: Action): FormState => {
         multiple_choice: newOptions,
         answer: isAnswerRemoved ? "" : state.answer,
       };
-    case "UPDATE_OPTION":
+    }
+    case "UPDATE_OPTION": {
       const updatedOptions = [...state.multiple_choice];
       updatedOptions[action.index] = action.value;
       return { ...state, multiple_choice: updatedOptions };
+    }
     case "RESET_FORM":
       return action.payload;
     default:
@@ -162,28 +168,26 @@ export function AddQuestionManual(): JSX.Element {
 
     try {
       if (isEditing && questionToEdit?.id) {
-        // For editing: create a Question object and call updateQuestion
-        console.log("Editing question with ID:", questionToEdit.id);
-        console.log("Question to edit:", questionToEdit);
-
-        const questionToUpdate: Question = {
-          id: questionToEdit.id,
+        // Presence-aware patch: only fields the admin actually provided are
+        // sent; a File image forces the multipart branch in the service,
+        // an untouched image field is omitted so the stored URL is kept.
+        const patch: UpdateQuestionInput = {
           question_text: validationResult.data.question_text,
           multiple_choice: validationResult.data.multiple_choice,
-          answer: parseInt(validationResult.data.answer),
+          answer: parseInt(validationResult.data.answer, 10),
           grade: validationResult.data.grade,
           subject: validationResult.data.subject,
           chapter: validationResult.data.chapter,
           explanation: validationResult.data.explanation ?? "",
-          question_image:
-            validationResult.data.question_image?.name || undefined,
-          explanation_image:
-            validationResult.data.explanation_image?.name || undefined,
         };
+        if (validationResult.data.question_image instanceof File) {
+          patch.question_image = validationResult.data.question_image;
+        }
+        if (validationResult.data.explanation_image instanceof File) {
+          patch.explanation_image = validationResult.data.explanation_image;
+        }
 
-        console.log("Question to update:", questionToUpdate);
-
-        const promise = updateQuestion(questionToUpdate);
+        const promise = updateQuestion(questionToEdit.id, patch);
         toast.promise(promise, {
           loading: "Updating question...",
           success: () => {
@@ -193,19 +197,9 @@ export function AddQuestionManual(): JSX.Element {
           finally: () => setIsLoading(false),
         });
       } else {
-        // For adding new question: use FormData and call addQuestion
-        const formData: FormData = new FormData();
-        Object.entries(validationResult.data).forEach(([key, value]) => {
-          if (key === "multiple_choice" && Array.isArray(value)) {
-            value.forEach((opt: string) => formData.append(key, opt));
-          } else if (value instanceof File) {
-            formData.append(key, value);
-          } else if (value !== undefined && value !== null) {
-            formData.append(key, String(value));
-          }
-        });
-
-        const promise = addQuestion(formData as any);
+        // Adding a new question: the service builds the exact multipart
+        // payload the backend /api/question/add handler binds.
+        const promise = addQuestion(validationResult.data);
         toast.promise(promise, {
           loading: "Adding question...",
           success: () => {
@@ -669,14 +663,17 @@ export function QuestionItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editableQuestion, setEditableQuestion] = useState<Question>(question);
 
-  const handleFieldChange = (field: keyof Question, value: string | number) => {
+  const handleFieldChange = (
+    field: keyof Question,
+    value: string | number | string[]
+  ) => {
     setEditableQuestion((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleOptionChange = (optionIndex: number, value: string) => {
     const newOptions = [...editableQuestion.multiple_choice];
     newOptions[optionIndex] = value;
-    handleFieldChange("multiple_choice", newOptions as any);
+    handleFieldChange("multiple_choice", newOptions);
   };
 
   const handleSave = () => {

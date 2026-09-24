@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, Trophy, Clock, Building } from "lucide-react";
@@ -56,14 +56,14 @@ import {
   deleteContest,
   announceContest,
   cloneContest,
-  testBackendConnection,
 } from "@/services/contestServices";
 import {
   getAllStudents,
   getGradesAndSchools,
 } from "@/services/studentServices";
 import { transformSubmission } from "@/lib/helpers";
-import { Student } from "@/types/models";
+import { getQuestions } from "@/services/questionServices";
+import { Contest, Student } from "@/types/models";
 import { DialogBox } from "../common/DialogBox";
 import { UpdateContestDialog } from "./UpdateContestDialog";
 import QuestionTable from "../questions/QuestionTable";
@@ -90,14 +90,27 @@ export default function ContestById() {
     queryFn: async () => await getContestById(id!),
   });
 
-  // Debug: Log contest data when it changes
-  useEffect(() => {
-    if (contest) {
-      console.log("Contest data loaded:", contest);
-      console.log("Questions count:", contest.questions?.length || 0);
-      console.log("Questions:", contest.questions);
-    }
-  }, [contest]);
+  // GET /api/contest/:id strips answers/explanations while the contest is
+  // live (student-facing sanitization). Admin problem management must work
+  // from the full rows, so re-hydrate the contest's question ids through the
+  // admin-only GET /api/question/ endpoint.
+  const contestQuestionIds = useMemo(
+    () => (contest?.questions ?? []).map((q) => q.id).filter(Boolean),
+    [contest]
+  );
+  const { data: managedQuestions = contest?.questions ?? [] } = useQuery({
+    queryKey: ["contest-questions", id, ...contestQuestionIds],
+    enabled: contestQuestionIds.length > 0,
+    queryFn: async () => {
+      const allQuestions = await getQuestions();
+      const byId = new Map(allQuestions.map((q) => [q.id, q]));
+      // Keep the contest's ordering; fall back to the stripped row if a
+      // question is missing from the admin list.
+      return (contest?.questions ?? []).map(
+        (q) => byId.get(q.id) ?? q
+      );
+    },
+  });
 
   // Fetch schools and cities from contest-backend-go
   useEffect(() => {
@@ -131,7 +144,7 @@ export default function ContestById() {
                 const student = students.find(
                   (s) =>
                     s.telegram_id === submission.student.student_id ||
-                    (s as any).id === submission.student.student_id ||
+                    s.id === submission.student.student_id ||
                     s.name === submission.student.name
                 );
                 if (student?.city) {
@@ -236,10 +249,10 @@ export default function ContestById() {
     await handleDeleteContest();
   };
 
-  const handleQuestionDeleted = (deletedQuestionId: string) => {
-    console.log(deletedQuestionId);
+  const handleQuestionDeleted = () => {
     toast.success("Question deleted successfully");
     queryClient.invalidateQueries({ queryKey: ["contest", id] });
+    queryClient.invalidateQueries({ queryKey: ["contest-questions", id] });
   };
 
   if (status === "pending") {
@@ -469,9 +482,9 @@ export default function ContestById() {
                 <Standing school={school} city={city} contest={contest} />
               </TabsContent>
               <TabsContent value="1">
-                {contest?.questions && contest.questions.length > 0 ? (
+                {managedQuestions.length > 0 ? (
                   <QuestionTable
-                    questions={contest.questions}
+                    questions={managedQuestions}
                     onQuestionDeleted={handleQuestionDeleted}
                   />
                 ) : (
@@ -551,7 +564,7 @@ const tableHeader = [
 interface StandingProps {
   school: string;
   city: string;
-  contest?: any;
+  contest?: Contest;
 }
 
 function Standing({ school, city, contest }: StandingProps) {
@@ -565,7 +578,7 @@ function Standing({ school, city, contest }: StandingProps) {
         const students = await getAllStudents();
         const map = students.reduce((acc: Record<string, Student>, student) => {
           if (student.telegram_id) acc[student.telegram_id] = student;
-          if ((student as any).id) acc[(student as any).id as string] = student;
+          if (student.id) acc[student.id] = student;
           if (student.name) acc[student.name] = student;
           return acc;
         }, {} as Record<string, Student>);

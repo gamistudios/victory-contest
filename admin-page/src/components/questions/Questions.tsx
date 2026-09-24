@@ -1,5 +1,5 @@
 import * as React from "react";
-import { getQuestions } from "@/lib/utils"; // Your server action
+import { getQuestions } from "@/services/questionServices"; // Full question rows (admin route)
 import { Question } from "@/types/models";
 
 // Shadcn/ui & Lucide Icons

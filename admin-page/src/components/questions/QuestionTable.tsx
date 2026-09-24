@@ -57,7 +57,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Question } from "@/types/models";
-import { deleteQusetion } from "@/lib/utils";
+import { deleteQuestion } from "@/services/questionServices";
 
 interface QuestionTableProps {
   questions: Question[];
@@ -141,7 +141,6 @@ export function QuestionActions({
     const observer = new MutationObserver(() => {
       const bodyStyle = window.getComputedStyle(document.body);
       if (bodyStyle.pointerEvents === "none" && !dialogOpen && !alertOpen) {
-        console.log("Forcing pointer-events reset in QuestionTable");
         document.body.style.pointerEvents = "";
       }
     });
@@ -178,7 +177,7 @@ export function QuestionActions({
   const handleDelete = async () => {
     if (!question.id) return;
     setIsDeleting(true);
-    const promise = deleteQusetion(question.id);
+    const promise = deleteQuestion(question.id);
 
     toast.promise(promise, {
       loading: "Deleting question...",

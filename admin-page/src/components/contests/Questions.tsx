@@ -31,7 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Search, AlertTriangle, Inbox } from "lucide-react";
-import { getQuestions } from "@/lib/utils";
+import { getQuestions } from "@/services/questionServices";
 import { Question } from "@/types/models";
 import { DataTablePagination } from "../questions/QuestionTable";
 
@@ -267,7 +267,7 @@ export default function SelectableQuestionsTable({
                     }
                     onCheckedChange={(value) => {
                       const newSelection: Record<string, boolean> = {};
-                      if (!!value) {
+                      if (value) {
                         filteredQuestions.forEach(
                           (q) => (newSelection[q.id!] = true)
                         );
