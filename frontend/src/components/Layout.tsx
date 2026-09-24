@@ -37,8 +37,6 @@ const Layout: React.FC = () => {
         </div>
       </NotificationProvider>
 
-      {/* <AdTrigger /> */}
-
       <main
         className={`flex-1 pb-20 overflow-y-auto transition-all duration-300 ${
           hasAlert ? "pt-[7.5rem]" : "pt-16"
