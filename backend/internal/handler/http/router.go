@@ -287,19 +287,39 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.contestStatisticsHandler.RegisterRoutes(api.Group("/statistics"), adminAuthMw)
 
 	// Serve static files for frontend and admin panel
-	// Admin panel at /admin path
-	r.Static("/admin", "./static/admin")
-	// Frontend at root path (must be last to act as catch-all)
-	r.Static("/assets", "./static/frontend/assets")
+	// Serve admin static assets (JS, CSS, etc.)
+	r.StaticFS("/admin/assets", gin.Dir("./static/admin/assets", false))
+	// Serve admin public files (favicon, icons, etc.)
+	r.StaticFile("/admin/favicon.ico", "./static/admin/favicon.ico")
+	r.StaticFS("/admin/icons", gin.Dir("./static/admin/icons", false))
+	// Serve other admin root files like registerSW.js, manifest, etc.
+	r.StaticFile("/admin/registerSW.js", "./static/admin/registerSW.js")
+	r.StaticFile("/admin/manifest.webmanifest", "./static/admin/manifest.webmanifest")
+	
+	// Serve frontend assets (JS, CSS, etc.)
+	r.StaticFS("/assets", gin.Dir("./static/frontend/assets", false))
+	// Serve frontend public files
+	r.StaticFile("/favicon.ico", "./static/frontend/favicon.ico")
+	
+	// NoRoute handler for SPA routing
 	r.NoRoute(func(c *gin.Context) {
-		// Serve index.html for all non-API, non-admin routes (SPA routing)
-		if !strings.HasPrefix(c.Request.URL.Path, "/api") && !strings.HasPrefix(c.Request.URL.Path, "/admin") {
-			c.File("./static/frontend/index.html")
-		} else if strings.HasPrefix(c.Request.URL.Path, "/admin") {
-			c.File("./static/admin/index.html")
-		} else {
+		path := c.Request.URL.Path
+		
+		// API routes that don't exist should return 404 JSON
+		if strings.HasPrefix(path, "/api/") {
 			c.JSON(404, gin.H{"error": "Not found"})
+			return
 		}
+		
+		// Admin panel - serve index.html for all /admin routes
+		if path == "/admin" || strings.HasPrefix(path, "/admin/") {
+			// But not for asset files (they would have been served already by StaticFS)
+			c.File("./static/admin/index.html")
+			return
+		}
+		
+		// Frontend - serve index.html for all other routes
+		c.File("./static/frontend/index.html")
 	})
 
 	return r
