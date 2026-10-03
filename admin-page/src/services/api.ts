@@ -1,7 +1,9 @@
 import axios from "axios";
 import { DashboardStatsResponse } from "../types/dashboard";
 
-const VITE_API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+// Empty string means same-origin (how the Docker image serves the admin panel
+// and the API from one host); undefined keeps the localhost dev default.
+const VITE_API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
 const api = axios.create({
   baseURL: VITE_API_URL,

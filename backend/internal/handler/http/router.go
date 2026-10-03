@@ -9,6 +9,7 @@ import (
 
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -286,39 +287,38 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.imageHandler.RegisterRoutes(api.Group("/images"), adminAuthMw)
 	s.contestStatisticsHandler.RegisterRoutes(api.Group("/statistics"), adminAuthMw)
 
-	// Serve static files for frontend and admin panel
-	// Serve admin static assets (JS, CSS, etc.)
-	r.StaticFS("/admin/assets", gin.Dir("./static/admin/assets", false))
-	// Serve admin public files (favicon, icons, etc.)
-	r.StaticFile("/admin/favicon.ico", "./static/admin/favicon.ico")
-	r.StaticFS("/admin/icons", gin.Dir("./static/admin/icons", false))
-	// Serve other admin root files like registerSW.js, manifest, etc.
-	r.StaticFile("/admin/registerSW.js", "./static/admin/registerSW.js")
-	r.StaticFile("/admin/manifest.webmanifest", "./static/admin/manifest.webmanifest")
-	
-	// Serve frontend assets (JS, CSS, etc.)
-	r.StaticFS("/assets", gin.Dir("./static/frontend/assets", false))
-	// Serve frontend public files
-	r.StaticFile("/favicon.ico", "./static/frontend/favicon.ico")
-	
-	// NoRoute handler for SPA routing
+	// Static hosting for the bundled frontend and admin SPAs (single-origin
+	// deployment, see root Dockerfile): a request is served the real file from
+	// ./static/{frontend,admin} when one exists — assets, sw.js, workbox-*.js,
+	// manifest, icons, … — and index.html otherwise, so client-side routing
+	// and the admin PWA both work under their base paths. The admin build
+	// emits /admin/* URLs (vite base) and the frontend emits root-relative
+	// ones, so the two never collide.
 	r.NoRoute(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		
-		// API routes that don't exist should return 404 JSON
-		if strings.HasPrefix(path, "/api/") {
+		reqPath := c.Request.URL.Path
+
+		// Unknown API routes are genuine 404s, never SPA fallbacks.
+		if reqPath == "/api" || strings.HasPrefix(reqPath, "/api/") {
 			c.JSON(404, gin.H{"error": "Not found"})
 			return
 		}
-		
-		// Admin panel - serve index.html for all /admin routes
-		if path == "/admin" || strings.HasPrefix(path, "/admin/") {
-			// But not for asset files (they would have been served already by StaticFS)
+
+		if reqPath == "/admin" || strings.HasPrefix(reqPath, "/admin/") {
+			// Clean with a leading "/" so ".." cannot climb above the static root.
+			filePath := filepath.Join("./static/admin", filepath.Clean("/"+strings.TrimPrefix(reqPath, "/admin")))
+			if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+				c.File(filePath)
+				return
+			}
 			c.File("./static/admin/index.html")
 			return
 		}
-		
-		// Frontend - serve index.html for all other routes
+
+		filePath := filepath.Join("./static/frontend", filepath.Clean("/"+reqPath))
+		if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+			c.File(filePath)
+			return
+		}
 		c.File("./static/frontend/index.html")
 	})
 

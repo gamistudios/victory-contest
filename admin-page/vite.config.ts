@@ -5,6 +5,9 @@ import path from "path"
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Served under /admin when frontend + admin + API share one origin
+  // (single-container deployments). Asset URLs become /admin/assets/...
+  base: '/admin/',
   plugins: [
     react(),
     VitePWA({
@@ -14,17 +17,17 @@ export default defineConfig({
         name: 'Victory Contest Admin',
         short_name: 'VC Admin',
         description: 'Admin dashboard for the Victory Contest Telegram mini app',
-        start_url: '/dashboard',
-        scope: '/',
+        start_url: '/admin/dashboard',
+        scope: '/admin/',
         display: 'standalone',
         orientation: 'portrait',
         theme_color: '#00AB55',
         background_color: '#faf9f7',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/admin/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/admin/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/admin/icons/maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/admin/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

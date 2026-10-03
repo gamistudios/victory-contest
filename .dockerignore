@@ -14,10 +14,13 @@ admin-page/dist
 backend/*.exe
 backend/tmp_*
 
-# Environment files (these should be provided at runtime)
+# Environment files (these should be provided at runtime / build args)
 .env
 .env.local
 .env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
 backend/.env
 
 # IDE

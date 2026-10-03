@@ -20,10 +20,13 @@ import { PaymentsPage } from "./components/payment/Payment";
 import QuestionsPage from "./components/questions/Questions";
 import ArticlesPage from "./components/articles/ArticlesPage";
 
-const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <RootLayout />,
+// BASE_URL is "/" in dev and "/admin/" in the single-origin production build,
+// so the same route table works in both.
+const router = createBrowserRouter(
+  [
+    {
+      path: "/",
+      element: <RootLayout />,
     children: [
       {
         path: "/dashboard",
@@ -57,7 +60,7 @@ const router = createBrowserRouter([
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },
-]);
+], { basename: import.meta.env.BASE_URL });
 
 function App() {
   return <RouterProvider router={router} />;

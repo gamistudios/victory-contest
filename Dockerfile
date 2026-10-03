@@ -4,6 +4,10 @@
 # Stage 1: Build Frontend
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
+# Empty = same-origin: the built app calls <origin>/api (single-container
+# deployment). Override with --build-arg if the API lives elsewhere.
+ARG VITE_API_BASE_URL=""
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 COPY frontend/package*.json ./
 RUN npm ci --legacy-peer-deps
 COPY frontend/ ./
@@ -12,6 +16,10 @@ RUN npm run build
 # Stage 2: Build Admin Panel
 FROM node:20-alpine AS admin-builder
 WORKDIR /app/admin
+# Empty = same-origin (admin/src/services/api.ts keeps "" via ??); the admin
+# is served under /admin by the backend (vite base is set in vite.config.ts).
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
 COPY admin-page/package*.json ./
 RUN npm ci --legacy-peer-deps
 COPY admin-page/ ./

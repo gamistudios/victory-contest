@@ -224,7 +224,7 @@ export default function RegistrationForm() {
                           ref={field.ref}
                           onBlur={field.onBlur}
                           onChange={field.onChange}
-                          value={typeof field.value === "number" ? field.value : ""}
+                          value={field.value == null || field.value === "" ? "" : String(field.value)}
                         />
                       </FormControl>
                       <FormMessage />

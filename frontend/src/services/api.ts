@@ -1,7 +1,9 @@
 import axios, { AxiosError } from "axios";
 
 //const baseURL = "https://7wwb0knl-8080.euw.devtunnels.ms";
-const baseURL = import.meta.env.VITE_API_BASE_URL;
+// Empty/undefined means same-origin: requests go to <origin>/api, which is how
+// the Docker image serves frontend and API from one host.
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
 const api = axios.create({
   baseURL: baseURL + "/api",
   withCredentials: true,
