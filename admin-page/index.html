@@ -28,6 +28,33 @@
         margin: 0;
       }
     </style>
+    <script>
+      // Last-resort error surface: any startup crash used to leave a silent
+      // white page (empty #root on a white body) with nothing to diagnose by.
+      (function () {
+        function show(message) {
+          var box = document.getElementById("boot-error");
+          if (!box) {
+            box = document.createElement("pre");
+            box.id = "boot-error";
+            box.style.cssText =
+              "position:fixed;left:0;right:0;bottom:0;z-index:2147483647;" +
+              "max-height:45vh;overflow:auto;margin:0;padding:10px;" +
+              "background:#b00020;color:#fff;font:12px/1.4 monospace;" +
+              "white-space:pre-wrap;word-break:break-word";
+            (document.body || document.documentElement).appendChild(box);
+          }
+          box.textContent += message + "\n\n";
+        }
+        window.addEventListener("error", function (e) {
+          if (e.message) show("Error: " + e.message + "\n  at " + e.filename + ":" + e.lineno + ":" + e.colno);
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          var r = e.reason;
+          show("Unhandled rejection: " + (r && r.stack ? r.stack : String(r)));
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

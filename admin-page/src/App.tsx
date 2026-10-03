@@ -10,6 +10,7 @@ import AddQuestions from "./components/questions/AddQuestions";
 import AddContest from "./components/contests/AddContest";
 import Login from "./components/auth/Login";
 import RootLayout from "./components/RootLoyout";
+import RouteError from "./components/RouteError";
 import Register from "./components/auth/Register";
 import ApproveAdmin from "./components/ApproveAdmin";
 import { NotificationProvider } from "./context/NotificationContext";
@@ -22,11 +23,18 @@ import ArticlesPage from "./components/articles/ArticlesPage";
 
 // BASE_URL is "/" in dev and "/admin/" in the single-origin production build,
 // so the same route table works in both.
+// BASE_URL is "/" in dev and "/admin/" in the single-origin production build,
+// so the same route table works in both. Stripping the trailing slash matters:
+// with basename "/admin/" a URL like "/admin" (no slash — how people type it)
+// fails stripBasename, matches no route, and renders an empty page.
+const basename = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
+
 const router = createBrowserRouter(
   [
     {
       path: "/",
       element: <RootLayout />,
+      errorElement: <RouteError />,
     children: [
       {
         path: "/dashboard",
@@ -60,7 +68,7 @@ const router = createBrowserRouter(
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },
-], { basename: import.meta.env.BASE_URL });
+], { basename });
 
 function App() {
   return <RouterProvider router={router} />;

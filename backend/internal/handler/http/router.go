@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"victory-contest-go/internal/awsconfig"
 	"victory-contest-go/internal/repository"
@@ -303,24 +304,51 @@ func (s *Server) NewRouter() *gin.Engine {
 			return
 		}
 
-		if reqPath == "/admin" || strings.HasPrefix(reqPath, "/admin/") {
-			// Clean with a leading "/" so ".." cannot climb above the static root.
-			filePath := filepath.Join("./static/admin", filepath.Clean("/"+strings.TrimPrefix(reqPath, "/admin")))
-			if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
-				c.File(filePath)
-				return
-			}
-			c.File("./static/admin/index.html")
+		if reqPath == "/admin" {
+			// The admin router is mounted at basename /admin; handing it the
+			// un-slashed URL makes stripBasename fail and every route miss,
+			// which renders an empty page. Canonicalize to /admin/.
+			c.Redirect(http.StatusMovedPermanently, "/admin/")
 			return
 		}
 
-		filePath := filepath.Join("./static/frontend", filepath.Clean("/"+reqPath))
-		if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
-			c.File(filePath)
+		if strings.HasPrefix(reqPath, "/admin/") {
+			serveStatic(c, "./static/admin", strings.TrimPrefix(reqPath, "/admin/"))
 			return
 		}
-		c.File("./static/frontend/index.html")
+
+		serveStatic(c, "./static/frontend", strings.TrimPrefix(reqPath, "/"))
 	})
 
 	return r
+}
+
+// serveStatic resolves reqPath against staticRoot and serves the real file
+// when one exists; otherwise index.html for SPA routes, or 404 for anything
+// that looks like a missing asset. Serving index.html for a stale .js path is
+// what turns a re-deploy into a blank page: the browser refuses to execute
+// text/html as a module script and the app never mounts.
+func serveStatic(c *gin.Context, staticRoot, reqPath string) {
+	filePath := filepath.Join(staticRoot, filepath.Clean("/"+reqPath))
+	if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+		// Hashed asset URLs never change content — cache them hard. The shell
+		// (index.html, sw.js, manifest) must revalidate or a deploy leaves
+		// clients on the old build pointing at deleted assets.
+		if strings.HasPrefix(reqPath, "assets/") {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			c.Header("Cache-Control", "no-cache")
+		}
+		c.File(filePath)
+		return
+	}
+
+	if filepath.Ext(reqPath) != "" {
+		// Looks like a file (bundle.js, logo.png, …) but does not exist: a
+		// genuine 404, never an HTML fallback.
+		c.JSON(404, gin.H{"error": "Not found"})
+		return
+	}
+	c.Header("Cache-Control", "no-cache")
+	c.File(filepath.Join(staticRoot, "index.html"))
 }

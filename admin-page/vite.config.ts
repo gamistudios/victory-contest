@@ -1,7 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
+import legacy from '@vitejs/plugin-legacy'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from "path"
+
+// Browsers the legacy bundle must keep working on: roughly 2020-and-later
+// engines (Chrome/Edge 79+, Firefox 78+, Safari/iOS 13+, Android WebView 76+,
+// Samsung 12+). The modern bundle still serves up-to-date browsers; these
+// floors only decide what the babel+core-js legacy fallback is built for.
+const legacyTargets = [
+  'chrome >= 79',
+  'edge >= 79',
+  'firefox >= 78',
+  'safari >= 13',
+  'ios_saf >= 13',
+  'android >= 76',
+  'opera >= 66',
+  'samsung >= 12',
+]
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -10,6 +26,10 @@ export default defineConfig({
   base: '/admin/',
   plugins: [
     react(),
+    legacy({
+      targets: legacyTargets,
+      modernPolyfills: true,
+    }),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icons/apple-touch-icon.png'],

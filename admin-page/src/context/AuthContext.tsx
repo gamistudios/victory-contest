@@ -45,7 +45,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       try {
         const user = await getMe();
-        setUser(user);
+        // A misconfigured server can answer /api/admin/me with the SPA's own
+        // index.html (200, HTML string) — axios hands that back as a truthy
+        // string, which used to flow into components as "the user" and crash
+        // them (e.g. user.name.charAt(0) in the appbar). Only accept a plain
+        // object; anything else counts as signed out.
+        if (user && typeof user === "object" && !Array.isArray(user)) {
+          setUser(user);
+        } else {
+          console.error("GET /api/admin/me returned a non-object body; treating as signed out");
+          if (location.pathname !== "/register") {
+            navigate("/");
+          }
+        }
       } catch (error) {
         console.error("Failed to fetch user:", error);
         if (location.pathname != "/register") {

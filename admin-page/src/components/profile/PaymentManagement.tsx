@@ -472,7 +472,7 @@ export function PaymentManagement({
             <Badge
               className={`${statusInfo.color} font-medium text-xs hover:bg-${statusInfo.bgColor}`}
             >
-              {paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1)}
+              {paymentStatus?.charAt(0)?.toUpperCase() ?? ""}
             </Badge>
           </div>
 

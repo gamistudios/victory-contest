@@ -49,7 +49,7 @@ const CustomTooltip = ({
                   className="w-2.5 h-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: entry.color }}
                 />
-                {name.charAt(0).toUpperCase() + name.slice(1)}
+                {(name ?? "").charAt(0).toUpperCase() + (name ?? "").slice(1)}
               </span>
               <span className="font-semibold text-gray-800">
                 {Number(entry.value ?? 0).toLocaleString()}

@@ -274,7 +274,7 @@ export default function HighScorersContactList() {
                                 : "#2196f3",
                           }}
                         >
-                          {scorer.name.charAt(0).toUpperCase()}
+                          {scorer.name?.charAt(0)?.toUpperCase() ?? "?"}
                         </Avatar>
                         <Typography
                           variant="subtitle1"

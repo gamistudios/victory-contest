@@ -185,7 +185,7 @@ export default function UserListPage() {
             <div className="flex items-center gap-2 sm:gap-4">
               <Avatar className="h-9 w-9 shrink-0 sm:h-10 sm:w-10">
                 <AvatarImage src={student.imgurl} alt={student.name} />
-                <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
+                <AvatarFallback>{student.name?.charAt(0) ?? "?"}</AvatarFallback>
               </Avatar>
               <span className="font-medium break-words">{student.name}</span>
             </div>
