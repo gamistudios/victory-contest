@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node modules (will be installed in build stage)
+frontend/node_modules
+admin-page/node_modules
+**/node_modules
+
+# Build artifacts
+frontend/dist
+admin-page/dist
+backend/*.exe
+backend/tmp_*
+
+# Environment files (these should be provided at runtime)
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage
+.nyc_output
+
+# Documentation
+README.md
+*.md
+!backend/CONTEST_STATISTICS_README.md
+!backend/FEEDBACK_SYSTEM_README.md
+
+# Images and assets not needed for build
+logo.png
+
+# Go test cache
+backend/vendor

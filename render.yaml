@@ -1,0 +1,64 @@
+services:
+  - type: web
+    name: victory-contest
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/admin/login
+    envVars:
+      # JWT Secret - Render will generate a secure random value
+      - key: JWT_SECRET
+        generateValue: true
+      
+      # AWS Configuration - You need to set these in Render dashboard
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      
+      # DynamoDB Tables
+      - key: QUESTION_TABLE
+        value: question
+      - key: CONTEST_TABLE
+        value: contests
+      - key: STUDENT_TABLE
+        value: student
+      - key: SUBMISSION_TABLE
+        value: submissions
+      - key: ADMIN_TABLE
+        value: admin
+      - key: NOTIFICATION_TABLE
+        value: notification
+      - key: ACHIEVEMENT_TABLE
+        value: achievement
+      - key: CONTEST_REGISTRATION_TABLE
+        value: contest_registeration
+      
+      # Optional: Cloudinary (set in dashboard if needed)
+      - key: CLOUDINARY_URL
+        sync: false
+      
+      # Optional: Google API (set in dashboard if needed)
+      - key: GOOGLE_API_KEY
+        sync: false
+      
+      # Optional: Telegram (set in dashboard if needed)
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      
+      # CORS - Update this after deployment with your actual domain
+      - key: CORS_ALLOWED_ORIGINS
+        value: ""
+      
+      # Security - Always false in production
+      - key: ALLOW_DEV_AUTH
+        value: false
+      
+      # AI Rate Limiting
+      - key: AI_REQUESTS_PER_MINUTE
+        value: 30

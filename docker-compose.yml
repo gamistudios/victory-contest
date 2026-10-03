@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Port configuration
+      - PORT=8080
+      
+      # Copy these from your .env file or set them here
+      # Required: JWT Secret
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-long-random-string}
+      
+      # AWS Configuration
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      
+      # Database Tables
+      - QUESTION_TABLE=${QUESTION_TABLE:-question}
+      - CONTEST_TABLE=${CONTEST_TABLE:-contests}
+      - STUDENT_TABLE=${STUDENT_TABLE:-student}
+      - SUBMISSION_TABLE=${SUBMISSION_TABLE:-submissions}
+      - ADMIN_TABLE=${ADMIN_TABLE:-admin}
+      - NOTIFICATION_TABLE=${NOTIFICATION_TABLE:-notification}
+      - ACHIEVEMENT_TABLE=${ACHIEVEMENT_TABLE:-achievement}
+      - CONTEST_REGISTRATION_TABLE=${CONTEST_REGISTRATION_TABLE:-contest_registeration}
+      
+      # Optional: Cloudinary
+      - CLOUDINARY_URL=${CLOUDINARY_URL}
+      
+      # Optional: Google API
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      
+      # Optional: Telegram Bot
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
+      
+      # CORS Configuration
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      
+      # Dev Auth (set to false in production)
+      - ALLOW_DEV_AUTH=${ALLOW_DEV_AUTH:-false}
+      
+      # AI Rate Limiting
+      - AI_REQUESTS_PER_MINUTE=${AI_REQUESTS_PER_MINUTE:-30}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/admin/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

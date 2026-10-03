@@ -286,5 +286,21 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.imageHandler.RegisterRoutes(api.Group("/images"), adminAuthMw)
 	s.contestStatisticsHandler.RegisterRoutes(api.Group("/statistics"), adminAuthMw)
 
+	// Serve static files for frontend and admin panel
+	// Admin panel at /admin path
+	r.Static("/admin", "./static/admin")
+	// Frontend at root path (must be last to act as catch-all)
+	r.Static("/assets", "./static/frontend/assets")
+	r.NoRoute(func(c *gin.Context) {
+		// Serve index.html for all non-API, non-admin routes (SPA routing)
+		if !strings.HasPrefix(c.Request.URL.Path, "/api") && !strings.HasPrefix(c.Request.URL.Path, "/admin") {
+			c.File("./static/frontend/index.html")
+		} else if strings.HasPrefix(c.Request.URL.Path, "/admin") {
+			c.File("./static/admin/index.html")
+		} else {
+			c.JSON(404, gin.H{"error": "Not found"})
+		}
+	})
+
 	return r
 }
