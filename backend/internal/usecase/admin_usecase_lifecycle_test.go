@@ -173,16 +173,18 @@ func TestDeleteAdminRemovesKeyedRow(t *testing.T) {
 	}
 }
 
-// TestSignInUnapprovedReturnsErrNotApproved pins the usecase half of the
-// approval gate: right password + IsApproved=false is ErrNotApproved (never
-// ErrInvalidCredentials, never a returned admin).
-func TestSignInUnapprovedReturnsErrNotApproved(t *testing.T) {
+// TestSignInUnapprovedStillGatedWhenApprovedAdminExists pins the approval
+// gate: right password + IsApproved=false is ErrNotApproved (never
+// ErrInvalidCredentials, never a returned admin, no writes) once at least
+// one approved admin exists.
+func TestSignInUnapprovedStillGatedWhenApprovedAdminExists(t *testing.T) {
 	hash, err := bcrypt.GenerateFromPassword([]byte("hunter2"), bcrypt.MinCost)
 	if err != nil {
 		t.Fatalf("hash seed password: %v", err)
 	}
 	repo := &fakeAdminRepo{admins: map[string]*domain.Admin{
 		"admin-1": {ID: "admin-1", Email: "new@example.com", Password: string(hash), IsApproved: false},
+		"admin-2": {ID: "admin-2", Email: "root@example.com", Password: "x", IsApproved: true},
 	}}
 	u := newAdminUsecaseWithRepo(repo)
 
@@ -195,6 +197,41 @@ func TestSignInUnapprovedReturnsErrNotApproved(t *testing.T) {
 	}
 	if len(repo.updates) != 0 {
 		t.Fatalf("unapproved sign-in must not write, got %v", repo.updates)
+	}
+}
+
+// TestSignInBootstrapsFirstAdminWhenNoneApproved pins the bootstrap rule: an
+// existing unapproved admin with valid credentials auto-approves itself when
+// no approved admin exists (accounts created before the approval gate, or a
+// fresh install), instead of leaving the panel permanently locked out.
+func TestSignInBootstrapsFirstAdminWhenNoneApproved(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte("hunter2"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("hash seed password: %v", err)
+	}
+	repo := &fakeAdminRepo{admins: map[string]*domain.Admin{
+		"admin-1": {ID: "admin-1", Email: "root@example.com", Password: string(hash), IsApproved: false},
+	}}
+	u := newAdminUsecaseWithRepo(repo)
+
+	admin, err := u.SignIn("root@example.com", "hunter2")
+	if err != nil {
+		t.Fatalf("bootstrap sign-in failed: %v", err)
+	}
+	if admin == nil || !admin.IsApproved {
+		t.Fatalf("bootstrap sign-in must return the admin approved, got %+v", admin)
+	}
+	if len(repo.updates) != 1 || !repo.updates[0].IsApproved {
+		t.Fatalf("bootstrap must persist the approval, got %v", repo.updates)
+	}
+	stored := repo.admins["admin-1"]
+	if !stored.IsApproved {
+		t.Fatal("stored row not approved after bootstrap")
+	}
+	// Wrong password on a none-approved system must still stay invalid
+	// credentials — the bootstrap never bypasses the password check.
+	if _, err := u.SignIn("root@example.com", "wrong"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("wrong password err = %v, want ErrInvalidCredentials", err)
 	}
 }
 

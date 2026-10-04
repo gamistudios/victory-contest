@@ -228,10 +228,23 @@ func (u *adminUsecase) SignIn(email, password string) (*domain.Admin, error) {
 	}
 
 	// Credentials are valid but the account still awaits approval by another
-	// admin: refuse the session (the handler answers 403) and never hand back
-	// an admin object the caller could turn into a cookie.
+	// admin. Bootstrap rule: when no approved admin exists at all — a fresh
+	// install, or admins created before the approval gate shipped — the first
+	// valid login approves itself, so the panel can never be locked out.
+	// Once any approved admin exists, every other account keeps needing an
+	// approved admin's approval (the handler answers 403).
 	if !admin.IsApproved {
-		return nil, ErrNotApproved
+		anyApproved, err := u.hasApprovedAdmin()
+		if err != nil {
+			return nil, err
+		}
+		if anyApproved {
+			return nil, ErrNotApproved
+		}
+		admin.IsApproved = true
+		if err := u.repo.UpdateAdmin(admin.ID, *admin); err != nil {
+			return nil, err
+		}
 	}
 
 	if !hashed {
@@ -242,6 +255,20 @@ func (u *adminUsecase) SignIn(email, password string) (*domain.Admin, error) {
 	}
 	admin.Password = ""
 	return admin, nil
+}
+
+// hasApprovedAdmin reports whether at least one approved admin exists.
+func (u *adminUsecase) hasApprovedAdmin() (bool, error) {
+	admins, err := u.repo.GetAllAdmins()
+	if err != nil {
+		return false, err
+	}
+	for i := range admins {
+		if admins[i].IsApproved {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, error) {
