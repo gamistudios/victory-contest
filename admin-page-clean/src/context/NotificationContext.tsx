@@ -48,7 +48,12 @@ export const NotificationProvider = ({
       // therefore the correct admin inbox endpoint; /api/notification/admin/
       // :admin_email would only match email-keyed rows that nothing writes.
       const response = await api.get("/api/notification/recipient/admin");
-      const nots = response.data.notifications;
+      // A nil Go slice marshals to null and a proxy/error page could be any
+      // shape; storing either crashes the appbar dropdown on render
+      // (notifications.length). Degrade to an empty inbox instead.
+      const nots = Array.isArray(response.data?.notifications)
+        ? response.data.notifications
+        : [];
       setNotifications(nots);
       setUnreadCount(nots.filter((n: Notification) => !n.is_read).length);
     } catch (error) {

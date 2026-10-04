@@ -8,11 +8,14 @@ white-screen-on-mobile issues caused by the old project's config baggage.
 
 `vite-plugin-pwa` with a shell-only precache — API responses are never cached
 (stale approval/payment state risks double-approve). `registerType:
-'autoUpdate'`: a new deployment's worker activates immediately, purges
-outdated cache revisions (`cleanupOutdatedCaches`), and the fresh shell is
-picked up on the next navigation, so devices can never stay stuck on a stale
-cached build. The in-app install banner (`InstallPromptBanner` in the
-dashboard layout) appears when the browser fires `beforeinstallprompt`.
+'autoUpdate'` plus `initPwaUpdate()` (`src/lib/pwa.ts`): the app probes
+`/admin/sw.js` every 60 s and on tab focus, a newly deployed worker activates
+immediately (`skipWaiting` + `clientsClaim` + `cleanupOutdatedCaches`), and
+the running page **reloads itself once** when the new worker takes control —
+so devices converge on the fresh bundle after at most one visit and can
+never stay stuck on a stale cached build. The in-app install banner
+(`InstallPromptBanner` in the dashboard layout) appears when the browser
+fires `beforeinstallprompt`.
 
 ## What changed vs `admin-page/`
 
