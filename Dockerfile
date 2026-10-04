@@ -20,9 +20,11 @@ WORKDIR /app/admin
 # is served under /admin by the backend (vite base is set in vite.config.ts).
 ARG VITE_API_URL=""
 ENV VITE_API_URL=$VITE_API_URL
-COPY admin-page/package*.json ./
+# Headroom for the bundler: the default ~2 GB heap OOM-killed the build.
+ENV NODE_OPTIONS=--max-old-space-size=4096
+COPY admin-page-clean/package*.json ./
 RUN npm ci --legacy-peer-deps
-COPY admin-page/ ./
+COPY admin-page-clean/ ./
 RUN npm run build
 
 # Stage 3: Build Go Backend
