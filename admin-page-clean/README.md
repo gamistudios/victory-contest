@@ -4,22 +4,26 @@ Fresh Vite + React 18 + TypeScript scaffold (`npm create vite@7 -- --template re
 with the admin app ported in from `../admin-page/`. Created to eliminate the
 white-screen-on-mobile issues caused by the old project's config baggage.
 
+## PWA
+
+`vite-plugin-pwa` with a shell-only precache — API responses are never cached
+(stale approval/payment state risks double-approve). `registerType:
+'autoUpdate'`: a new deployment's worker activates immediately, purges
+outdated cache revisions (`cleanupOutdatedCaches`), and the fresh shell is
+picked up on the next navigation, so devices can never stay stuck on a stale
+cached build. The in-app install banner (`InstallPromptBanner` in the
+dashboard layout) appears when the browser fires `beforeinstallprompt`.
+
 ## What changed vs `admin-page/`
 
-- **No PWA / service worker** (`vite-plugin-pwa` removed). The old service
-  worker kept serving stale cached shells on phones even after redeploys.
-  `public/sw.js` is a **tombstone worker** at the old registration path:
-  devices that still have the old worker installed update to it, it deletes
-  the stale caches, unregisters itself and reloads the page — after which
-  every deploy is live immediately with no worker installed.
+- **Router basename normalized** (`src/App.tsx`): `/admin` and `/admin/` both
+  work. Previously `/admin` (no trailing slash) matched no route and rendered
+  a blank page — the main white-screen cause.
 - **`build.target: 'es2020'`** + **`src/polyfills.ts`** instead of the heavy
   `@vitejs/plugin-legacy` Babel pass (which OOM'd the Docker builder). Syntax
   is downleveled by esbuild; the handful of newer runtime APIs
   (`Object.hasOwn`, `structuredClone`, `.at()`, `findLast`, `replaceAll`,
   `Promise.allSettled`) are guarded patches loaded before the app.
-- **Router basename normalized** (`src/App.tsx`): `/admin` and `/admin/` both
-  work. Previously `/admin` (no trailing slash) matched no route and rendered
-  a blank page — the main white-screen cause.
 - **Startup error overlay** (`index.html`): uncaught errors and rejections are
   printed on-screen instead of leaving a silent white page.
 - **`RouteError` boundary** (`src/components/RouteError.tsx`) on the root route
@@ -50,3 +54,11 @@ Served under `/admin` by the Go backend from the single-container image
 Backend-side companion fixes (the `/admin` → `/admin/` redirect,
 Cache-Control on hashed assets, 404 for missing assets) live in
 `../backend/internal/handler/http/router.go`.
+
+## Admin approval bootstrap
+
+`POST /api/admin/login` auto-approves an unapproved admin **only when no
+approved admin exists at all** (first-admin bootstrap — accounts created
+before the approval gate, or a fresh install). Once any approved admin
+exists, every other account requires an approved admin's approval as before.
+Implementation: `../backend/internal/usecase/admin_usecase.go` (`SignIn`).
