@@ -34,6 +34,19 @@ type telegramUsecase struct {
 	settings PaymentSettingsUsecase
 }
 
+// defaultFrontendURL is the historical contest mini-app origin, used when
+// FRONTEND_URL is unset so existing deployments keep working.
+const defaultFrontendURL = "https://victory-contest.vercel.app"
+
+// frontendURL returns the mini-app origin opened by the /start WebApp button:
+// FRONTEND_URL (trailing slashes trimmed) or the historical default.
+func frontendURL() string {
+	if u := strings.TrimSpace(os.Getenv("FRONTEND_URL")); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return defaultFrontendURL
+}
+
 // StartCommand implements TelegramUsecase.
 //
 // userId is the Telegram user id of the student who sent /start. It is used to
@@ -65,7 +78,7 @@ func (t *telegramUsecase) HandleStartCommand(chatId, userId int64) error {
 	message := "<b>Welcome! 👋 </b>\nPress the button below and take one step to the journey"
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonWebApp("Open Contest", tgbotapi.WebAppInfo{URL: "https://victory-contest.vercel.app"}),
+			tgbotapi.NewInlineKeyboardButtonWebApp("Open Contest", tgbotapi.WebAppInfo{URL: frontendURL()}),
 		),
 	)
 	err := t.sendMessage(chatId, message, photoUrl, keyboard)

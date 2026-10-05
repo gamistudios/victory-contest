@@ -29,6 +29,12 @@ import { Input } from "../ui/input";
 import ErrorState from "../ErrorState";
 import { InlineQueryResultArticle } from "../../types";
 
+// Share links point at the deployed frontend origin; VITE_FRONTEND_URL
+// overrides it, otherwise the origin this app is served from is used.
+const FRONTEND_URL = (
+  import.meta.env.VITE_FRONTEND_URL ?? window.location.origin
+).replace(/\/+$/, "");
+
 // Helper functions (unchanged)
 function formatNumber(num: number): string {
   if (num < 1000) return num.toString();
@@ -220,7 +226,7 @@ export function ArticleView() {
         id: article.id, // 1-64 chars
         title: article.title,
         input_message_content: {
-          message_text: `<strong>${article.title}</strong>\n\n${article.excerpt}\n\n<a href="https://victory-contest.vercel.app/article/${article.id}">Read more</a>\n `,
+          message_text: `<strong>${article.title}</strong>\n\n${article.excerpt}\n\n<a href="${FRONTEND_URL}/article/${article.id}">Read more</a>\n `,
           parse_mode: "HTML",
           link_preview_options: {
             is_disabled: false,

@@ -54,6 +54,9 @@ services:
       # https://victory-contest.onrender.com/api/telegram/webhook
       - key: TELEGRAM_WEBHOOK_URL
         sync: false
+      # Public origin of the contest mini-app frontend (/start WebApp button)
+      - key: FRONTEND_URL
+        sync: false
       
       # CORS - Update this after deployment with your actual domain
       - key: CORS_ALLOWED_ORIGINS

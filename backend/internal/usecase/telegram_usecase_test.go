@@ -281,6 +281,25 @@ func TestTakeUpdateSuccessfulPaymentRecordsPremium(t *testing.T) {
 	})
 }
 
+// TestFrontendURL covers the mini-app origin used by the /start WebApp
+// button: FRONTEND_URL wins (trailing slashes trimmed), otherwise the
+// historical default keeps existing deployments working.
+func TestFrontendURL(t *testing.T) {
+	t.Run("defaults to the historical mini-app origin", func(t *testing.T) {
+		t.Setenv("FRONTEND_URL", "")
+		if got := frontendURL(); got != defaultFrontendURL {
+			t.Fatalf("frontendURL() = %q, want %q", got, defaultFrontendURL)
+		}
+	})
+
+	t.Run("uses FRONTEND_URL and trims trailing slashes", func(t *testing.T) {
+		t.Setenv("FRONTEND_URL", "https://contest.example.com/")
+		if got := frontendURL(); got != "https://contest.example.com" {
+			t.Fatalf("frontendURL() = %q, want https://contest.example.com", got)
+		}
+	})
+}
+
 // TestEnsureWebhook covers boot-time webhook auto-registration against a fake
 // Telegram API: getWebhookInfo is always consulted first, setWebhook fires
 // only when the registered URL is unset or points elsewhere, the secret is

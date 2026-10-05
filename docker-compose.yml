@@ -40,6 +40,9 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
       - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL}
+
+      # Public origin of the contest mini-app frontend (/start WebApp button)
+      - FRONTEND_URL=${FRONTEND_URL}
       
       # CORS Configuration
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
