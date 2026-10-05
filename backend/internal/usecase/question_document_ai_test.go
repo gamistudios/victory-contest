@@ -56,7 +56,9 @@ Hope that helps!`
 
 	t.Run("extracts, validates and tags questions", func(t *testing.T) {
 		fc := &fakeComplete{response: validJSON}
-		images := []DocumentImage{{Index: 0, Page: 3, Path: "/tmp/a.jpg", MIME: "image/jpeg"}, {Index: 1, Page: 8, Path: "/tmp/b.jpg", MIME: "image/jpeg"}}
+		// Both images sit on page 1 — the single chunk's page — so they are
+		// part of the manifest the model sees.
+		images := []DocumentImage{{Index: 0, Page: 1, Path: "/tmp/a.jpg", MIME: "image/jpeg"}, {Index: 1, Page: 1, Path: "/tmp/b.jpg", MIME: "image/jpeg"}}
 		questions, err := ParseQuestionsWithAI([]string{"page text"}, images, fc.complete)
 		if err != nil {
 			t.Fatalf("ParseQuestionsWithAI: %v", err)
@@ -70,13 +72,16 @@ Hope that helps!`
 		if questions[1].ImageIndex != 1 {
 			t.Fatalf("q2 image_index = %d, want 1", questions[1].ImageIndex)
 		}
-		// The prompt must carry the spec, the manifest and the text.
-		if !strings.Contains(fc.prompt, "IMAGE MANIFEST") || !strings.Contains(fc.prompt, "1-based option index") {
-			t.Fatalf("prompt missing spec sections: %.200s", fc.prompt)
+		// The prompt must carry the spec, the manifest, the inline image
+		// markers and the text.
+		if !strings.Contains(fc.prompt, "IMAGE MANIFEST") ||
+			!strings.Contains(fc.prompt, "1-based option index") ||
+			!strings.Contains(fc.prompt, "![image 1](/tmp/b.jpg)") {
+			t.Fatalf("prompt missing spec sections/markers: %.400s", fc.prompt)
 		}
 	})
 
-	t.Run("out-of-range image index is cleared", func(t *testing.T) {
+	t.Run("out-of-manifest image index is cleared", func(t *testing.T) {
 		fc := &fakeComplete{response: `[{"question_text":"q?","multiple_choice":["a","b"],"answer":1,"image_index":9}]`}
 		questions, err := ParseQuestionsWithAI([]string{"t"}, nil, fc.complete)
 		if err != nil {
@@ -84,6 +89,55 @@ Hope that helps!`
 		}
 		if questions[0].ImageIndex != 0 {
 			t.Fatalf("image_index = %d, want cleared 0", questions[0].ImageIndex)
+		}
+	})
+
+	t.Run("long documents split into chunks, merge and dedupe", func(t *testing.T) {
+		// Two chunks (page 2 text exceeds chunkTargetChars): chunk 1 = page 1,
+		// chunk 2 = page 2 (+ backward overlap of page 1). Page 1 holds a question
+		// repeated on page 2 (the overlap) and page 2 holds a second one.
+		longPage := strings.Repeat("filler text so this page exceeds the chunk target. ", 300)
+		pages := []string{
+			"1. What does the overlap diagram show?\na. A cell\nb. A bulb\nAnswer: 1",
+			longPage + "2. Which particle is neutral?\na. Proton\nb. Neutron\nAnswer: 2",
+		}
+		seenQ1 := false
+		fc := fakeCompleteFunc(func(prompt string, images []DocumentImage) (string, error) {
+			if strings.Contains(prompt, "=== Page 1 ===") && !strings.Contains(prompt, "=== Page 2 ===") {
+				seenQ1 = true
+				return `[{"question_text":"What does the overlap diagram show?","multiple_choice":["A cell","A bulb"],"answer":1}]`, nil
+			}
+			// Chunk 2 sees the overlap page too and answers both questions.
+			return `[{"question_text":"What  does the OVERLAP diagram show? ","multiple_choice":["A cell","A bulb"],"answer":1},
+			        {"question_text":"Which particle is neutral?","multiple_choice":["Proton","Neutron"],"answer":2}]`, nil
+		})
+		questions, err := ParseQuestionsWithAI(pages, nil, fc)
+		if err != nil {
+			t.Fatalf("ParseQuestionsWithAI: %v", err)
+		}
+		if !seenQ1 {
+			t.Fatal("expected a chunk covering only page 1")
+		}
+		if len(questions) != 2 {
+			t.Fatalf("merged %d questions, want 2 (overlap duplicate deduped)", len(questions))
+		}
+		if questions[1].Answer != 2 {
+			t.Fatalf("q2 = %+v", questions[1].Question)
+		}
+	})
+
+	t.Run("a failing chunk fails the parse naming the part", func(t *testing.T) {
+		longPage := strings.Repeat("filler text so this page exceeds the chunk target. ", 300)
+		pages := []string{"1. q?\na. x\nb. y\nAnswer: 1", longPage + "2. q2?\na. x\nb. y\nAnswer: 1"}
+		fc := fakeCompleteFunc(func(prompt string, images []DocumentImage) (string, error) {
+			if strings.Contains(prompt, "PART 2 of 2") {
+				return "", errors.New("provider down")
+			}
+			return `[{"question_text":"q?","multiple_choice":["x","y"],"answer":1}]`, nil
+		})
+		_, err := ParseQuestionsWithAI(pages, nil, fc)
+		if err == nil || !strings.Contains(err.Error(), "part(s) [2]") {
+			t.Fatalf("expected part-2 failure, got %v", err)
 		}
 	})
 
@@ -99,6 +153,10 @@ Hope that helps!`
 		}
 	})
 }
+
+// fakeCompleteFunc adapts a plain function to the complete seam; the named
+// type is assignable to the plain func signature ParseQuestionsWithAI takes.
+type fakeCompleteFunc func(prompt string, images []DocumentImage) (string, error)
 
 // fakeJPEG is not a decodable image — the extractors treat DCTDecode streams
 // as opaque JPEG bytes, so the signature is all that matters for tests. It is
@@ -140,11 +198,11 @@ func TestExtractDocumentImagesDocx(t *testing.T) {
 	}
 }
 
-// TestExtractDocumentImagesPDFDCTScan builds a single-page PDF embedding a
+// TestExtractDocumentImagesPDFDCT builds a single-page PDF embedding a
 // DCTDecode image XObject. The lib's Reader() cannot decode DCT, so the JPEG
-// is carved out of the raw bytes by the scanner — page unknown (0), document
-// order preserved.
-func TestExtractDocumentImagesPDFDCTScan(t *testing.T) {
+// is carved out of the raw bytes by the scanner and attributed back to the
+// referencing page via the XObject stream length.
+func TestExtractDocumentImagesPDFDCT(t *testing.T) {
 	pdfBytes := buildTestPDFWithImage([]string{"1. What is shown in the diagram?", "a. A cell", "b. A bulb"})
 	images, err := ExtractDocumentImages("exam.pdf", pdfBytes)
 	if err != nil {
@@ -154,7 +212,7 @@ func TestExtractDocumentImagesPDFDCTScan(t *testing.T) {
 	if len(images) != 1 {
 		t.Fatalf("got %d images, want 1", len(images))
 	}
-	if images[0].MIME != "image/jpeg" || images[0].Page != 0 {
+	if images[0].MIME != "image/jpeg" || images[0].Page != 1 {
 		t.Fatalf("unexpected manifest entry: %+v", images[0])
 	}
 }

@@ -49,18 +49,18 @@ func (h *AiAdminHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.Ha
 // handler. APIKeyHint exposes at most the last 4 characters, enough for an
 // admin to recognize which key is stored without recovering it.
 type providerView struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	BaseURL      string   `json:"base_url"`
-	Protocol     string   `json:"protocol"`
-	Models       []string `json:"models"`
-	Enabled      bool     `json:"enabled"`
-	IsDefault    bool     `json:"is_default"`
-	DefaultModel string   `json:"default_model"`
-	CreatedAt    string   `json:"created_at"`
-	UpdatedAt    string   `json:"updated_at"`
-	APIKeyHint   string   `json:"api_key_hint"`
-	HasKey       bool     `json:"has_api_key"`
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	BaseURL      string           `json:"base_url"`
+	Protocol     string           `json:"protocol"`
+	Models       domain.ModelList `json:"models"`
+	Enabled      bool             `json:"enabled"`
+	IsDefault    bool             `json:"is_default"`
+	DefaultModel string           `json:"default_model"`
+	CreatedAt    string           `json:"created_at"`
+	UpdatedAt    string           `json:"updated_at"`
+	APIKeyHint   string           `json:"api_key_hint"`
+	HasKey       bool             `json:"has_api_key"`
 }
 
 func toProviderView(p domain.AIProvider) providerView {
@@ -90,14 +90,16 @@ func lastFourHint(key string) string {
 // aiProviderInput mirrors the domain row for POST/PUT bodies. Enabled is a
 // pointer so an omitted field defaults to true on create (a provider nobody
 // asks for explicitly is still meant to work) and keeps the stored value
-// semantics on update handled in the usecase.
+// semantics on update handled in the usecase. Models may arrive in the
+// legacy string form (["gpt-4o"]) or the object form with per-model limits;
+// both bind through ModelList.
 type aiProviderInput struct {
-	Name     string   `json:"name"`
-	BaseURL  string   `json:"base_url"`
-	APIKey   string   `json:"api_key"`
-	Protocol string   `json:"protocol"`
-	Models   []string `json:"models"`
-	Enabled  *bool    `json:"enabled"`
+	Name     string           `json:"name"`
+	BaseURL  string           `json:"base_url"`
+	APIKey   string           `json:"api_key"`
+	Protocol string           `json:"protocol"`
+	Models   domain.ModelList `json:"models"`
+	Enabled  *bool            `json:"enabled"`
 }
 
 func (i aiProviderInput) toProvider(defaultEnabled bool) domain.AIProvider {

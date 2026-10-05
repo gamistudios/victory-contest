@@ -17,10 +17,14 @@ import (
 const testAPIKey = "sk-TESTKEY-0123456789abcdef"
 
 func testProvider(baseURL, protocol string, models ...string) domain.AIProvider {
+	list := make(domain.ModelList, 0, len(models))
+	for _, m := range models {
+		list = append(list, domain.AIModel{Name: m})
+	}
 	return domain.AIProvider{
 		ID: "p1", Name: "test-" + protocol, BaseURL: baseURL,
 		APIKey: testAPIKey, Protocol: protocol,
-		Models: models, Enabled: true,
+		Models: list, Enabled: true,
 	}
 }
 
@@ -240,9 +244,9 @@ func TestCompleteProviderRoundTrips(t *testing.T) {
 			defer srv.Close()
 			p := testProvider(srv.URL, tc.protocol, "model-x")
 			if tc.protocol == domain.AIProtocolGemini {
-				p.Models = []string{"gemini-test"}
+				p.Models = domain.ModelList{{Name: "gemini-test"}}
 			}
-			got, err := completeProvider(context.Background(), p, p.Models[0], completionRequest{prompt: "the prompt"})
+			got, err := completeProvider(context.Background(), p, p.Models[0].Name, completionRequest{prompt: "the prompt"})
 			if err != nil {
 				t.Fatalf("completeProvider: %v", err)
 			}

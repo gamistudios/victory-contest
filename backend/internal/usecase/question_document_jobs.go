@@ -22,10 +22,9 @@ const (
 	ParseJobDone       = "done"
 	ParseJobError      = "error"
 
-	parseJobRetention    = 30 * time.Minute
-	parseJobMaxRetained  = 50
-	parseJobMaxRunning   = 3
-	parseJobAIBudgetLeft = "ai-call-timeout"
+	parseJobRetention   = 30 * time.Minute
+	parseJobMaxRetained = 50
+	parseJobMaxRunning  = 3
 )
 
 // ParseJobStatus is what a client sees when polling a job. Questions and

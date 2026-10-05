@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/ledongthuc/pdf"
@@ -68,8 +69,21 @@ func extractDocumentText(filename string, content []byte) (string, error) {
 }
 
 // extractDocumentPages splits the document into per-page plain text (one
-// chunk for formats without pages).
+// chunk for formats without pages). Every page is sanitized: extraction can
+// surface unmappable-glyph replacement characters and control codes, and
+// only clean human-readable text may reach the parsers and AI prompts.
 func extractDocumentPages(filename string, content []byte) ([]string, error) {
+	pages, err := extractDocumentPagesRaw(filename, content)
+	if err != nil {
+		return nil, err
+	}
+	for i, p := range pages {
+		pages[i] = sanitizeExtractedText(p)
+	}
+	return pages, nil
+}
+
+func extractDocumentPagesRaw(filename string, content []byte) ([]string, error) {
 	if bytes.HasPrefix(content, []byte("PK\x03\x04")) || strings.EqualFold(filepath.Ext(filename), ".docx") {
 		text, err := docxText(content)
 		if err != nil {
@@ -84,6 +98,38 @@ func extractDocumentPages(filename string, content []byte) ([]string, error) {
 		return nil, errors.New("file is not readable text — supported formats are .pdf, .docx and .txt")
 	}
 	return []string{string(content)}, nil
+}
+
+// sanitizeExtractedText keeps human-readable text only: unmappable-glyph
+// replacement characters and control codes become separators, runs of
+// whitespace collapse. Newlines and tabs survive (the line parser needs
+// them).
+func sanitizeExtractedText(s string) string {
+	var b strings.Builder
+	pendingSpace := false
+	flushSpace := func() {
+		if !pendingSpace {
+			b.WriteByte(' ')
+			pendingSpace = true
+		}
+	}
+	for _, r := range s {
+		switch {
+		case r == '\n' || r == '\t':
+			b.WriteRune(r)
+			pendingSpace = true
+		case r == '\r' || r == unicode.ReplacementChar || r < 0x20 || r == 0x7F:
+			if r != '\r' {
+				flushSpace()
+			}
+		case r == ' ':
+			flushSpace()
+		default:
+			b.WriteRune(r)
+			pendingSpace = false
+		}
+	}
+	return b.String()
 }
 
 // pdfText extracts all visible PDF text (pages joined with newlines); see

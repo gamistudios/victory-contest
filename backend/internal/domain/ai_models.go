@@ -27,4 +27,4 @@ type Recommendations struct {
 	Strategies      []string       `json:"strategies"`
 	Resources       []ResourceItem `json:"resources"`
 	PracticePlan    []PracticeStep `json:"practicePlan"`
-} 
+}

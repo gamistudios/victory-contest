@@ -165,7 +165,7 @@ func (a *aiUsecase) envFallbackProvider() *domain.AIProvider {
 		BaseURL:  envFallbackBaseURL,
 		APIKey:   apiKey,
 		Protocol: domain.AIProtocolGemini,
-		Models:   []string{envFallbackModel},
+		Models:   domain.ModelList{{Name: envFallbackModel}},
 		Enabled:  true,
 	}
 }
@@ -183,20 +183,27 @@ func (a *aiUsecase) generate(prompt string) (string, error) {
 
 // CompleteDocumentParse runs one bulk-question-parsing completion. Document
 // parses are the largest AI surface in the app — a 60-question exam's JSON
-// alone is ~10k output tokens — so the call carries its own longer timeout
-// and inline page images (vision) when the provider model supports them.
-// Images that cannot be read are skipped, never fatal: the prompt text
-// carries the same information.
+// alone is ~10k output tokens — so the call carries its own longer timeout,
+// inline page images (vision) when the provider model supports them, and the
+// model's own limits: max_output_tokens clamps the generation budget and the
+// context window is checked up-front so an oversized part fails with a clear
+// message instead of a provider-side mystery error. Images that cannot be
+// read are skipped, never fatal: the prompt text carries the same
+// information.
 func (a *aiUsecase) CompleteDocumentParse(prompt string, images []DocumentImage) (string, error) {
-	provider, model, err := a.selectProvider()
+	provider, modelName, err := a.selectProvider()
 	if err != nil {
 		return "", err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), aiDocumentParseTimeout)
-	defer cancel()
+	model := provider.ResolveModel(modelName)
+	maxTokens := documentParseMaxTokens
+	if model.MaxOutputTokens > 0 && model.MaxOutputTokens < maxTokens {
+		maxTokens = model.MaxOutputTokens
+	}
+
 	req := completionRequest{
 		prompt:    prompt,
-		maxTokens: documentParseMaxTokens,
+		maxTokens: maxTokens,
 		timeout:   aiDocumentParseTimeout,
 	}
 	for _, img := range images {
@@ -207,7 +214,21 @@ func (a *aiUsecase) CompleteDocumentParse(prompt string, images []DocumentImage)
 		}
 		req.images = append(req.images, completionImage{MIME: img.MIME, B64: b64})
 	}
-	return completeProvider(ctx, *provider, model, req)
+
+	if model.ContextWindow > 0 {
+		// Rough token estimate: ~4 chars per text token, ~1.1k tokens per
+		// inline image, plus the generation budget itself.
+		estimate := len(prompt)/4 + len(req.images)*1100 + maxTokens
+		if estimate > model.ContextWindow {
+			return "", fmt.Errorf(
+				"model %s context window (%d tokens) is too small for this document part (~%d tokens needed) — use a larger-context model or split the document",
+				model.Name, model.ContextWindow, estimate)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), aiDocumentParseTimeout)
+	defer cancel()
+	return completeProvider(ctx, *provider, modelName, req)
 }
 
 type AiUsecase interface {

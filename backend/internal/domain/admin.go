@@ -54,7 +54,7 @@ type UserStats struct {
 	GrowthTrend []int               `json:"growth_trend" validate:"required"`
 	// Additive deep-stats (client issue #5):
 	// participation per grade and the top schools by submission activity.
-	GradeParticipation []GradeParticipationStat `json:"grade_participation"`
+	GradeParticipation []GradeParticipationStat  `json:"grade_participation"`
 	TopSchools         []SchoolParticipationStat `json:"top_schools_by_participation"`
 }
 

@@ -69,18 +69,18 @@ func TestPickEnabledProvider(t *testing.T) {
 	}{
 		{"no rows", nil, ""},
 		{"all disabled", []domain.AIProvider{
-			{ID: "a", Enabled: false, Models: []string{"m"}},
+			{ID: "a", Enabled: false, Models: domain.ModelList{ {Name: "m"} }},
 		}, ""},
 		{"enabled without models skipped", []domain.AIProvider{
 			{ID: "a", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"},
 		}, ""},
 		{"oldest created wins", []domain.AIProvider{
-			{ID: "b", Enabled: true, CreatedAt: "2026-02-01T00:00:00Z", Models: []string{"m"}},
-			{ID: "a", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: []string{"m"}},
+			{ID: "b", Enabled: true, CreatedAt: "2026-02-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }},
+			{ID: "a", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }},
 		}, "a"},
 		{"tie broken by id", []domain.AIProvider{
-			{ID: "z", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: []string{"m"}},
-			{ID: "y", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: []string{"m"}},
+			{ID: "z", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }},
+			{ID: "y", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }},
 		}, "y"},
 	}
 	for _, tc := range tests {
@@ -104,7 +104,7 @@ func TestSelectProviderFallbackSemantics(t *testing.T) {
 		t.Setenv("GOOGLE_API_KEY", "")
 		repo := newFakeAiProviderRepo()
 		repo.seed(domain.AIProvider{ID: "p", Name: "prov", Protocol: domain.AIProtocolOpenAI,
-			BaseURL: "https://x.example", APIKey: "k", Models: []string{"m"}, Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"})
+			BaseURL: "https://x.example", APIKey: "k", Models: domain.ModelList{ {Name: "m"} }, Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"})
 		a := &aiUsecase{providerRepo: repo}
 		p, model, err := a.selectProvider()
 		if err != nil {
@@ -131,7 +131,7 @@ func TestSelectProviderFallbackSemantics(t *testing.T) {
 	t.Run("rows exist but none enabled still falls back to env", func(t *testing.T) {
 		t.Setenv("GOOGLE_API_KEY", "env-key")
 		repo := newFakeAiProviderRepo()
-		repo.seed(domain.AIProvider{ID: "p", Protocol: domain.AIProtocolOpenAI, Models: []string{"m"}, Enabled: false})
+		repo.seed(domain.AIProvider{ID: "p", Protocol: domain.AIProtocolOpenAI, Models: domain.ModelList{ {Name: "m"} }, Enabled: false})
 		a := &aiUsecase{providerRepo: repo}
 		p, _, err := a.selectProvider()
 		if err != nil || p.Protocol != domain.AIProtocolGemini {
@@ -165,7 +165,7 @@ func TestPracticeWithAiUsesSelectedProvider(t *testing.T) {
 
 	repo := newFakeAiProviderRepo()
 	repo.seed(domain.AIProvider{ID: "p", Name: "local-gemini", Protocol: domain.AIProtocolGemini,
-		BaseURL: srv.URL, APIKey: "k", Models: []string{"gemini-local"}, Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"})
+		BaseURL: srv.URL, APIKey: "k", Models: domain.ModelList{ {Name: "gemini-local"} }, Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"})
 	a := NewAiUsecase(nil, repo)
 
 	qs, err := a.PracticeWithAi(domain.AiPracticeSetting{Subject: "Math", Topic: "Algebra", Difficulty: "easy"})
@@ -183,34 +183,34 @@ func TestPracticeWithAiUsesSelectedProvider(t *testing.T) {
 // pickProvider is the full selection order: default (enabled, ≥1 model)
 // first, else the oldest-enabled rule.
 func TestPickProviderDefaultOrder(t *testing.T) {
-	old := domain.AIProvider{ID: "old", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: []string{"m"}}
+	old := domain.AIProvider{ID: "old", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }}
 	tests := []struct {
 		name string
 		rows []domain.AIProvider
 		want string // "" = nil
 	}{
 		{"no default keeps oldest-enabled", []domain.AIProvider{
-			{ID: "new", Enabled: true, CreatedAt: "2026-03-01T00:00:00Z", Models: []string{"m"}},
+			{ID: "new", Enabled: true, CreatedAt: "2026-03-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }},
 			old,
 		}, "old"},
 		{"default wins even when newest", []domain.AIProvider{
 			old,
-			{ID: "new", Enabled: true, CreatedAt: "2026-03-01T00:00:00Z", Models: []string{"m"}, IsDefault: true},
+			{ID: "new", Enabled: true, CreatedAt: "2026-03-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }, IsDefault: true},
 		}, "new"},
 		{"disabled default falls back to oldest enabled", []domain.AIProvider{
 			old,
-			{ID: "new", Enabled: false, CreatedAt: "2026-03-01T00:00:00Z", Models: []string{"m"}, IsDefault: true},
+			{ID: "new", Enabled: false, CreatedAt: "2026-03-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }, IsDefault: true},
 		}, "old"},
 		{"default without models is not honored", []domain.AIProvider{
 			old,
 			{ID: "new", Enabled: true, CreatedAt: "2026-03-01T00:00:00Z", IsDefault: true},
 		}, "old"},
 		{"torn double default resolves to earliest created", []domain.AIProvider{
-			{ID: "b", Enabled: true, CreatedAt: "2026-02-01T00:00:00Z", Models: []string{"m"}, IsDefault: true},
-			{ID: "a", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: []string{"m"}, IsDefault: true},
+			{ID: "b", Enabled: true, CreatedAt: "2026-02-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }, IsDefault: true},
+			{ID: "a", Enabled: true, CreatedAt: "2026-01-01T00:00:00Z", Models: domain.ModelList{ {Name: "m"} }, IsDefault: true},
 		}, "a"},
 		{"nothing usable", []domain.AIProvider{
-			{ID: "x", Enabled: false, Models: []string{"m"}, IsDefault: true},
+			{ID: "x", Enabled: false, Models: domain.ModelList{ {Name: "m"} }, IsDefault: true},
 		}, ""},
 	}
 	for _, tc := range tests {
@@ -230,7 +230,7 @@ func TestPickProviderDefaultOrder(t *testing.T) {
 }
 
 func TestModelFor(t *testing.T) {
-	p := &domain.AIProvider{Models: []string{"a", "b"}}
+	p := &domain.AIProvider{Models: domain.ModelList{ {Name: "a"}, {Name: "b"} }}
 	if got := modelFor(p); got != "a" {
 		t.Fatalf("no pin: got %s, want a", got)
 	}
@@ -249,9 +249,9 @@ func TestSelectProviderPrefersDefault(t *testing.T) {
 	t.Setenv("GOOGLE_API_KEY", "")
 	repo := newFakeAiProviderRepo()
 	repo.seed(domain.AIProvider{ID: "old", Name: "old", Protocol: domain.AIProtocolOpenAI,
-		BaseURL: "https://old.example", APIKey: "k", Models: []string{"m"}, Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"})
+		BaseURL: "https://old.example", APIKey: "k", Models: domain.ModelList{ {Name: "m"} }, Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"})
 	repo.seed(domain.AIProvider{ID: "def", Name: "def", Protocol: domain.AIProtocolOpenAI,
-		BaseURL: "https://def.example", APIKey: "k", Models: []string{"x", "y"}, Enabled: true,
+		BaseURL: "https://def.example", APIKey: "k", Models: domain.ModelList{ {Name: "x"}, {Name: "y"} }, Enabled: true,
 		CreatedAt: "2026-05-01T00:00:00Z", IsDefault: true, DefaultModel: "y"})
 	a := &aiUsecase{providerRepo: repo}
 	p, model, err := a.selectProvider()
@@ -267,8 +267,8 @@ func TestSelectProviderPrefersDefault(t *testing.T) {
 // unsets; the pinned model must belong to the provider.
 func TestSetClearDefaultProvider(t *testing.T) {
 	repo := newFakeAiProviderRepo()
-	repo.seed(domain.AIProvider{ID: "a", Enabled: true, Models: []string{"m1", "m2"}, CreatedAt: "2026-01-01T00:00:00Z"})
-	repo.seed(domain.AIProvider{ID: "b", Enabled: true, Models: []string{"mx"}, CreatedAt: "2026-02-01T00:00:00Z"})
+	repo.seed(domain.AIProvider{ID: "a", Enabled: true, Models: domain.ModelList{ {Name: "m1"}, {Name: "m2"} }, CreatedAt: "2026-01-01T00:00:00Z"})
+	repo.seed(domain.AIProvider{ID: "b", Enabled: true, Models: domain.ModelList{ {Name: "mx"} }, CreatedAt: "2026-02-01T00:00:00Z"})
 	u := NewAiProviderUsecase(repo)
 
 	if err := u.SetDefaultProvider("a", "m2"); err != nil {
@@ -327,12 +327,12 @@ func TestSetClearDefaultProvider(t *testing.T) {
 // A regular UpdateProvider (PUT path) must never move or wipe the default.
 func TestUpdateProviderPreservesDefaultFields(t *testing.T) {
 	repo := newFakeAiProviderRepo()
-	repo.seed(domain.AIProvider{ID: "a", Name: "a", Enabled: true, Models: []string{"m1", "m2"},
+	repo.seed(domain.AIProvider{ID: "a", Name: "a", Enabled: true, Models: domain.ModelList{ {Name: "m1"}, {Name: "m2"} },
 		BaseURL: "https://a.example", Protocol: domain.AIProtocolOpenAI, APIKey: "k",
 		IsDefault: true, DefaultModel: "m2"})
 	u := NewAiProviderUsecase(repo)
 	err := u.UpdateProvider("a", domain.AIProvider{Name: "renamed", BaseURL: "https://b.example",
-		Protocol: domain.AIProtocolOpenAI, Models: []string{"m1", "m2"}, Enabled: true})
+		Protocol: domain.AIProtocolOpenAI, Models: domain.ModelList{ {Name: "m1"}, {Name: "m2"} }, Enabled: true})
 	if err != nil {
 		t.Fatal(err)
 	}

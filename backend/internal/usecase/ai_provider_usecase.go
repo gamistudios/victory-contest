@@ -167,7 +167,7 @@ func (u *aiProviderUsecase) SetDefaultProvider(id, model string) error {
 	if model != "" {
 		found := false
 		for _, m := range target.Models {
-			if m == model {
+			if m.Name == model {
 				found = true
 				break
 			}
@@ -269,10 +269,10 @@ func pickProvider(providers []domain.AIProvider) *domain.AIProvider {
 func modelFor(p *domain.AIProvider) string {
 	if p.DefaultModel != "" {
 		for _, m := range p.Models {
-			if m == p.DefaultModel {
-				return m
+			if m.Name == p.DefaultModel {
+				return m.Name
 			}
 		}
 	}
-	return p.Models[0]
+	return p.Models[0].Name
 }

@@ -14,29 +14,38 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ledongthuc/pdf"
 	"victory-contest-go/internal/domain"
 )
 
-// Document parsing constants. A full exam's JSON (60 questions with
-// explanations) is ~10k output tokens, so the parse completion gets its own
-// generous timeout and token budget.
+// Document parsing constants. An exam's full JSON (~10k output tokens) does
+// not fit inside any proxy-safe single request, so the AI parse runs in
+// chunks: page groups are sent as separate concurrent completions (each with
+// its own images and retry), and the results are merged with dedupe.
 const (
 	aiDocumentParseTimeout = 180 * time.Second
 	documentParseMaxTokens = 16384
 	// Vision payload guards: extracted images ride inline as base64.
-	maxDocumentImages      = 12
-	maxDocumentImageBytes  = 4 << 20  // per image
-	maxDocumentImageTotal  = 48 << 20 // per document
+	maxDocumentImages     = 12
+	maxDocumentImageBytes = 4 << 20  // per image
+	maxDocumentImageTotal = 48 << 20 // per document
+
+	chunkTargetChars  = 12_000 // page text per AI call
+	chunkOverlapPages = 1      // boundary pages repeated so cross-page questions survive
+	chunkMaxAttempts  = 2      // one retry per chunk on provider/parse errors
+	chunkConcurrency  = 3      // concurrent AI calls
 )
 
 // DocumentImage is one image extracted from an uploaded document. Index is
 // the document order used by the AI's "image_index" tagging, Page the 1-based
-// page (0 when the format has no pages, e.g. .txt/.docx), and Path the
-// server-side temp file the admin panel can attach to a question later.
+// page (0 when the format has no pages or the page could not be determined),
+// and Path the server-side temp file the admin panel can attach to a
+// question later.
 type DocumentImage struct {
 	Index int    `json:"index"`
 	Page  int    `json:"page"`
@@ -60,37 +69,27 @@ func ExtractDocumentImages(filename string, content []byte) ([]DocumentImage, er
 	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
-	var images []DocumentImage
-	collect := func(data []byte, mime string, page int) bool {
-		if len(images) >= maxDocumentImages || int64(len(data)) > maxDocumentImageBytes {
+	var collected []parsedImage
+	add := func(data []byte, mime string, page int) bool {
+		if len(collected) >= maxDocumentImages || int64(len(data)) > maxDocumentImageBytes {
 			return false
 		}
 		total := int64(0)
-		for _, img := range images {
-			if st, err := os.Stat(img.Path); err == nil {
-				total += st.Size()
-			}
+		for _, img := range collected {
+			total += int64(len(img.data))
 		}
 		if total+int64(len(data)) > maxDocumentImageTotal {
 			return false
 		}
-		name := fmt.Sprintf("p%03d-%02d%s", page, len(images), mimeExtension(mime))
-		path := filepath.Join(dir, name)
-		if err := os.WriteFile(path, data, 0o644); err != nil {
-			log.Printf("document images: write %s: %v", path, err)
-			return false
-		}
-		images = append(images, DocumentImage{Index: len(images), Page: page, Path: path, MIME: mime})
+		collected = append(collected, parsedImage{data: data, mime: mime, page: page})
 		return true
 	}
 
 	if bytes.HasPrefix(content, []byte("PK\x03\x04")) || strings.EqualFold(filepath.Ext(filename), ".docx") {
-		if err := extractDocxImages(content, collect); err != nil {
-			return images, err
+		if err := extractDocxImages(content, add); err != nil {
+			return nil, err
 		}
-		return images, nil
-	}
-	if bytes.HasPrefix(content, []byte("%PDF")) || strings.EqualFold(filepath.Ext(filename), ".pdf") {
+	} else if bytes.HasPrefix(content, []byte("%PDF")) || strings.EqualFold(filepath.Ext(filename), ".pdf") {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -101,12 +100,36 @@ func ExtractDocumentImages(filename string, content []byte) ([]DocumentImage, er
 			if err != nil {
 				return
 			}
-			extractPDFImages(r, content, collect)
+			extractPDFImages(r, content, add)
 		}()
-		return images, nil
 	}
 	// .txt has no images; the empty temp dir stays (harmless).
+
+	// Stable document order: pages ascending, pageless images last.
+	sort.SliceStable(collected, func(i, j int) bool {
+		if (collected[i].page == 0) != (collected[j].page == 0) {
+			return collected[j].page == 0
+		}
+		return collected[i].page < collected[j].page
+	})
+
+	images := make([]DocumentImage, 0, len(collected))
+	for _, img := range collected {
+		name := fmt.Sprintf("p%03d-%02d%s", img.page, len(images), mimeExtension(img.mime))
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, img.data, 0o644); err != nil {
+			log.Printf("document images: write %s: %v", path, err)
+			continue
+		}
+		images = append(images, DocumentImage{Index: len(images), Page: img.page, Path: path, MIME: img.mime})
+	}
 	return images, nil
+}
+
+type parsedImage struct {
+	data []byte
+	mime string
+	page int
 }
 
 // imageSink receives one extracted image; returning false stops extraction
@@ -142,12 +165,16 @@ func extractDocxImages(content []byte, sink imageSink) error {
 	return nil
 }
 
-// extractPDFImages walks every page's XObject resources. FlateDecode-only
+// extractPDFImages walks every page's image XObjects. FlateDecode-only
 // streams decode to raw samples and are rebuilt into PNGs when the colorspace
-// is one we understand (DeviceRGB/DeviceGray/ICCBased N=1,3, 8 bpc);
-// DCTDecode streams the lib cannot decode, so JPEGs are picked up afterwards
-// by scanRawJPEGs. Anything else is skipped.
+// is one we understand (DeviceRGB/DeviceGray/ICCBased N=1,3, 8 bpc).
+// DCTDecode streams the lib cannot decode, so their JPEG bytes are carved
+// from the raw file by the scanner and attributed back to the referencing
+// page via the stream length. Anything else is skipped.
 func extractPDFImages(r *pdf.Reader, content []byte, sink imageSink) {
+	type dctRef struct{ page int; length int64 }
+	var dctRefs []dctRef
+
 	for p := 1; p <= r.NumPage(); p++ {
 		page := r.Page(p)
 		if page.V.IsNull() {
@@ -157,6 +184,20 @@ func extractPDFImages(r *pdf.Reader, content []byte, sink imageSink) {
 		for _, name := range xobjs.Keys() {
 			x := xobjs.Key(name)
 			if x.Key("Subtype").Name() != "Image" || x.Key("ImageMask").Bool() {
+				continue
+			}
+			filters := imageFilters(x)
+			hasDCT := false
+			for _, f := range filters {
+				if f == "DCTDecode" {
+					hasDCT = true
+					break
+				}
+			}
+			if hasDCT {
+				// The lib's filter stack panics on DCTDecode; the bytes are
+				// carved from the raw file below and matched by length.
+				dctRefs = append(dctRefs, dctRef{page: p, length: x.Key("Length").Int64()})
 				continue
 			}
 			data, mime, err := decodePDFImage(x)
@@ -169,18 +210,49 @@ func extractPDFImages(r *pdf.Reader, content []byte, sink imageSink) {
 			}
 		}
 	}
-	// The lib's filter stack panics on DCTDecode ("unknown filter"), which is
-	// how photo-bearing PDFs embed JPEGs; recover those straight from the raw
-	// file bytes instead (page unknown → 0).
-	seen := make(map[string]bool)
-	for _, jpeg := range scanRawJPEGs(content) {
-		if seen[string(jpeg)] {
+
+	if len(dctRefs) == 0 {
+		return
+	}
+	carves := scanRawJPEGs(content)
+	used := make([]bool, len(carves))
+	for _, ref := range dctRefs {
+		if ref.length <= 0 {
 			continue
 		}
-		seen[string(jpeg)] = true
-		if !sink(jpeg, "image/jpeg", 0) {
+		for i, jpeg := range carves {
+			if !used[i] && int64(len(jpeg)) == ref.length {
+				used[i] = true
+				if !sink(jpeg, "image/jpeg", ref.page) {
+					return
+				}
+				break
+			}
+		}
+	}
+	// Carves no XObject claimed (page unknown): keep them, page 0, in
+	// document order.
+	for i, jpeg := range carves {
+		if !used[i] && !sink(jpeg, "image/jpeg", 0) {
 			return
 		}
+	}
+}
+
+// imageFilters lists the stream's filter names ("DCTDecode", "FlateDecode", …).
+func imageFilters(x pdf.Value) []string {
+	f := x.Key("Filter")
+	switch f.Kind() {
+	case pdf.Name:
+		return []string{f.Name()}
+	case pdf.Array:
+		var out []string
+		for i := 0; i < f.Len(); i++ {
+			out = append(out, f.Index(i).Name())
+		}
+		return out
+	default:
+		return nil
 	}
 }
 
@@ -211,7 +283,7 @@ func scanRawJPEGs(content []byte) [][]byte {
 
 // decodePDFImage returns the image bytes (JPEG/PNG) for an image XObject.
 // Reader() applies the PDF filters itself, so the per-image recover turns its
-// panics on exotic filters (e.g. DCTDecode) into ordinary skips.
+// panics on exotic filters into ordinary skips.
 func decodePDFImage(x pdf.Value) (data []byte, mime string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -350,63 +422,193 @@ type aiParsedQuestion struct {
 // documentParseSpec tells the model exactly what the backend needs. The
 // format rules mirror domain.Question and the 1-based answer convention the
 // grader relies on.
-const documentParseSpec = `You are a question-bank structuring assistant. The input is raw text extracted from a quiz/exam document (page by page), plus a manifest of images embedded in that document (also attached inline when this model supports images).
+const documentParseSpec = `You are a question-bank structuring assistant. You receive a PART of the raw text extracted from a quiz/exam document (page by page), plus the manifest of images embedded in that part (also attached inline when this model supports images).
 
-Reconstruct EVERY multiple-choice question in the document. Account for:
+Reconstruct EVERY multiple-choice question fully contained in this part. Account for:
 - Questions numbered "1.", "Q1.", "16 " (the dot is sometimes missing) or similar.
 - Options listed as "a.", "A.", "a)", often wrapped across several lines.
 - A trailing answer key ("1. Answer: C"): letter answers map to option positions a=1, b=2, c=3, d=4; attach the key's "Explanation:" text to the matching question.
 - Page headers, footers and ads repeated on every page: drop them, never let them into question text.
 - Superscripts/subscripts extracted as separate fragments ("1s2", "2p6") and split words: join them back into sensible text.
-- Formula-heavy lines may be missing from the extracted text; leave such questions' explanation empty rather than inventing content.
+- Formula-heavy content may appear as images: read the attached images and transcribe what you need (e.g. to complete an explanation) rather than leaving it out.
+- Image locations appear inline in the text as markdown markers like ![image 3](/path/to/file.jpg) exactly where the image sits on the page; the path is informational — when a question needs that image, tag it with "image_index": 3.
 
 Return ONLY a JSON array — no prose, no markdown fences. One object per question:
 {
   "question_text": "the full question text",
   "multiple_choice": ["first option", "second option"],
   "answer": 3,
-  "explanation": "explanation from the document, or \"\"",
+  "explanation": "explanation from the document (or read from an image), or \"\"",
   "grade": "", "subject": "", "chapter": "",
   "image_index": 2
 }
 "multiple_choice" keeps the original option order (2+ entries). "answer" is the 1-based option index. "grade"/"subject"/"chapter" come from header lines like Subject:/Grade:/Chapter: when present, otherwise "". "image_index" is included ONLY when the question clearly belongs to one of the manifest images (it references a diagram/figure, or sits directly beside it on the page); otherwise omit the field.
 
-Rules: never invent questions, options or answers; preserve the original wording (fix only extraction artifacts); if the document shows 60 questions, output 60; every question MUST have at least 2 options and an answer between 1 and the option count.`
+Rules: never invent questions, options or answers; preserve the original wording (fix only extraction artifacts); omit a question whose options are cut off at this part's boundaries — it is handled by the adjacent part; every question MUST have at least 2 options and an answer between 1 and the option count.`
 
-// buildDocumentParsePrompt assembles the spec, the image manifest and the
-// page-marked text into one prompt.
-func buildDocumentParsePrompt(pages []string, images []DocumentImage) string {
+// buildChunkPrompt assembles the spec, the chunk's image manifest, its
+// page-marked text — with each image's markdown marker inserted at its page
+// location — into one prompt.
+func buildChunkPrompt(part, total int, pages []string, firstPageNo int, images []DocumentImage) string {
 	var b strings.Builder
 	b.WriteString(documentParseSpec)
-	b.WriteString("\n\n=== IMAGE MANIFEST ===\n")
+	fmt.Fprintf(&b, "\n\nThis is PART %d of %d of the document; pages below are numbered as in the full document.\n", part, total)
+	b.WriteString("\n=== IMAGE MANIFEST (this part) ===\n")
 	if len(images) == 0 {
-		b.WriteString("(no images were extracted from the document)\n")
+		b.WriteString("(no images were extracted for this part)\n")
 	} else {
 		for _, img := range images {
 			fmt.Fprintf(&b, "image_index=%d (page %d)\n", img.Index, img.Page)
 		}
 	}
-	b.WriteString("\n=== DOCUMENT TEXT ===\n")
-	if len(pages) > 1 {
-		for i, p := range pages {
-			fmt.Fprintf(&b, "=== Page %d ===\n%s\n", i+1, p)
+	b.WriteString("\n=== DOCUMENT TEXT (this part) ===\n")
+	for i, p := range pages {
+		pageNo := firstPageNo + i
+		fmt.Fprintf(&b, "=== Page %d ===\n", pageNo)
+		// The image markers sit inline at their page location so the model
+		// sees exactly where each figure belongs.
+		for _, img := range images {
+			if img.Page == pageNo {
+				fmt.Fprintf(&b, "![image %d](%s)\n", img.Index, img.Path)
+			}
 		}
-	} else {
-		b.WriteString(strings.TrimSpace(strings.Join(pages, "\n")))
+		b.WriteString(p)
 		b.WriteString("\n")
 	}
 	return b.String()
 }
 
-// ParseQuestionsWithAI sends the extracted document text (and images, via
-// complete) to the configured AI provider and validates whatever comes back
-// into review-ready questions. Invalid entries are dropped; an empty valid
-// set is an error, never a garbage list.
-func ParseQuestionsWithAI(pages []string, images []DocumentImage, complete func(prompt string, images []DocumentImage) (string, error)) ([]aiParsedQuestion, error) {
-	raw, err := complete(buildDocumentParsePrompt(pages, images), images)
-	if err != nil {
-		return nil, err
+// splitPageRanges groups page indexes into consecutive chunks of roughly
+// chunkTargetChars, returning inclusive [from,to] ranges.
+func splitPageRanges(pages []string) [][2]int {
+	var ranges [][2]int
+	from, chars := 0, 0
+	for i, p := range pages {
+		if chars > 0 && chars+len(p) > chunkTargetChars {
+			ranges = append(ranges, [2]int{from, i - 1})
+			from, chars = i, 0
+		}
+		chars += len(p)
 	}
+	return append(ranges, [2]int{from, len(pages) - 1})
+}
+
+// chunkImages selects the images belonging to pages [from,to] (1-based page
+// numbers); pageless images ride along with the first chunk.
+func chunkImages(images []DocumentImage, from, to int) []DocumentImage {
+	var out []DocumentImage
+	for _, img := range images {
+		switch {
+		case img.Page >= from+1 && img.Page <= to+1:
+			out = append(out, img)
+		case img.Page == 0 && from == 0:
+			out = append(out, img)
+		}
+	}
+	return out
+}
+
+// ParseQuestionsWithAI structures the extracted document with the configured
+// AI provider: the document is split into page-group chunks, each chunk is
+// completed (with retries) against the provider — images of that chunk ride
+// inline — and the per-chunk question arrays are merged with dedupe (the
+// one-page overlap between chunks makes boundary questions surface whole in
+// at least one chunk). Any chunk that still fails fails the parse with the
+// failing part numbers; an empty valid set is an error, never garbage.
+func ParseQuestionsWithAI(pages []string, images []DocumentImage, complete func(prompt string, images []DocumentImage) (string, error)) ([]aiParsedQuestion, error) {
+	if len(pages) == 0 {
+		pages = []string{""}
+	}
+	ranges := splitPageRanges(pages)
+	type chunkResult struct {
+		questions []aiParsedQuestion
+		err       error
+	}
+	results := make([]chunkResult, len(ranges))
+	sem := make(chan struct{}, chunkConcurrency)
+	var wg sync.WaitGroup
+	for i, r := range ranges {
+		wg.Add(1)
+		go func(i, from, to int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			// One overlap page before the chunk lets questions that span the
+			// boundary appear whole here; dedupe removes the repeats.
+			overlapFrom := from
+			if overlapFrom > chunkOverlapPages {
+				overlapFrom -= chunkOverlapPages
+			} else {
+				overlapFrom = 0
+			}
+			chunkPages := pages[overlapFrom : to+1]
+			chunkImgs := chunkImages(images, from, to)
+			qs, err := runChunkWithRetry(i+1, len(ranges), chunkPages, overlapFrom+1, chunkImgs, complete)
+			results[i] = chunkResult{questions: qs, err: err}
+		}(i, r[0], r[1])
+	}
+	wg.Wait()
+
+	var (
+		merged []aiParsedQuestion
+		seen   = map[string]bool{}
+		failed []int
+	)
+	for i := range ranges {
+		if results[i].err != nil {
+			failed = append(failed, i+1)
+			continue
+		}
+		for _, q := range results[i].questions {
+			key := normalizeQuestionKey(q.QuestionText)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			merged = append(merged, q)
+		}
+	}
+	if len(failed) > 0 {
+		return nil, fmt.Errorf("AI parsing failed for document part(s) %v — retry; check the provider's speed/quota or switch to mode=text", failed)
+	}
+	if len(merged) == 0 {
+		return nil, errors.New("the AI response contained no valid questions")
+	}
+	return merged, nil
+}
+
+// runChunkWithRetry completes one chunk, retrying once on provider or parse
+// failures (transient truncation and rate limits are the common cases).
+func runChunkWithRetry(part, total int, chunkPages []string, firstPageNo int, images []DocumentImage, complete func(string, []DocumentImage) (string, error)) ([]aiParsedQuestion, error) {
+	prompt := buildChunkPrompt(part, total, chunkPages, firstPageNo, images)
+	validIndexes := make(map[int]bool, len(images))
+	for _, img := range images {
+		validIndexes[img.Index] = true
+	}
+	var lastErr error
+	for attempt := 0; attempt < chunkMaxAttempts; attempt++ {
+		if attempt > 0 {
+			time.Sleep(2 * time.Second)
+		}
+		raw, err := complete(prompt, images)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		qs, perr := parseAIQuestions(raw, validIndexes)
+		if perr == nil {
+			return qs, nil
+		}
+		lastErr = perr
+	}
+	return nil, fmt.Errorf("part %d/%d: %w", part, total, lastErr)
+}
+
+// parseAIQuestions slices the JSON array out of the model's reply and
+// validates every entry; invalid ones are dropped. Image tags are kept only
+// when they point at one of this chunk's manifest images (the manifest uses
+// global document indices).
+func parseAIQuestions(raw string, validIndexes map[int]bool) ([]aiParsedQuestion, error) {
 	start := strings.Index(raw, "[")
 	end := strings.LastIndex(raw, "]")
 	if start == -1 || end == -1 || start > end {
@@ -426,7 +628,7 @@ func ParseQuestionsWithAI(pages []string, images []DocumentImage, complete func(
 		if p.Answer < 1 || p.Answer > len(p.MultipleChoice) {
 			continue
 		}
-		if p.ImageIndex < 0 || p.ImageIndex >= len(images) {
+		if p.ImageIndex != 0 && !validIndexes[p.ImageIndex] {
 			p.ImageIndex = 0
 		}
 		valid = append(valid, p)
@@ -435,4 +637,10 @@ func ParseQuestionsWithAI(pages []string, images []DocumentImage, complete func(
 		return nil, errors.New("the AI response contained no valid questions")
 	}
 	return valid, nil
+}
+
+// normalizeQuestionKey is the merge-dedupe key: case- and whitespace-folded
+// question text.
+func normalizeQuestionKey(text string) string {
+	return strings.Join(strings.Fields(strings.ToLower(text)), " ")
 }

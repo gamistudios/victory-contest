@@ -11,6 +11,7 @@ import {
 
 import {
   aiServices,
+  AIModel,
   AIProvider,
   AiProtocol,
   ProviderTestResult,
@@ -74,10 +75,19 @@ const PROTOCOLS: { value: AiProtocol; label: string }[] = [
 
 // First model wins when no default_model is pinned (backend modelFor rule).
 function activeModel(p: AIProvider): string {
-  if (p.default_model && p.models.includes(p.default_model)) {
+  if (p.default_model && p.models.some((m) => m.name === p.default_model)) {
     return p.default_model;
   }
-  return p.models[0] ?? '—';
+  return p.models[0]?.name ?? '—';
+}
+
+/** One editable row of the models editor: name + optional limits. Limits
+ *  stay strings in the form and become numbers on submit ("" = unset =
+ *  protocol default, backend treats 0 the same way). */
+interface ModelFormRow {
+  name: string;
+  contextWindow: string;
+  maxOutputTokens: string;
 }
 
 interface ProviderForm {
@@ -85,7 +95,7 @@ interface ProviderForm {
   protocol: AiProtocol;
   base_url: string;
   api_key: string;
-  modelsText: string;
+  models: ModelFormRow[];
   enabled: boolean;
 }
 
@@ -94,7 +104,7 @@ const EMPTY_FORM: ProviderForm = {
   protocol: 'openai',
   base_url: '',
   api_key: '',
-  modelsText: '',
+  models: [{ name: '', contextWindow: '', maxOutputTokens: '' }],
   enabled: true,
 };
 
@@ -185,23 +195,39 @@ export default function AiManagement() {
       protocol: p.protocol,
       base_url: p.base_url,
       api_key: '',
-      modelsText: p.models.join(', '),
+      models: p.models.map((m) => ({
+        name: m.name,
+        contextWindow: m.context_window ? String(m.context_window) : '',
+        maxOutputTokens: m.max_output_tokens ? String(m.max_output_tokens) : '',
+      })),
       enabled: p.enabled,
     });
     setFormError(null);
     setFormOpen(true);
   };
 
-  const parseModels = (text: string): string[] =>
-    text
-      .split(/[,\n]/)
-      .map((m) => m.trim())
-      .filter(Boolean);
-
   const submitForm = async () => {
-    const models = parseModels(form.modelsText);
-    if (!form.name.trim() || !form.base_url.trim() || models.length === 0) {
-      setFormError('name, base_url and at least one model are required.');
+    if (!form.name.trim() || !form.base_url.trim()) {
+      setFormError('name and base_url are required.');
+      return;
+    }
+    const models: AIModel[] = [];
+    for (const row of form.models) {
+      if (!row.name.trim()) continue;
+      const context = row.contextWindow.trim() ? Number(row.contextWindow) : 0;
+      const maxOut = row.maxOutputTokens.trim() ? Number(row.maxOutputTokens) : 0;
+      if (Number.isNaN(context) || context < 0 || Number.isNaN(maxOut) || maxOut < 0) {
+        setFormError(`Model "${row.name}": context and max output tokens must be non-negative numbers.`);
+        return;
+      }
+      models.push({
+        name: row.name.trim(),
+        ...(context ? { context_window: context } : {}),
+        ...(maxOut ? { max_output_tokens: maxOut } : {}),
+      });
+    }
+    if (models.length === 0) {
+      setFormError('At least one model with a name is required.');
       return;
     }
     if (!editing && !form.api_key.trim()) {
@@ -263,7 +289,7 @@ export default function AiManagement() {
 
   const openSetDefault = (p: AIProvider) => {
     setDefaultTarget(p);
-    setDefaultModel(p.default_model || p.models[0] || '');
+    setDefaultModel(p.default_model || p.models[0]?.name || '');
   };
 
   const submitSetDefault = async () => {
@@ -541,14 +567,88 @@ export default function AiManagement() {
                 }
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="p-models">Models (comma-separated)</Label>
-              <Input
-                id="p-models"
-                value={form.modelsText}
-                onChange={(e) => setForm({ ...form, modelsText: e.target.value })}
-                placeholder="gemini-2.5-flash, gemini-2.5-pro"
-              />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Models</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      models: [
+                        ...form.models,
+                        { name: '', contextWindow: '', maxOutputTokens: '' },
+                      ],
+                    })
+                  }
+                >
+                  Add model
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {form.models.map((row, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_5rem_5rem_auto] items-center gap-2">
+                    <Input
+                      value={row.name}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          models: form.models.map((r, j) =>
+                            j === i ? { ...r, name: e.target.value } : r
+                          ),
+                        })
+                      }
+                      placeholder="model id, e.g. gemini-2.5-flash"
+                    />
+                    <Input
+                      value={row.contextWindow}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          models: form.models.map((r, j) =>
+                            j === i ? { ...r, contextWindow: e.target.value } : r
+                          ),
+                        })
+                      }
+                      placeholder="context"
+                      title="Context window (tokens), optional"
+                    />
+                    <Input
+                      value={row.maxOutputTokens}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          models: form.models.map((r, j) =>
+                            j === i ? { ...r, maxOutputTokens: e.target.value } : r
+                          ),
+                        })
+                      }
+                      placeholder="max out"
+                      title="Max output tokens, optional"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={form.models.length <= 1}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          models: form.models.filter((_, j) => j !== i),
+                        })
+                      }
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Optional per-model limits in tokens: context window and max
+                output. The backend clamps generation to them.
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
@@ -595,8 +695,8 @@ export default function AiManagement() {
             </SelectTrigger>
             <SelectContent>
               {defaultTarget?.models.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
+                <SelectItem key={m.name} value={m.name}>
+                  {m.name}
                 </SelectItem>
               ))}
             </SelectContent>

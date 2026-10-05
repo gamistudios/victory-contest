@@ -6,12 +6,21 @@ import { describeApiError } from './feedbackServices';
 // response: read providers carry only has_api_key + api_key_hint (last 4).
 export type AiProtocol = 'openai' | 'anthropic' | 'gemini';
 
+/** One model in a provider's catalog. context_window / max_output_tokens are
+ *  optional limits the backend clamps to (0 = protocol default) — mirrors the
+ *  ScoOS model management. */
+export interface AIModel {
+  name: string;
+  context_window?: number;
+  max_output_tokens?: number;
+}
+
 export interface AIProvider {
   id: string;
   name: string;
   base_url: string;
   protocol: AiProtocol;
-  models: string[];
+  models: AIModel[];
   enabled: boolean;
   is_default: boolean;
   default_model: string;
@@ -26,7 +35,7 @@ export interface AIProviderInput {
   base_url: string;
   api_key?: string;
   protocol: AiProtocol;
-  models: string[];
+  models: AIModel[];
   enabled?: boolean;
 }
 
