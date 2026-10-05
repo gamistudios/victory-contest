@@ -8,6 +8,7 @@ import {
   PlusSquare,
   FilePlus,
   BookOpen,
+  BrainCircuit,
 } from "lucide-react";
 import React from "react";
 export interface NavItem {
@@ -130,6 +131,12 @@ export const menuList: NavGroup[] = [
         title: "Admins",
         path: "/dashboard/admins",
         icon: UserCog,
+      },
+      {
+        id: 11,
+        title: "AI Management",
+        path: "/dashboard/ai",
+        icon: BrainCircuit,
       },
     ],
   },
