@@ -401,6 +401,29 @@ func TestEnsureWebhook(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects URL missing the server route path before any call", func(t *testing.T) {
+		// A bare-host value once overwrote a working webhook and silenced the
+		// bot (updates hit the SPA fallback, which answers 200); it must be
+		// rejected without touching Telegram.
+		methods, setBody = nil, nil
+		if err := newUsecase().EnsureWebhook("https://app.example.koyeb.app/", "s3cr3t"); err == nil || !strings.Contains(err.Error(), "/api/telegram/webhook") {
+			t.Fatalf("expected route-path rejection, got %v", err)
+		}
+		if len(methods) != 0 {
+			t.Fatalf("no Telegram calls expected, got %v", methods)
+		}
+	})
+
+	t.Run("treats trailing-slash variant as already registered", func(t *testing.T) {
+		methods, setBody, infoURL = nil, nil, url
+		if err := newUsecase().EnsureWebhook(url+"/", "s3cr3t"); err != nil {
+			t.Fatalf("EnsureWebhook: %v", err)
+		}
+		if len(methods) != 1 || methods[0] != "getWebhookInfo" {
+			t.Fatalf("calls = %v, want only getWebhookInfo", methods)
+		}
+	})
+
 	t.Run("propagates Telegram API failure", func(t *testing.T) {
 		methods, setBody, failGet = nil, nil, true
 		defer func() { failGet = false }()

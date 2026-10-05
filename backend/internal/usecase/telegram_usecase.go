@@ -292,21 +292,32 @@ func (t *telegramUsecase) SavePreparedInlineMessage(userID int64, result json.Ra
 	})
 }
 
+// webhookRoutePath is the only path this API serves Telegram updates on.
+// TELEGRAM_WEBHOOK_URL must end with it — a bare-host URL would point updates
+// at the SPA fallback, which answers 200 with index.html and silently swallows
+// every update.
+const webhookRoutePath = "/api/telegram/webhook"
+
 // EnsureWebhook registers webhookURL with Telegram, but only after consulting
 // getWebhookInfo: when the current webhook is unset or points somewhere else
 // (e.g. the API moved to a new deployment URL) it calls setWebhook, otherwise
 // it is a no-op — safe to run on every boot. secretToken is forwarded as
 // secret_token so Telegram echoes it in X-Telegram-Bot-Api-Secret-Token, which
 // the /api/telegram/webhook handler verifies; empty means unverified updates.
+//
+// The URL is validated (https, ends in the server's webhook route) BEFORE any
+// Telegram call, so a mistyped value can never overwrite a working webhook.
 func (t *telegramUsecase) EnsureWebhook(webhookURL, secretToken string) error {
 	if t.bot == nil {
 		return errors.New("telegram bot is not configured")
 	}
+	webhookURL = strings.TrimRight(webhookURL, "/")
 	if !strings.HasPrefix(webhookURL, "https://") {
 		return fmt.Errorf("webhook URL must be https, got %q", webhookURL)
 	}
-	if !strings.HasSuffix(webhookURL, "/api/telegram/webhook") {
-		log.Printf("telegram: webhook URL %q does not end in the server route /api/telegram/webhook", webhookURL)
+	if !strings.HasSuffix(webhookURL, webhookRoutePath) {
+		return fmt.Errorf("TELEGRAM_WEBHOOK_URL must be the full URL ending in %s (got %q) — refusing to touch the current webhook",
+			webhookRoutePath, webhookURL)
 	}
 	result, err := t.callTelegram("getWebhookInfo", nil)
 	if err != nil {
