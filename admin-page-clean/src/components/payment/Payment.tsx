@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PaymentStarsSettings } from "./stars-settings";
 import { PendingPaymentsTab } from "./pending-tab";
 import { ExpiredPaymentsTab } from "./expired-tab";
 import { RejectedPaymentsTab } from "./rejected-tabs";
@@ -13,7 +14,8 @@ import { ApprovedPaymentsTab } from "./approved-tabs";
 
 export function PaymentsPage() {
   return (
-    <div className="mx-auto w-full max-w-full px-4 py-6 sm:px-6 sm:py-10">
+    <div className="mx-auto w-full max-w-full px-4 py-6 sm:px-6 sm:py-10 space-y-4">
+      <PaymentStarsSettings />
       <Card>
         <CardHeader>
           <CardTitle className="text-xl sm:text-2xl">Payment Requests</CardTitle>

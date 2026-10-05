@@ -3,7 +3,7 @@ import { DataTable } from "@/components/data-table";
 import { expiredColumns } from "./columns";
 import {
   fetchExpiredPayments,
-  notifyUser,
+  notifyUsers,
 } from "../../services/paymentServices";
 import { PaymentRequest } from "../../types/payment";
 import { Button } from "../ui/button";
@@ -31,19 +31,20 @@ export function ExpiredPaymentsTab() {
       description: `Notifying all ${payments.length} users with expired payments.`,
     });
 
-    const notificationPromises = payments.map((p) =>
-      notifyUser(p.userId, p.id)
-    );
-
     try {
-      await Promise.all(notificationPromises);
-      toast("✅ Bulk Notification Complete", {
-        description: `Successfully notified all ${payments.length} users.`,
-      });
-    } catch {
-      toast.error("❌ Notification Error", {
-        description: "Some notifications may have failed. Please check logs.",
-      });
+      const { sent, failed } = await notifyUsers(
+        payments.map((p) => p.userId),
+        "Your payment window has expired. Please submit a new payment request to continue."
+      );
+      if (failed === 0) {
+        toast("✅ Bulk Notification Complete", {
+          description: `Notified all ${sent} users.`,
+        });
+      } else {
+        toast.error("Bulk Notification Partially Failed", {
+          description: `${sent} sent, ${failed} failed.`,
+        });
+      }
     } finally {
       setIsNotifying(false);
     }

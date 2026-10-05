@@ -167,7 +167,7 @@ const ReceiptCell = ({ row }: { row: Row<PaymentRequest> }) => {
             {url && !loadFailed ? (
               <img
                 src={url}
-                alt={`Receipt for ${payment.user_id}`}
+                alt={`Receipt for ${payment.userId}`}
                 className="max-w-full h-auto"
                 onError={() => setLoadFailed(true)}
               />
@@ -258,7 +258,10 @@ export const expiredColumns: ColumnDef<PaymentRequest>[] = [
           description: `Notifying ${payment.fullName}`,
         });
         try {
-          await notifyUser(payment.userId, payment.id);
+          await notifyUser(
+            payment.userId,
+            `Your payment request is awaiting review by an administrator.`
+          );
           toast.success("✅ Notification Sent!", {
             description: `${payment.fullName} has been notified.`,
           });
