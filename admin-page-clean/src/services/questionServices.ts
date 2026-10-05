@@ -193,6 +193,45 @@ export async function deleteQuestion(id: string): Promise<MutateResult> {
   return res.data;
 }
 
+/** Server-side cap per bulk-delete request (question_handler.go maxBulkDeleteIDs). */
+export const MAX_BULK_DELETE_IDS = 500;
+
+export interface BulkDeleteFailure {
+  id: string;
+  error: string;
+}
+
+export interface BulkDeleteQuestionsResult {
+  deleted: string[];
+  failed: BulkDeleteFailure[];
+}
+
+/** POST /api/question/multiple-delete — body {"ids": string[]}.
+ *  Returns 200 with {"deleted": [...], "failed": [{"id","error"}]}; 400 when
+ *  ids is missing/empty, holds a blank or non-string entry, or exceeds
+ *  MAX_BULK_DELETE_IDS. Guarded client-side so we never send a doomed request. */
+export async function deleteQuestions(
+  ids: string[]
+): Promise<BulkDeleteQuestionsResult> {
+  const clean = ids.filter((id) => typeof id === "string" && id.trim() !== "");
+  if (clean.length === 0) {
+    throw new Error("Select at least one question to delete.");
+  }
+  if (clean.length > MAX_BULK_DELETE_IDS) {
+    throw new Error(
+      `Too many ids: maximum ${MAX_BULK_DELETE_IDS} per request.`
+    );
+  }
+
+  const res = await api.post("/api/question/multiple-delete", { ids: clean });
+  // The backend omits/nulls the slices when a side is empty.
+  const data = res.data as {
+    deleted?: string[] | null;
+    failed?: BulkDeleteFailure[] | null;
+  };
+  return { deleted: data.deleted ?? [], failed: data.failed ?? [] };
+}
+
 /** GET /api/question/ — full question rows including answers/explanations
  *  (admin-only route). Unlike GET /api/contest/:id this never strips
  *  sensitive fields, so use it as the source for admin editing. */

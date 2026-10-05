@@ -58,25 +58,52 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Question } from "@/types/models";
 import { deleteQuestion } from "@/services/questionServices";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface QuestionTableProps {
   questions: Question[];
   onQuestionDeleted: (questionId: string) => void;
+  /** Selection props are optional: callers without bulk delete (e.g. the
+   *  contest problems tab) keep the original no-checkbox table. */
+  selectedIds?: Set<string>;
+  onToggleSelected?: (questionId: string, selected: boolean) => void;
+  onToggleSelectedMany?: (questionIds: string[], selected: boolean) => void;
 }
 
 export default function QuestionTable({
   questions,
   onQuestionDeleted,
+  selectedIds,
+  onToggleSelected,
+  onToggleSelectedMany,
 }: QuestionTableProps) {
   const [pageIndex, setPageIndex] = React.useState(0);
   const [pageSize, setPageSize] = React.useState(10);
 
   const pageCount = Math.ceil(questions.length / pageSize);
+  const selectable = Boolean(onToggleSelected && onToggleSelectedMany);
 
   const paginatedQuestions = React.useMemo(() => {
     const start = pageIndex * pageSize;
     return questions.slice(start, start + pageSize);
   }, [questions, pageIndex, pageSize]);
+
+  // Rows without a server id cannot be selected (bulk delete keys off ids).
+  const pageIds = React.useMemo(
+    () =>
+      paginatedQuestions
+        .map((q) => q.id)
+        .filter((id): id is string => Boolean(id && id.trim())),
+    [paginatedQuestions]
+  );
+
+  const selectedOnPage = pageIds.filter((id) => selectedIds?.has(id)).length;
+  const headerChecked: boolean | "indeterminate" =
+    pageIds.length > 0 && selectedOnPage === pageIds.length
+      ? true
+      : selectedOnPage > 0
+      ? "indeterminate"
+      : false;
 
   return (
     <div className="space-y-4">
@@ -84,6 +111,18 @@ export default function QuestionTable({
         <Table className="min-w-[640px]">
           <TableHeader>
             <TableRow>
+              {selectable && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Select all rows on this page"
+                    checked={headerChecked}
+                    disabled={pageIds.length === 0}
+                    onCheckedChange={(checked) =>
+                      onToggleSelectedMany?.(pageIds, checked === true)
+                    }
+                  />
+                </TableHead>
+              )}
               <TableHead className="w-auto max-w-[280px] sm:w-[60%]">
                 Question
               </TableHead>
@@ -94,8 +133,22 @@ export default function QuestionTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedQuestions.map((question) => (
+            {paginatedQuestions.map((question) => {
+              const rowId = question.id && question.id.trim() ? question.id : "";
+              return (
               <TableRow key={question.id}>
+                {selectable && (
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`Select question ${rowId || "(unsaved)"}`}
+                      disabled={!rowId}
+                      checked={rowId ? Boolean(selectedIds?.has(rowId)) : false}
+                      onCheckedChange={(checked) =>
+                        onToggleSelected?.(rowId, checked === true)
+                      }
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="font-medium truncate max-w-[240px] sm:max-w-sm">
                   {question.question_text}
                 </TableCell>
@@ -109,7 +162,8 @@ export default function QuestionTable({
                   />
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
           </TableBody>
         </Table>
       </div>

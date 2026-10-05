@@ -1,10 +1,26 @@
 import * as React from "react";
-import { getQuestions } from "@/services/questionServices"; // Full question rows (admin route)
+import {
+  getQuestions,
+  deleteQuestions,
+  MAX_BULK_DELETE_IDS,
+  type BulkDeleteQuestionsResult,
+} from "@/services/questionServices"; // Full question rows (admin route)
+import { describeApiError } from "@/services/feedbackServices";
 import { Question } from "@/types/models";
 
 // Shadcn/ui & Lucide Icons
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -15,7 +31,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ListFilter, AlertTriangle } from "lucide-react";
+import {
+  ListFilter,
+  AlertTriangle,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import { grades, Subjects } from "./Data";
 import QuestionTable from "./QuestionTable";
 
@@ -37,6 +58,14 @@ export default function QuestionsPage() {
     subjects: [],
     grades: [],
   });
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
+    () => new Set()
+  );
+  const [bulkConfirmOpen, setBulkConfirmOpen] = React.useState(false);
+  const [bulkDeleting, setBulkDeleting] = React.useState(false);
+  const [bulkError, setBulkError] = React.useState<string | null>(null);
+  const [bulkResult, setBulkResult] =
+    React.useState<BulkDeleteQuestionsResult | null>(null);
 
   // Fetch data on component mount
   React.useEffect(() => {
@@ -53,6 +82,23 @@ export default function QuestionsPage() {
     };
     fetchQuestions();
   }, []);
+
+  const toggleSelected = (questionId: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(questionId);
+      else next.delete(questionId);
+      return next;
+    });
+  };
+
+  const toggleSelectedMany = (questionIds: string[], selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      questionIds.forEach((id) => (selected ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
 
   // Handler for updating a filter category
   const handleFilterChange = (category: keyof Filters, value: string) => {
@@ -90,6 +136,38 @@ export default function QuestionsPage() {
 
   const handleQuestionDeleted = (deletedQuestionId: string) => {
     setQuestions((prev) => prev.filter((q) => q.id !== deletedQuestionId));
+    toggleSelected(deletedQuestionId, false);
+  };
+
+  // Selection is scoped to the filtered list so the button count and the
+  // request payload always agree.
+  const selectedVisibleIds = React.useMemo(() => {
+    const visible = new Set(
+      filteredQuestions.map((q) => q.id).filter((id): id is string => Boolean(id))
+    );
+    return [...selectedIds].filter((id) => visible.has(id));
+  }, [selectedIds, filteredQuestions]);
+
+  // ONE round-trip to POST /api/question/multiple-delete for the whole selection.
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    setBulkError(null);
+    try {
+      const result = await deleteQuestions(selectedVisibleIds);
+      const removed = new Set(result.deleted);
+      setQuestions((prev) => prev.filter((q) => !q.id || !removed.has(q.id)));
+      setSelectedIds(new Set(result.failed.map((f) => f.id)));
+      setBulkResult(result);
+      setBulkConfirmOpen(false);
+      document.body.style.pointerEvents = "";
+    } catch (e) {
+      setBulkResult(null);
+      setBulkError(describeApiError(e, "Bulk delete"));
+      setBulkConfirmOpen(false);
+      document.body.style.pointerEvents = "";
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const renderContent = () => {
@@ -118,6 +196,9 @@ export default function QuestionsPage() {
           <QuestionTable
             questions={filteredQuestions}
             onQuestionDeleted={handleQuestionDeleted}
+            selectedIds={selectedIds}
+            onToggleSelected={toggleSelected}
+            onToggleSelectedMany={toggleSelectedMany}
           />
         ) : (
           <div className="text-center py-16">
@@ -141,12 +222,93 @@ export default function QuestionsPage() {
         </p>
       </div>
 
+      {bulkError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{bulkError}</AlertDescription>
+        </Alert>
+      )}
+
+      {bulkResult && (
+        <Alert variant={bulkResult.failed.length > 0 ? "destructive" : "default"}>
+          <AlertDescription>
+            <span>Deleted {bulkResult.deleted.length} question(s).</span>
+            {bulkResult.failed.length > 0 && (
+              <div className="mt-2 space-y-1">
+                <p className="font-medium">
+                  {bulkResult.failed.length} failed:
+                </p>
+                <ul className="list-disc space-y-0.5 pl-5 text-xs">
+                  {bulkResult.failed.map((f) => (
+                    <li key={f.id} className="break-all">
+                      <span className="font-mono">{f.id}</span> — {f.error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="min-w-0 break-words">
             All Questions ({filteredQuestions.length})
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              {/* Bulk delete: single multiple-delete call for the selection */}
+              <AlertDialog
+                open={bulkConfirmOpen}
+                onOpenChange={(open) => {
+                  if (!bulkDeleting) setBulkConfirmOpen(open);
+                }}
+              >
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1"
+                  disabled={selectedVisibleIds.length === 0 || bulkDeleting}
+                  onClick={() => {
+                    setBulkResult(null);
+                    setBulkError(null);
+                    setBulkConfirmOpen(true);
+                  }}
+                >
+                  {bulkDeleting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  Delete selected ({selectedVisibleIds.length})
+                </Button>
+                <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Delete {selectedVisibleIds.length} selected question(s)?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This cannot be undone. Unsuccessful ids stay selected.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={handleBulkDelete}
+                    >
+                      {bulkDeleting ? "Deleting..." : "Delete"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              {selectedVisibleIds.length > MAX_BULK_DELETE_IDS && (
+                <span className="text-xs text-destructive">
+                  Max {MAX_BULK_DELETE_IDS} per request
+                </span>
+              )}
+
               {/* Subject Filter Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -159,6 +321,7 @@ export default function QuestionsPage() {
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
+
                 <DropdownMenuContent
                   align="end"
                   className="max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto"
