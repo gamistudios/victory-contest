@@ -60,34 +60,58 @@ func ParseQuestionsDocument(filename string, content []byte) ([]domain.Question,
 // by content first: ZIP → .docx unwrapping, %PDF → pdf text extraction,
 // otherwise UTF-8 text (which rejects true binaries like legacy .doc).
 func extractDocumentText(filename string, content []byte) (string, error) {
-	if bytes.HasPrefix(content, []byte("PK\x03\x04")) || strings.EqualFold(filepath.Ext(filename), ".docx") {
-		return docxText(content)
+	pages, err := extractDocumentPages(filename, content)
+	if err != nil {
+		return "", err
 	}
-	if bytes.HasPrefix(content, []byte("%PDF")) || strings.EqualFold(filepath.Ext(filename), ".pdf") {
-		return pdfText(content)
-	}
-	if !utf8.Valid(content) {
-		return "", errors.New("file is not readable text — supported formats are .pdf, .docx and .txt")
-	}
-	return string(content), nil
+	return strings.Join(pages, "\n"), nil
 }
 
-// pdfText extracts visible text from a PDF by rebuilding lines from glyph
+// extractDocumentPages splits the document into per-page plain text (one
+// chunk for formats without pages).
+func extractDocumentPages(filename string, content []byte) ([]string, error) {
+	if bytes.HasPrefix(content, []byte("PK\x03\x04")) || strings.EqualFold(filepath.Ext(filename), ".docx") {
+		text, err := docxText(content)
+		if err != nil {
+			return nil, err
+		}
+		return []string{text}, nil
+	}
+	if bytes.HasPrefix(content, []byte("%PDF")) || strings.EqualFold(filepath.Ext(filename), ".pdf") {
+		return pdfTextPages(content)
+	}
+	if !utf8.Valid(content) {
+		return nil, errors.New("file is not readable text — supported formats are .pdf, .docx and .txt")
+	}
+	return []string{string(content)}, nil
+}
+
+// pdfText extracts all visible PDF text (pages joined with newlines); see
+// pdfTextPages for the geometric line-reconstruction rules.
+func pdfText(content []byte) (string, error) {
+	pages, err := pdfTextPages(content)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(pages, "\n"), nil
+}
+
+// pdfTextPages extracts visible text per page. Lines are rebuilt from glyph
 // geometry: every text fragment carries its own X/Y position, so a new line
 // starts whenever the baseline jumps and a space is inserted wherever the
 // horizontal gap demands one. This is independent of which text-positioning
 // operators the producer used (GetPlainText alone misses line breaks on
 // single-BT pages, which collapsed whole pages into one line). Encrypted or
 // scanned (image-only) PDFs yield no text and fail — there is no OCR here.
-func pdfText(content []byte) (text string, err error) {
+func pdfTextPages(content []byte) (pages []string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			text, err = "", fmt.Errorf("not a readable PDF: %v", r)
+			pages, err = nil, fmt.Errorf("not a readable PDF: %v", r)
 		}
 	}()
 	r, err := pdf.NewReader(bytes.NewReader(content), int64(len(content)))
 	if err != nil {
-		return "", fmt.Errorf("not a readable PDF: %w", err)
+		return nil, fmt.Errorf("not a readable PDF: %w", err)
 	}
 	var sb strings.Builder
 	for i := 1; i <= r.NumPage(); i++ {
@@ -131,12 +155,15 @@ func pdfText(content []byte) (text string, err error) {
 			last = &pdf.Text{X: t.X, Y: t.Y, W: t.W, FontSize: t.FontSize}
 		}
 		writeStr("\n")
+		pages = append(pages, sb.String())
+		sb.Reset()
 	}
-	out := sb.String()
-	if strings.TrimSpace(out) == "" {
-		return "", errors.New("no extractable text in the PDF — encrypted or scanned (image-only) PDFs are not supported")
+	for _, p := range pages {
+		if strings.TrimSpace(p) != "" {
+			return pages, nil
+		}
 	}
-	return out, nil
+	return nil, errors.New("no extractable text in the PDF — encrypted or scanned (image-only) PDFs are not supported")
 }
 
 // sameLineEpsilon is the baseline jitter (in points) still considered one

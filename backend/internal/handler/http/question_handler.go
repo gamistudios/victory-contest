@@ -17,10 +17,13 @@ import (
 type QuestionHandler struct {
 	usecase   usecase.QuestionUsecase
 	imageRepo *repository.ImageRepository
+	// ai, when wired, powers the AI document-parse mode; nil disables it
+	// (mode=text still works).
+	ai usecase.AiUsecase
 }
 
-func NewQuestionHandler(u usecase.QuestionUsecase, imgRepo *repository.ImageRepository) *QuestionHandler {
-	return &QuestionHandler{usecase: u, imageRepo: imgRepo}
+func NewQuestionHandler(u usecase.QuestionUsecase, imgRepo *repository.ImageRepository, ai usecase.AiUsecase) *QuestionHandler {
+	return &QuestionHandler{usecase: u, imageRepo: imgRepo, ai: ai}
 }
 
 func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
@@ -42,11 +45,16 @@ func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.H
 // are a few MB; this is generous headroom).
 const maxDocumentUploadSize = 25 << 20 // 25 MB
 
-// ParseDocument extracts review-ready questions from an uploaded question
-// bank (.pdf/.docx/.txt) without persisting anything — the admin edits the
-// result in the panel and submits via /multiple-add. The parsing lives
-// server-side so every client shares one implementation.
+// ParseDocument turns an uploaded question bank (.pdf/.docx/.txt) into
+// review-ready questions without persisting anything — the admin edits the
+// result in the panel and submits via /multiple-add. mode=form field picks
+// the strategy: "ai" (default) sends the extracted text + embedded images to
+// the configured AI provider, which returns questions in the backend format
+// with answers tagged; "text" runs the deterministic offline line parser.
+// The response carries the extracted images (server-side temp paths) next to
+// the questions so the panel can attach them.
 func (h *QuestionHandler) ParseDocument(c *gin.Context) {
+	mode := strings.ToLower(c.DefaultPostForm("mode", "ai"))
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "multipart field 'file' with a .pdf, .docx or .txt question bank is required"})
@@ -67,12 +75,41 @@ func (h *QuestionHandler) ParseDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read the uploaded file"})
 		return
 	}
-	questions, err := usecase.ParseQuestionsDocument(fileHeader.Filename, content)
+
+	if mode == "text" {
+		questions, err := usecase.ParseQuestionsDocument(fileHeader.Filename, content)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"questions": questions, "images": []usecase.DocumentImage{}})
+		return
+	}
+
+	if h.ai == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "AI parsing is not configured on this deployment — no AI provider is available. Retry with mode=text."})
+		return
+	}
+	pages, err := usecase.ExtractDocumentPages(fileHeader.Filename, content)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"questions": questions})
+	// Images are best-effort: an extraction failure must not block parsing.
+	images, err := usecase.ExtractDocumentImages(fileHeader.Filename, content)
+	if err != nil {
+		log.Printf("parse-document: image extraction failed (continuing without): %v", err)
+		images = nil
+	}
+	questions, err := usecase.ParseQuestionsWithAI(pages, images, h.ai.CompleteDocumentParse)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error": err.Error(),
+			"hint":  "check the AI provider configuration in the admin panel, or retry with mode=text",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"questions": questions, "images": images})
 }
 
 func (h *QuestionHandler) AddQuestion(c *gin.Context) {

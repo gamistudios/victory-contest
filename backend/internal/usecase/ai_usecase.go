@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"victory-contest-go/internal/domain"
@@ -180,9 +181,39 @@ func (a *aiUsecase) generate(prompt string) (string, error) {
 	return completeProvider(ctx, *provider, model, completionRequest{prompt: prompt})
 }
 
+// CompleteDocumentParse runs one bulk-question-parsing completion. Document
+// parses are the largest AI surface in the app — a 60-question exam's JSON
+// alone is ~10k output tokens — so the call carries its own longer timeout
+// and inline page images (vision) when the provider model supports them.
+// Images that cannot be read are skipped, never fatal: the prompt text
+// carries the same information.
+func (a *aiUsecase) CompleteDocumentParse(prompt string, images []DocumentImage) (string, error) {
+	provider, model, err := a.selectProvider()
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), aiDocumentParseTimeout)
+	defer cancel()
+	req := completionRequest{
+		prompt:    prompt,
+		maxTokens: documentParseMaxTokens,
+		timeout:   aiDocumentParseTimeout,
+	}
+	for _, img := range images {
+		b64, err := encodeImageFileB64(img.Path, maxDocumentImageBytes)
+		if err != nil {
+			log.Printf("ai document parse: skipping image %s: %v", img.Path, err)
+			continue
+		}
+		req.images = append(req.images, completionImage{MIME: img.MIME, B64: b64})
+	}
+	return completeProvider(ctx, *provider, model, req)
+}
+
 type AiUsecase interface {
 	PracticeWithAi(seting domain.AiPracticeSetting) (*[]domain.Question, error)
 	GenerateRecommendations(input domain.RecommendationInput) (*domain.Recommendations, error)
+	CompleteDocumentParse(prompt string, images []DocumentImage) (string, error)
 }
 
 func NewAiUsecase(subRepo SubmissionRepository, providerRepo AiProviderRepository) AiUsecase {

@@ -43,7 +43,7 @@ func (f *fakeQuestionBulkDeleteUsecase) DeleteQuestions(ids []string) (*usecase.
 
 func newBulkDeleteRouter(f *fakeQuestionBulkDeleteUsecase) *gin.Engine {
 	r := newTestRouter()
-	NewQuestionHandler(f, nil).RegisterRoutes(r.Group("/api/question"))
+	NewQuestionHandler(f, nil, nil).RegisterRoutes(r.Group("/api/question"))
 	return r
 }
 

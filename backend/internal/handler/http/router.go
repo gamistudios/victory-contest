@@ -146,7 +146,7 @@ func NewServer() *Server {
 	server := &Server{
 		contestHandler:             NewContestHandler(contestUsecase, notificationUsecase),
 		studentHandler:             NewStudentHandler(studentUsecase, notificationUsecase),
-		questionHandler:            NewQuestionHandler(questionUsecase, imgRepo), // Corrected line
+		questionHandler:            NewQuestionHandler(questionUsecase, imgRepo, aiUsecase),
 		submissionHandler:          NewSubmissionHandler(submissionUsecase),
 		adminHandler:               NewAdminHandler(adminUsecase, jwtSecret),
 		notificationHandler:        NewNotificationHandler(notificationUsecase),

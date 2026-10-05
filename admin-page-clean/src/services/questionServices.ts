@@ -81,7 +81,7 @@ export async function addMultipleQuestions(
 ): Promise<MutateResult> {
   for (const [i, q] of questions.entries()) {
     for (const field of FILE_FIELDS) {
-      if (q[field] instanceof File) {
+      if ((q[field] as unknown) instanceof File) {
         throw new Error(
           `Bulk add does not support File objects (question ${
             i + 1
@@ -94,17 +94,38 @@ export async function addMultipleQuestions(
   return res.data;
 }
 
+/** One image the backend extracted from the uploaded document. `path` is a
+ *  server-side temp file the question can be pointed at later; `page` is
+ *  1-based (0 when the format has no pages). */
+export interface ParsedDocumentImage {
+  index: number;
+  page: number;
+  path: string;
+  mime: string;
+}
+
+export interface ParsedDocument {
+  questions: Question[];
+  images: ParsedDocumentImage[];
+}
+
 /** POST /api/question/parse-document — uploads a .pdf/.docx/.txt question
- *  bank (or a .txt synthesized from pasted text); the server extracts and
- *  parses the questions and returns them for review, persisting nothing
- *  until /multiple-add is called. */
+ *  bank (or a .txt synthesized from pasted text). mode "ai" (default) has
+ *  the configured AI provider structure the extracted text + images into
+ *  questions; "text" runs the offline deterministic parser. Nothing is
+ *  persisted until /multiple-add is called. */
 export async function parseQuestionsDocument(
-  file: File
-): Promise<Question[]> {
+  file: File,
+  mode: "ai" | "text" = "ai"
+): Promise<ParsedDocument> {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("mode", mode);
   const res = await api.post("/api/question/parse-document", formData);
-  return res.data.questions;
+  return {
+    questions: res.data.questions ?? [],
+    images: res.data.images ?? [],
+  };
 }
 
 /** Extracts the backend error message from an axios error response. */

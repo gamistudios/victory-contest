@@ -44,6 +44,27 @@ const (
 type completionRequest struct {
 	prompt    string
 	maxTokens int // 0 = protocol default (omitted where optional)
+	timeout   time.Duration
+	// images, when set, ride inline as vision parts alongside the prompt.
+	// Text-only requests keep the exact wire shape the protocols used before
+	// vision existed (plain string content), so existing callers/tests are
+	// unaffected.
+	images []completionImage
+}
+
+// completionImage is one inline image for vision-capable models.
+type completionImage struct {
+	MIME string // e.g. image/jpeg, image/png
+	B64  string // base64 payload, no data: prefix
+}
+
+// effectiveTimeout bounds the HTTP call: callers with long generations
+// (document parsing) override the default.
+func (r completionRequest) effectiveTimeout() time.Duration {
+	if r.timeout > 0 {
+		return r.timeout
+	}
+	return aiCallTimeout
 }
 
 // completeProvider dispatches prompt to the wire adapter for p.Protocol and
@@ -70,13 +91,13 @@ func completeProvider(ctx context.Context, p domain.AIProvider, model string, re
 	if err != nil {
 		return "", err
 	}
-	return doProviderCall(httpReq, p.APIKey, parse)
+	return doProviderCall(httpReq, p.APIKey, parse, req.effectiveTimeout())
 }
 
 // doProviderCall executes a built request and funnels success through the
 // protocol parser / failure through the masked provider-error mapping.
-func doProviderCall(httpReq *http.Request, apiKey string, parse func([]byte) (string, error)) (string, error) {
-	client := &http.Client{Timeout: aiCallTimeout}
+func doProviderCall(httpReq *http.Request, apiKey string, parse func([]byte) (string, error), timeout time.Duration) (string, error) {
+	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("provider request failed: %w", err)
@@ -164,15 +185,44 @@ type openAIChatRequest struct {
 	MaxTokens int             `json:"max_tokens,omitempty"`
 }
 
+// openAIChatMsg carries `Content any`: a plain string for text-only calls
+// (the historical wire shape) or an array of text/image_url parts when
+// images are attached.
 type openAIChatMsg struct {
 	Role    string `json:"role"`
-	Content string `json:"content"`
+	Content any    `json:"content"`
+}
+
+type openAIContentPart struct {
+	Type     string          `json:"type"`
+	Text     string          `json:"text,omitempty"`
+	ImageURL *openAIImageURL `json:"image_url,omitempty"`
+}
+
+type openAIImageURL struct {
+	URL string `json:"url"`
+}
+
+// openAIContent builds the message content: prompt-only stays a string;
+// with images it becomes the multi-part form.
+func openAIContent(req completionRequest) any {
+	if len(req.images) == 0 {
+		return req.prompt
+	}
+	parts := []openAIContentPart{{Type: "text", Text: req.prompt}}
+	for _, img := range req.images {
+		parts = append(parts, openAIContentPart{
+			Type:     "image_url",
+			ImageURL: &openAIImageURL{URL: "data:" + img.MIME + ";base64," + img.B64},
+		})
+	}
+	return parts
 }
 
 func buildOpenAIRequest(ctx context.Context, p domain.AIProvider, model string, req completionRequest) (*http.Request, func([]byte) (string, error), error) {
 	payload := openAIChatRequest{
 		Model:     model,
-		Messages:  []openAIChatMsg{{Role: "user", Content: req.prompt}},
+		Messages:  []openAIChatMsg{{Role: "user", Content: openAIContent(req)}},
 		MaxTokens: req.maxTokens,
 	}
 	body, err := json.Marshal(payload)
@@ -222,6 +272,39 @@ func anthropicMessagesURL(base string) string {
 	return root + "/v1/messages"
 }
 
+// anthropicContentPart is one content block: text or a base64 image source.
+type anthropicContentPart struct {
+	Type   string          `json:"type"`
+	Text   string          `json:"text,omitempty"`
+	Source *anthropicImage `json:"source,omitempty"`
+}
+
+type anthropicImage struct {
+	Type      string `json:"type"` // always "base64"
+	MediaType string `json:"media_type"`
+	Data      string `json:"data"`
+}
+
+// anthropicContent builds the message content: prompt-only stays a plain
+// string (historical wire shape); images switch to the parts array.
+func anthropicContent(req completionRequest) any {
+	if len(req.images) == 0 {
+		return req.prompt
+	}
+	parts := []anthropicContentPart{{Type: "text", Text: req.prompt}}
+	for _, img := range req.images {
+		parts = append(parts, anthropicContentPart{
+			Type: "image",
+			Source: &anthropicImage{
+				Type:      "base64",
+				MediaType: img.MIME,
+				Data:      img.B64,
+			},
+		})
+	}
+	return parts
+}
+
 func buildAnthropicRequest(ctx context.Context, p domain.AIProvider, model string, req completionRequest) (*http.Request, func([]byte) (string, error), error) {
 	maxTokens := req.maxTokens
 	if maxTokens <= 0 {
@@ -230,7 +313,7 @@ func buildAnthropicRequest(ctx context.Context, p domain.AIProvider, model strin
 	payload := anthropicRequest{
 		Model:     model,
 		MaxTokens: maxTokens,
-		Messages:  []openAIChatMsg{{Role: "user", Content: req.prompt}},
+		Messages:  []openAIChatMsg{{Role: "user", Content: anthropicContent(req)}},
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -281,7 +364,13 @@ type geminiContent struct {
 }
 
 type geminiPart struct {
-	Text string `json:"text"`
+	Text       string           `json:"text,omitempty"`
+	InlineData *geminiImageData `json:"inlineData,omitempty"`
+}
+
+type geminiImageData struct {
+	MIMEType string `json:"mimeType"`
+	Data     string `json:"data"`
 }
 
 type geminiGenConfig struct {
@@ -292,11 +381,23 @@ func geminiModelURL(base, model string) string {
 	return joinURLPath(base, "v1beta/models/"+model+":generateContent")
 }
 
+// geminiParts builds the request parts: prompt-only stays a single text part
+// (historical wire shape); images append inlineData parts.
+func geminiParts(req completionRequest) []geminiPart {
+	parts := []geminiPart{{Text: req.prompt}}
+	for _, img := range req.images {
+		parts = append(parts, geminiPart{
+			InlineData: &geminiImageData{MIMEType: img.MIME, Data: img.B64},
+		})
+	}
+	return parts
+}
+
 func buildGeminiRequest(ctx context.Context, p domain.AIProvider, model string, req completionRequest) (*http.Request, func([]byte) (string, error), error) {
 	payload := geminiRequest{
 		Contents: []geminiContent{{
 			Role:  "user",
-			Parts: []geminiPart{{Text: req.prompt}},
+			Parts: geminiParts(req),
 		}},
 	}
 	if req.maxTokens > 0 {

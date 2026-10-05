@@ -2,12 +2,14 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 	"victory-contest-go/internal/domain"
+	"victory-contest-go/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -28,6 +30,10 @@ func (f *fakeAiUsecase) PracticeWithAi(setting domain.AiPracticeSetting) (*[]dom
 func (f *fakeAiUsecase) GenerateRecommendations(in domain.RecommendationInput) (*domain.Recommendations, error) {
 	f.recoCalls++
 	return &domain.Recommendations{Recommendations: []string{"revise ch 3"}}, nil
+}
+
+func (f *fakeAiUsecase) CompleteDocumentParse(prompt string, images []usecase.DocumentImage) (string, error) {
+	return "", fmt.Errorf("unused")
 }
 
 // signStudentJWT mints a student session JWT with an explicit secret (the

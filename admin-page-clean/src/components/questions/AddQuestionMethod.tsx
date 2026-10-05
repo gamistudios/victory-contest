@@ -15,6 +15,7 @@ import {
   parseQuestionsDocument,
   questionApiErrorMessage,
   updateQuestion,
+  type ParsedDocument,
   type UpdateQuestionInput,
 } from "@/services/questionServices";
 import * as React from "react";
@@ -442,6 +443,10 @@ export function EnhancedUploadQuestions() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pastedText, setPastedText] = useState("");
   const [showPasteInput, setShowPasteInput] = useState(false);
+  // AI mode sends the extracted text + images to the configured provider,
+  // which handles any document layout; unchecking falls back to the offline
+  // deterministic parser.
+  const [useAI, setUseAI] = useState(true);
 
   const handleFileSelect = async (selectedFile: File | null) => {
     if (!selectedFile) return;
@@ -451,14 +456,23 @@ export function EnhancedUploadQuestions() {
     // Parsing happens server-side (POST /api/question/parse-document) so the
     // .pdf/.docx/.txt handling lives in one place; nothing is persisted until
     // the reviewed questions are submitted below.
-    const promise = parseQuestionsDocument(selectedFile);
+    const promise = parseQuestionsDocument(
+      selectedFile,
+      useAI ? "ai" : "text"
+    );
 
     toast.promise(promise, {
-      loading: "Processing file... This may take a moment.",
-      success: (processedQuestions: Question[]) => {
-        setQuestions(processedQuestions);
+      loading: useAI
+        ? "Processing file with AI... This may take a moment."
+        : "Processing file... This may take a moment.",
+      success: (parsed: ParsedDocument) => {
+        setQuestions(parsed.questions);
         setCurrentPage(1); // Reset to first page
-        return `${processedQuestions.length} questions processed successfully!`;
+        const imageNote =
+          parsed.images.length > 0
+            ? ` (${parsed.images.length} images extracted — attach them to questions while reviewing)`
+            : "";
+        return `${parsed.questions.length} questions processed successfully!${imageNote}`;
       },
       error: (err: unknown) => questionApiErrorMessage(err),
       finally: () => setIsFileProcessing(false),
@@ -559,6 +573,18 @@ export function EnhancedUploadQuestions() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={useAI}
+              onChange={(e) => setUseAI(e.target.checked)}
+              disabled={isFileProcessing}
+              className="h-4 w-4"
+            />
+            Parse with AI (recommended — handles any document layout and tags
+            the answers; needs a configured AI provider, otherwise uncheck for
+            the offline parser)
+          </label>
           <FileDropzone
             file={file}
             onFileSelect={handleFileSelect}
