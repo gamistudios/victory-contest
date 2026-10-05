@@ -1,7 +1,10 @@
 package usecase
 
 import (
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -274,6 +277,122 @@ func TestTakeUpdateSuccessfulPaymentRecordsPremium(t *testing.T) {
 		}
 		if len(repo.created) != 0 {
 			t.Fatalf("ignored updates still created payments: %+v", repo.created)
+		}
+	})
+}
+
+// TestEnsureWebhook covers boot-time webhook auto-registration against a fake
+// Telegram API: getWebhookInfo is always consulted first, setWebhook fires
+// only when the registered URL is unset or points elsewhere, the secret is
+// forwarded as secret_token, and failures surface as errors.
+func TestEnsureWebhook(t *testing.T) {
+	const (
+		token = "test-token"
+		url   = "https://app.example.koyeb.app/api/telegram/webhook"
+	)
+
+	var (
+		methods []string       // Telegram API methods hit, in order
+		setBody map[string]any // last setWebhook request body
+		infoURL string         // URL the fake reports as currently registered
+		failGet bool           // make getWebhookInfo return an API error
+	)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+		methods = append(methods, method)
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		switch method {
+		case "getWebhookInfo":
+			if failGet {
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error_code": 400, "description": "boom"})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "result": map[string]any{"url": infoURL}})
+		case "setWebhook":
+			setBody = body
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "result": true})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "description": "unexpected method " + method})
+		}
+	}))
+	defer ts.Close()
+
+	t.Setenv("TELEGRAM_BOT_TOKEN", token)
+	prevBase := telegramAPIBase
+	telegramAPIBase = ts.URL + "/bot"
+	defer func() { telegramAPIBase = prevBase }()
+
+	newUsecase := func() *telegramUsecase { return &telegramUsecase{bot: &tgbotapi.BotAPI{Token: token}} }
+
+	t.Run("registers when no webhook is set", func(t *testing.T) {
+		methods, setBody, infoURL = nil, nil, ""
+		if err := newUsecase().EnsureWebhook(url, "s3cr3t"); err != nil {
+			t.Fatalf("EnsureWebhook: %v", err)
+		}
+		if len(methods) != 2 || methods[0] != "getWebhookInfo" || methods[1] != "setWebhook" {
+			t.Fatalf("calls = %v, want getWebhookInfo then setWebhook", methods)
+		}
+		if setBody["url"] != url {
+			t.Fatalf("setWebhook url = %v, want %s", setBody["url"], url)
+		}
+		if setBody["secret_token"] != "s3cr3t" {
+			t.Fatalf("setWebhook secret_token = %v, want s3cr3t", setBody["secret_token"])
+		}
+		allowed, _ := setBody["allowed_updates"].([]any)
+		if len(allowed) != 2 || allowed[0] != "message" || allowed[1] != "callback_query" {
+			t.Fatalf("allowed_updates = %v, want [message callback_query]", allowed)
+		}
+	})
+
+	t.Run("skips setWebhook when already registered", func(t *testing.T) {
+		methods, setBody, infoURL = nil, nil, url
+		if err := newUsecase().EnsureWebhook(url, "s3cr3t"); err != nil {
+			t.Fatalf("EnsureWebhook: %v", err)
+		}
+		if len(methods) != 1 || methods[0] != "getWebhookInfo" {
+			t.Fatalf("calls = %v, want only getWebhookInfo", methods)
+		}
+	})
+
+	t.Run("re-registers after URL moved and omits empty secret", func(t *testing.T) {
+		methods, setBody, infoURL = nil, nil, "https://old.example.com/api/telegram/webhook"
+		if err := newUsecase().EnsureWebhook(url, ""); err != nil {
+			t.Fatalf("EnsureWebhook: %v", err)
+		}
+		if len(methods) != 2 || methods[1] != "setWebhook" {
+			t.Fatalf("calls = %v, want getWebhookInfo then setWebhook", methods)
+		}
+		if setBody["url"] != url {
+			t.Fatalf("setWebhook url = %v, want %s", setBody["url"], url)
+		}
+		if _, present := setBody["secret_token"]; present {
+			t.Fatalf("empty secret must be omitted, got %v", setBody["secret_token"])
+		}
+	})
+
+	t.Run("rejects non-https URL before any call", func(t *testing.T) {
+		methods, setBody = nil, nil
+		if err := newUsecase().EnsureWebhook("http://app.example/api/telegram/webhook", "s3cr3t"); err == nil {
+			t.Fatal("expected http:// URL to be rejected")
+		}
+		if len(methods) != 0 {
+			t.Fatalf("no Telegram calls expected, got %v", methods)
+		}
+	})
+
+	t.Run("propagates Telegram API failure", func(t *testing.T) {
+		methods, setBody, failGet = nil, nil, true
+		defer func() { failGet = false }()
+		if err := newUsecase().EnsureWebhook(url, "s3cr3t"); err == nil || !strings.Contains(err.Error(), "getWebhookInfo") {
+			t.Fatalf("expected getWebhookInfo failure to surface, got %v", err)
+		}
+	})
+
+	t.Run("errors when bot is not configured", func(t *testing.T) {
+		if err := (&telegramUsecase{}).EnsureWebhook(url, "s3cr3t"); err == nil {
+			t.Fatal("expected error when bot is nil")
 		}
 	})
 }

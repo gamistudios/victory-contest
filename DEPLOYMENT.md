@@ -247,6 +247,9 @@ CLOUDINARY_URL=cloudinary://...
 GOOGLE_API_KEY=your-google-api-key
 TELEGRAM_BOT_TOKEN=your-bot-token
 TELEGRAM_WEBHOOK_SECRET=your-webhook-secret
+# Full public webhook URL; auto-registered via setWebhook at boot when set
+# (getWebhookInfo is checked first, so restarts are a no-op)
+TELEGRAM_WEBHOOK_URL=https://your-app.koyeb.app/api/telegram/webhook
 CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://admin.yourdomain.com
 ALLOW_DEV_AUTH=false
 AI_REQUESTS_PER_MINUTE=30

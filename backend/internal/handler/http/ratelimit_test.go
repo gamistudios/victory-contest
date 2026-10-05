@@ -89,6 +89,8 @@ func (f *fakeTelegramUsecase) SavePreparedInlineMessage(int64, json.RawMessage) 
 	return nil, fmt.Errorf("unused")
 }
 
+func (f *fakeTelegramUsecase) EnsureWebhook(string, string) error { return nil }
+
 func TestWebhookSecretVerification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

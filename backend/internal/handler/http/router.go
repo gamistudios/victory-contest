@@ -119,6 +119,21 @@ func NewServer() *Server {
 	paymentSettingsUsecase := usecase.NewPaymentSettingsUsecase(paymentSettingsRepo)
 	telegramUsecase := usecase.NewTelegramUsecase(bot, studentRepo, paymentUsecase, paymentSettingsUsecase)
 
+	// Auto-register the Telegram webhook on every boot: getWebhookInfo first,
+	// setWebhook only when unset or pointing elsewhere — a restart is a no-op,
+	// a redeploy that moved the URL re-points Telegram. Best-effort: a Telegram
+	// outage must not keep the API from booting; the failure is logged and the
+	// next boot retries. TELEGRAM_WEBHOOK_URL is the full public webhook URL.
+	if bot != nil {
+		if webhookURL := os.Getenv("TELEGRAM_WEBHOOK_URL"); webhookURL != "" {
+			if err := telegramUsecase.EnsureWebhook(webhookURL, os.Getenv("TELEGRAM_WEBHOOK_SECRET")); err != nil {
+				log.Printf("telegram: webhook auto-registration failed (bot stays enabled, retried on next boot): %v", err)
+			}
+		} else {
+			log.Println("TELEGRAM_WEBHOOK_URL not set — skipping webhook auto-registration")
+		}
+	}
+
 	// --- Initialize Contest Statistics Use Case ---
 	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil)
 

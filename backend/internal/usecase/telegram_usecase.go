@@ -23,6 +23,7 @@ type TelegramUsecase interface {
 	TakeUpdate(update tgbotapi.Update) error
 	CreatePremiumInvoiceLink(userID string) (string, error)
 	SavePreparedInlineMessage(userID int64, result json.RawMessage) (json.RawMessage, error)
+	EnsureWebhook(webhookURL, secretToken string) error
 }
 type telegramUsecase struct {
 	bot            *tgbotapi.BotAPI
@@ -124,6 +125,10 @@ func (t *telegramUsecase) sendMessage(chatID int64, text string, photo string, k
 	return nil
 }
 
+// telegramAPIBase is the Telegram Bot API root; a package var so tests can
+// point callTelegram at an httptest server.
+var telegramAPIBase = "https://api.telegram.org/bot"
+
 func (t *telegramUsecase) callTelegram(method string, payload map[string]any) (json.RawMessage, error) {
 	if t.bot == nil {
 		return nil, errors.New("telegram bot is not configured")
@@ -137,7 +142,7 @@ func (t *telegramUsecase) callTelegram(method string, payload map[string]any) (j
 		return nil, err
 	}
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post("https://api.telegram.org/bot"+token+"/"+method, "application/json", bytes.NewReader(body))
+	resp, err := client.Post(telegramAPIBase+token+"/"+method, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -272,6 +277,52 @@ func (t *telegramUsecase) SavePreparedInlineMessage(userID int64, result json.Ra
 		"allow_group_chats":   true,
 		"allow_channel_chats": true,
 	})
+}
+
+// EnsureWebhook registers webhookURL with Telegram, but only after consulting
+// getWebhookInfo: when the current webhook is unset or points somewhere else
+// (e.g. the API moved to a new deployment URL) it calls setWebhook, otherwise
+// it is a no-op — safe to run on every boot. secretToken is forwarded as
+// secret_token so Telegram echoes it in X-Telegram-Bot-Api-Secret-Token, which
+// the /api/telegram/webhook handler verifies; empty means unverified updates.
+func (t *telegramUsecase) EnsureWebhook(webhookURL, secretToken string) error {
+	if t.bot == nil {
+		return errors.New("telegram bot is not configured")
+	}
+	if !strings.HasPrefix(webhookURL, "https://") {
+		return fmt.Errorf("webhook URL must be https, got %q", webhookURL)
+	}
+	if !strings.HasSuffix(webhookURL, "/api/telegram/webhook") {
+		log.Printf("telegram: webhook URL %q does not end in the server route /api/telegram/webhook", webhookURL)
+	}
+	result, err := t.callTelegram("getWebhookInfo", nil)
+	if err != nil {
+		return fmt.Errorf("getWebhookInfo: %w", err)
+	}
+	var info struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(result, &info); err != nil {
+		return fmt.Errorf("malformed getWebhookInfo result: %w", err)
+	}
+	if info.URL == webhookURL {
+		log.Printf("telegram: webhook already registered for %s, skipping setWebhook", webhookURL)
+		return nil
+	}
+	payload := map[string]any{
+		"url":             webhookURL,
+		"allowed_updates": []string{"message", "callback_query"},
+	}
+	if secretToken != "" {
+		payload["secret_token"] = secretToken
+	} else {
+		log.Printf("telegram: webhook secret empty — updates will be accepted without secret-token verification")
+	}
+	if _, err := t.callTelegram("setWebhook", payload); err != nil {
+		return fmt.Errorf("setWebhook: %w", err)
+	}
+	log.Printf("telegram: webhook registered for %s (previously %q)", webhookURL, info.URL)
+	return nil
 }
 
 func NewTelegramUsecase(bot *tgbotapi.BotAPI, studentRepo StudentRepository, paymentUsecase PaymentUsecase, settings ...PaymentSettingsUsecase) TelegramUsecase {
