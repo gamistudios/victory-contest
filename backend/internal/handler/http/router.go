@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"victory-contest-go/internal/awsconfig"
 	"victory-contest-go/internal/repository"
+	"victory-contest-go/internal/schema"
 	"victory-contest-go/internal/usecase"
 
 	"log"
@@ -76,6 +77,17 @@ func NewServer() *Server {
 		log.Fatalf("unable to load AWS SDK config: %v", err)
 	}
 	ddb := awsconfig.DynamoClient(awsCfg)
+
+	// Startup migration: create every table (and GSI) the repositories touch
+	// when missing, so a fresh deployment self-heals instead of serving
+	// ResourceNotFoundException 500s (the ai_providers 2026-10-05 incident).
+	// Best-effort: a DynamoDB outage must not keep the API from booting —
+	// the failure is logged and the next boot retries.
+	if created, err := schema.EnsureTables(context.Background(), ddb, schema.Tables); err != nil {
+		log.Printf("schema migration incomplete (created %v): %v", created, err)
+	} else if len(created) > 0 {
+		log.Printf("schema migration created tables: %v", created)
+	}
 
 	imgRepo := repository.NewImageRepository()
 	questionRepo := repository.NewQuestionDynamoRepository(ddb, "question")

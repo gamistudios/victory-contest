@@ -72,9 +72,11 @@ go run .               # from backend/ — serves on :8080
 
 ```bash
 npx -y dynalite --port 8000     # local DynamoDB (in-memory)
-go run ./cmd/setup-tables       # idempotent: creates all 16 tables + every queried GSI
+go run ./cmd/setup-tables       # optional manual run: creates missing tables + adds missing GSIs (idempotent)
 go run .                        # boots against the local stack
 ```
+
+**Startup migration (2026-10-05):** `NewServer` runs `internal/schema.EnsureTables` on every boot — tables the repositories touch that don't exist are created (PAY_PER_REQUEST, `id` partition key, all queried GSIs) and missing GSIs are added to existing tables, waiting for ACTIVE before serving. A fresh deployment (or a new table shipped in code) therefore self-heals instead of serving `ResourceNotFoundException` 500s; the migration is best-effort (logged, never fatal) and `cmd/setup-tables` remains for manual/pre-provisioning runs.
 
 Verified end-to-end on the local stack (2026-09-23): student register/list/profile/quickstat, admin register + bcrypt login (200/401), question add (multipart, no image), contest add/get with hydrated questions, submission + leaderboard + rank, contest-registration check, notifications list, dashboard 200. `GET /api/student/paid` → 500 (#20) and `GET /api/payment/` → empty (#19) reproduce exactly as documented.
 
