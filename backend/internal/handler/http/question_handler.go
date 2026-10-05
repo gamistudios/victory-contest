@@ -20,10 +20,13 @@ type QuestionHandler struct {
 	// ai, when wired, powers the AI document-parse mode; nil disables it
 	// (mode=text still works).
 	ai usecase.AiUsecase
+	// parseJobs runs bulk-question parses in the background (edge proxies
+	// time out long requests); owned by the handler, one per process.
+	parseJobs *usecase.ParseJobManager
 }
 
 func NewQuestionHandler(u usecase.QuestionUsecase, imgRepo *repository.ImageRepository, ai usecase.AiUsecase) *QuestionHandler {
-	return &QuestionHandler{usecase: u, imageRepo: imgRepo, ai: ai}
+	return &QuestionHandler{usecase: u, imageRepo: imgRepo, ai: ai, parseJobs: usecase.NewParseJobManager()}
 }
 
 func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
@@ -35,6 +38,7 @@ func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.H
 	auth.POST("/multiple-add", h.AddMultipleQuestions)
 	auth.POST("/multiple-delete", h.DeleteMultipleQuestions)
 	auth.POST("/parse-document", h.ParseDocument)
+	auth.GET("/parse-document/:jobId", h.ParseDocumentStatus)
 	auth.PATCH("/:id", h.UpdateQuestion)
 	auth.DELETE("/delete/:id", h.DeleteQuestion)
 	auth.GET("/", h.GetAllQuestions)
@@ -45,16 +49,22 @@ func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.H
 // are a few MB; this is generous headroom).
 const maxDocumentUploadSize = 25 << 20 // 25 MB
 
-// ParseDocument turns an uploaded question bank (.pdf/.docx/.txt) into
-// review-ready questions without persisting anything — the admin edits the
-// result in the panel and submits via /multiple-add. mode=form field picks
-// the strategy: "ai" (default) sends the extracted text + embedded images to
-// the configured AI provider, which returns questions in the backend format
-// with answers tagged; "text" runs the deterministic offline line parser.
-// The response carries the extracted images (server-side temp paths) next to
-// the questions so the panel can attach them.
+// ParseDocument starts an asynchronous bulk-question parse of an uploaded
+// question bank (.pdf/.docx/.txt). Edge proxies cut idle requests at ~30s
+// while an exam-sized AI parse runs 30-90s, so the request validates the
+// upload, kicks off a background job and immediately answers 202 with a
+// job id — the panel polls GET /parse-document/:jobId until done. mode=form
+// field picks the strategy: "ai" (default) sends the extracted per-page text
+// + embedded images to the configured AI provider, which returns questions
+// in the backend format with answers tagged; "text" runs the deterministic
+// offline line parser. Nothing is persisted — the panel reviews the job
+// result and submits via /multiple-add.
 func (h *QuestionHandler) ParseDocument(c *gin.Context) {
 	mode := strings.ToLower(c.DefaultPostForm("mode", "ai"))
+	if mode != "text" && h.ai == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "AI parsing is not configured on this deployment — no AI provider is available. Retry with mode=text."})
+		return
+	}
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "multipart field 'file' with a .pdf, .docx or .txt question bank is required"})
@@ -76,20 +86,8 @@ func (h *QuestionHandler) ParseDocument(c *gin.Context) {
 		return
 	}
 
-	if mode == "text" {
-		questions, err := usecase.ParseQuestionsDocument(fileHeader.Filename, content)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"questions": questions, "images": []usecase.DocumentImage{}})
-		return
-	}
-
-	if h.ai == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "AI parsing is not configured on this deployment — no AI provider is available. Retry with mode=text."})
-		return
-	}
+	// Extraction runs synchronously: it is fast and lets unreadable files
+	// fail with an immediate 400 instead of a job that errors later.
 	pages, err := usecase.ExtractDocumentPages(fileHeader.Filename, content)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -101,15 +99,28 @@ func (h *QuestionHandler) ParseDocument(c *gin.Context) {
 		log.Printf("parse-document: image extraction failed (continuing without): %v", err)
 		images = nil
 	}
-	questions, err := usecase.ParseQuestionsWithAI(pages, images, h.ai.CompleteDocumentParse)
+
+	jobID, err := h.parseJobs.StartAsync(mode, fileHeader.Filename, pages, images, h.ai)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{
-			"error": err.Error(),
-			"hint":  "check the AI provider configuration in the admin panel, or retry with mode=text",
-		})
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"questions": questions, "images": images})
+	c.JSON(http.StatusAccepted, gin.H{"job_id": jobID, "status": usecase.ParseJobProcessing})
+}
+
+// ParseDocumentStatus answers a parse-job poll: processing, done (with the
+// questions and extracted images) or error (with the reason).
+func (h *QuestionHandler) ParseDocumentStatus(c *gin.Context) {
+	status, ok := h.parseJobs.Get(c.Param("jobId"))
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "unknown parse job — it may have expired or the server restarted; upload the file again"})
+		return
+	}
+	code := http.StatusOK
+	if status.Status == usecase.ParseJobProcessing {
+		code = http.StatusAccepted
+	}
+	c.JSON(code, status)
 }
 
 func (h *QuestionHandler) AddQuestion(c *gin.Context) {

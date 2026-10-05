@@ -110,22 +110,60 @@ export interface ParsedDocument {
 }
 
 /** POST /api/question/parse-document — uploads a .pdf/.docx/.txt question
- *  bank (or a .txt synthesized from pasted text). mode "ai" (default) has
- *  the configured AI provider structure the extracted text + images into
- *  questions; "text" runs the offline deterministic parser. Nothing is
- *  persisted until /multiple-add is called. */
-export async function parseQuestionsDocument(
+ *  bank (or a .txt synthesized from pasted text) and starts a background
+ *  parse job. mode "ai" (default) has the configured AI provider structure
+ *  the extracted text + images into questions; "text" runs the offline
+ *  deterministic parser. Nothing is persisted until /multiple-add is
+ *  called. Returns the job id to poll. */
+export async function startParseJob(
   file: File,
   mode: "ai" | "text" = "ai"
-): Promise<ParsedDocument> {
+): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("mode", mode);
   const res = await api.post("/api/question/parse-document", formData);
-  return {
-    questions: res.data.questions ?? [],
-    images: res.data.images ?? [],
-  };
+  return res.data.job_id;
+}
+
+/** GET /api/question/parse-document/:jobId — one poll of a parse job. */
+export interface ParseJobStatus {
+  status: "processing" | "done" | "error";
+  questions?: Question[];
+  images?: ParsedDocumentImage[];
+  error?: string;
+}
+
+export async function getParseJob(jobId: string): Promise<ParseJobStatus> {
+  const res = await api.get(`/api/question/parse-document/${jobId}`);
+  return res.data;
+}
+
+/** parseQuestionsDocument uploads the file and polls the job until it
+ *  finishes, resolving with the parsed document. Polls every 2s with a
+ *  5-minute ceiling covering the slowest AI parses; proxy timeouts can no
+ *  longer kill the request because each poll is short-lived. */
+export async function parseQuestionsDocument(
+  file: File,
+  mode: "ai" | "text" = "ai"
+): Promise<ParsedDocument> {
+  const jobId = await startParseJob(file, mode);
+  const deadline = Date.now() + 5 * 60 * 1000;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const job = await getParseJob(jobId);
+    if (job.status === "done") {
+      return { questions: job.questions ?? [], images: job.images ?? [] };
+    }
+    if (job.status === "error") {
+      throw new Error(job.error || "Document parsing failed.");
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        "The parse is taking unusually long. Check the server logs or retry."
+      );
+    }
+  }
 }
 
 /** Extracts the backend error message from an axios error response. */
