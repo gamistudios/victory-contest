@@ -7,12 +7,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { grades, Subjects } from "./Data";
-import { ProcessFile } from "./processData";
 import { Question } from "../../types/models";
 import { useSearchParams } from "react-router-dom";
 import {
   addMultipleQuestions,
   addQuestion,
+  parseQuestionsDocument,
+  questionApiErrorMessage,
   updateQuestion,
   type UpdateQuestionInput,
 } from "@/services/questionServices";
@@ -439,13 +440,18 @@ export function EnhancedUploadQuestions() {
   const [isFileProcessing, setIsFileProcessing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pastedText, setPastedText] = useState("");
+  const [showPasteInput, setShowPasteInput] = useState(false);
 
   const handleFileSelect = async (selectedFile: File | null) => {
     if (!selectedFile) return;
     setFile(selectedFile);
     setIsFileProcessing(true);
 
-    const promise = ProcessFile(selectedFile);
+    // Parsing happens server-side (POST /api/question/parse-document) so the
+    // .pdf/.docx/.txt handling lives in one place; nothing is persisted until
+    // the reviewed questions are submitted below.
+    const promise = parseQuestionsDocument(selectedFile);
 
     toast.promise(promise, {
       loading: "Processing file... This may take a moment.",
@@ -454,9 +460,23 @@ export function EnhancedUploadQuestions() {
         setCurrentPage(1); // Reset to first page
         return `${processedQuestions.length} questions processed successfully!`;
       },
-      error: "Failed to process file. Please check the format.",
+      error: (err: unknown) => questionApiErrorMessage(err),
       finally: () => setIsFileProcessing(false),
     });
+  };
+
+  const handlePasteParse = () => {
+    const text = pastedText.trim();
+    if (!text) {
+      toast.error("Paste your questions first.");
+      return;
+    }
+    // Reuse the same server parser by sending the pasted text as a .txt file.
+    const pastedFile = new File([text], "pasted-questions.txt", {
+      type: "text/plain",
+    });
+    setPastedText("");
+    handleFileSelect(pastedFile);
   };
   const handleUpdateQuestion = (
     indexToUpdate: number,
@@ -538,12 +558,44 @@ export function EnhancedUploadQuestions() {
             process and list them for review.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <FileDropzone
             file={file}
             onFileSelect={handleFileSelect}
             onClear={handleClear}
           />
+          <div>
+            <button
+              type="button"
+              className="text-sm text-muted-foreground underline-offset-2 hover:underline"
+              onClick={() => setShowPasteInput((v) => !v)}
+            >
+              {showPasteInput
+                ? "Hide pasted text input"
+                : "Or paste questions as plain text"}
+            </button>
+            {showPasteInput && (
+              <div className="mt-3 space-y-2">
+                <Textarea
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder={
+                    "Subject: Chemistry\nGrade: 9\nChapter: Atomic Structure\nQ1. What is ...?\nA. ...\nB. ...\nAnswer: 2\nExplanation: ..."
+                  }
+                  className="min-h-[160px] font-mono text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePasteParse}
+                  disabled={isFileProcessing || isSubmitting}
+                >
+                  {isFileProcessing ? "Processing..." : "Parse Pasted Text"}
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -648,12 +700,12 @@ export function FileDropzone({
       <UploadCloud className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground" />
       <p className="mt-4 font-semibold">Click to upload or drag &amp; drop</p>
       <p className="text-sm text-muted-foreground">
-        Supports: DOC, DOCX, PDF, TXT
+        Supports: DOCX, PDF, TXT
       </p>
       <input
         type="file"
         onChange={handleFileChange}
-        accept={acceptedFileTypes || ".doc,.docx,.pdf,.txt"}
+        accept={acceptedFileTypes || ".docx,.pdf,.txt"}
         className="hidden"
       />
     </label>

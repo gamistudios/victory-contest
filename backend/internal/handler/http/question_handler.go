@@ -2,6 +2,7 @@ package http
 
 import (
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -30,10 +31,48 @@ func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.H
 	auth.POST("/add", h.AddQuestion)
 	auth.POST("/multiple-add", h.AddMultipleQuestions)
 	auth.POST("/multiple-delete", h.DeleteMultipleQuestions)
+	auth.POST("/parse-document", h.ParseDocument)
 	auth.PATCH("/:id", h.UpdateQuestion)
 	auth.DELETE("/delete/:id", h.DeleteQuestion)
 	auth.GET("/", h.GetAllQuestions)
 	auth.GET("/:id", h.GetQuestionByID)
+}
+
+// maxDocumentUploadSize caps the parse-document upload (question-bank files
+// are a few MB; this is generous headroom).
+const maxDocumentUploadSize = 25 << 20 // 25 MB
+
+// ParseDocument extracts review-ready questions from an uploaded question
+// bank (.pdf/.docx/.txt) without persisting anything — the admin edits the
+// result in the panel and submits via /multiple-add. The parsing lives
+// server-side so every client shares one implementation.
+func (h *QuestionHandler) ParseDocument(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "multipart field 'file' with a .pdf, .docx or .txt question bank is required"})
+		return
+	}
+	if fileHeader.Size > maxDocumentUploadSize {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "file too large — the limit is 25 MB"})
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read the uploaded file"})
+		return
+	}
+	defer file.Close()
+	content, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read the uploaded file"})
+		return
+	}
+	questions, err := usecase.ParseQuestionsDocument(fileHeader.Filename, content)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"questions": questions})
 }
 
 func (h *QuestionHandler) AddQuestion(c *gin.Context) {

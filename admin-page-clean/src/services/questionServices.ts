@@ -94,6 +94,25 @@ export async function addMultipleQuestions(
   return res.data;
 }
 
+/** POST /api/question/parse-document — uploads a .pdf/.docx/.txt question
+ *  bank (or a .txt synthesized from pasted text); the server extracts and
+ *  parses the questions and returns them for review, persisting nothing
+ *  until /multiple-add is called. */
+export async function parseQuestionsDocument(
+  file: File
+): Promise<Question[]> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await api.post("/api/question/parse-document", formData);
+  return res.data.questions;
+}
+
+/** Extracts the backend error message from an axios error response. */
+export function questionApiErrorMessage(err: unknown): string {
+  const resp = (err as { response?: { data?: { error?: string } } })?.response;
+  return resp?.data?.error ?? "Failed to process file. Please check the format.";
+}
+
 /** PATCH /api/question/:id — multipart when new image Files are provided,
  *  JSON otherwise. Only fields present in the input are sent; omitted
  *  fields keep their stored values server-side. */

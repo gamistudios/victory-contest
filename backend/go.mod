@@ -18,6 +18,7 @@ require (
 	github.com/creasty/defaults v1.7.0 // indirect
 	github.com/gorilla/schema v1.4.1 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
+	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0 // indirect
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
