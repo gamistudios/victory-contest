@@ -25,8 +25,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,22 +57,271 @@ import {
   Calendar,
   Clock,
   Archive,
+  MessageSquare,
 } from "lucide-react";
 import { Article, ArticleStatus } from "@/types/article";
 import { toast } from "sonner";
-import { toggleArticleStatus } from "@/services/articleServices";
+import {
+  toggleArticleStatus,
+  getArticleComments,
+  updateArticleComment,
+  deleteArticleComment,
+  type ArticleComment,
+} from "@/services/articleServices";
+import { describeApiError } from "@/services/feedbackServices";
 
 interface ArticleManagementProps {
   articles: Article[];
   onEdit: (articleId: string) => void;
   onDelete: (articleId: string) => void;
   onTogglePublish: (articleId: string) => void;
+  /** Re-read the article rows so the server-maintained commentCount is fresh. */
+  onRefresh?: () => void;
 }
+
+/** Admin moderation surface for one article's comments. */
+const ArticleCommentsDialog: React.FC<{
+  article: Article | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCountRefresh?: () => void;
+}> = ({ article, open, onOpenChange, onCountRefresh }) => {
+  const [comments, setComments] = useState<ArticleComment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<ArticleComment | null>(null);
+  const [editText, setEditText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ArticleComment | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = React.useCallback(async () => {
+    if (!article?.id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setComments(await getArticleComments(article.id));
+    } catch (e) {
+      setError(describeApiError(e, "Loading comments"));
+    } finally {
+      setLoading(false);
+    }
+  }, [article]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const openEdit = (comment: ArticleComment) => {
+    setEditTarget(comment);
+    setEditText(comment.text);
+    setError(null);
+  };
+
+  const submitEdit = async () => {
+    if (!article || !editTarget) return;
+    const text = editText.trim();
+    if (!text) {
+      setError("Comment text is required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateArticleComment(article.id, editTarget.id, {
+        text,
+      });
+      setComments((prev) =>
+        prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+      );
+      setEditTarget(null);
+    } catch (e) {
+      setError(describeApiError(e, "Updating comment"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!article || !deleteTarget) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteArticleComment(article.id, deleteTarget.id);
+      setComments((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      // commentCount is decremented server-side; the row is the source of truth.
+      onCountRefresh?.();
+    } catch (e) {
+      setDeleteTarget(null);
+      setError(describeApiError(e, "Deleting comment"));
+    } finally {
+      setDeleting(false);
+      document.body.style.pointerEvents = "";
+    }
+  };
+
+  const formatDate = (value: string) => {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime())
+      ? "—"
+      : d.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        });
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base break-words">
+              Comments — {article?.title}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {article?.commentCount ?? 0} on record · {comments.length} loaded.
+              Edits and deletes apply immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          {error && (
+            <p className="text-xs text-red-600 break-words">{error}</p>
+          )}
+
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : comments.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No comments yet.
+            </p>
+          ) : (
+            <div className="rounded-md border">
+              <Table className="min-w-[560px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[140px]">Author</TableHead>
+                    <TableHead>Text</TableHead>
+                    <TableHead className="w-[110px]">Created</TableHead>
+                    <TableHead className="w-[90px] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {comments.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="text-sm break-words">
+                        {c.user_name || c.user_id || "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[320px] text-sm">
+                        <span className="break-words">{c.text}</span>
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-500">
+                        {formatDate(c.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEdit(c)}
+                          title="Edit comment"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => setDeleteTarget(c)}
+                          title="Delete comment"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inline edit */}
+      <Dialog
+        open={editTarget !== null}
+        onOpenChange={(o) => !o && setEditTarget(null)}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">Edit comment</DialogTitle>
+            <DialogDescription className="text-xs">
+              PUT /api/articles/{article?.id}/comments/{editTarget?.id} — body
+              {"{ text }"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label htmlFor="comment-text">Text</Label>
+            <Textarea
+              id="comment-text"
+              value={editText}
+              rows={4}
+              onChange={(e) => setEditText(e.target.value)}
+            />
+            {error && <p className="text-xs text-red-600">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>
+              Cancel
+            </Button>
+            <Button onClick={submitEdit} disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => !o && !deleting && setDeleteTarget(null)}
+      >
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this comment?</AlertDialogTitle>
+            <AlertDialogDescription className="break-words">
+              {deleteTarget?.text}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};
 
 const ArticleManagement: React.FC<ArticleManagementProps> = ({
   articles,
   onEdit,
   onDelete,
+  onRefresh,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<ArticleStatus | "all">(
@@ -73,12 +334,17 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [articleToDelete, setArticleToDelete] = useState<Article | null>(null);
+  const [commentsArticle, setCommentsArticle] = useState<Article | null>(null);
 
   // Monitor and force reset pointer-events on body
   useEffect(() => {
     const observer = new MutationObserver(() => {
       const bodyStyle = window.getComputedStyle(document.body);
-      if (bodyStyle.pointerEvents === "none" && !deleteDialogOpen) {
+      if (
+        bodyStyle.pointerEvents === "none" &&
+        !deleteDialogOpen &&
+        !commentsArticle
+      ) {
         console.log("Forcing pointer-events reset");
         document.body.style.pointerEvents = "";
       }
@@ -90,11 +356,11 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
     });
 
     return () => observer.disconnect();
-  }, [deleteDialogOpen]);
+  }, [deleteDialogOpen, commentsArticle]);
 
   // Additional cleanup when dialog closes
   useEffect(() => {
-    if (!deleteDialogOpen) {
+    if (!deleteDialogOpen && !commentsArticle) {
       const cleanup = () => {
         document.body.style.pointerEvents = "";
       };
@@ -105,7 +371,7 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
       setTimeout(cleanup, 150);
       setTimeout(cleanup, 300);
     }
-  }, [deleteDialogOpen]);
+  }, [deleteDialogOpen, commentsArticle]);
   const filteredArticles = articles.filter((article) => {
     const matchesSearch =
       article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -213,6 +479,12 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + "...";
   };
+
+  // Read the dialog's count off the freshest row copy so the server-side
+  // commentCount decrement shows up after a moderation action.
+  const liveCommentsArticle = commentsArticle
+    ? articles.find((a) => a.id === commentsArticle.id) ?? commentsArticle
+    : null;
 
   return (
     <div className="space-y-6">
@@ -325,7 +597,7 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
         </CardHeader>
         <CardContent>
           <div className="rounded-md border overflow-x-auto">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[1000px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
@@ -334,13 +606,14 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
                   <TableHead>Tags</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Updated</TableHead>
+                  <TableHead className="w-[90px]">Comments</TableHead>
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedArticles.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       <div className="text-gray-500">
                         {searchTerm || statusFilter !== "all"
                           ? "No articles match your filters"
@@ -403,6 +676,17 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
                         </div>
                       </TableCell>
                       <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1 px-2 text-xs"
+                          onClick={() => setCommentsArticle(article)}
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          {article.commentCount ?? 0}
+                        </Button>
+                      </TableCell>
+                      <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -430,6 +714,12 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
                                   Publish
                                 </>
                               )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setCommentsArticle(article)}
+                            >
+                              <MessageSquare className="w-4 h-4 mr-2" />
+                              Comments
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDeleteClick(article)}
@@ -477,6 +767,19 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Comment moderation */}
+      <ArticleCommentsDialog
+        article={liveCommentsArticle}
+        open={commentsArticle !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCommentsArticle(null);
+            document.body.style.pointerEvents = "";
+          }
+        }}
+        onCountRefresh={onRefresh}
+      />
     </div>
   );
 };

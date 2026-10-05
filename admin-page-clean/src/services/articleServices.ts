@@ -10,6 +10,24 @@ import {
   ArticleSearchParams,
 } from "@/types/article";
 
+/** Wire shape of backend/internal/domain/article.go Comment (snake_case
+ *  user fields, RFC3339 timestamps). */
+export interface ArticleComment {
+  id: string;
+  articleId: string;
+  user_id: string;
+  user_name: string;
+  avatar: string;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** PUT body: commentTextPayload is `{ "text": string }` with `binding:"required"`. */
+export interface UpdateArticleCommentPayload {
+  text: string;
+}
+
 // Create a new article
 export const createArticle = async (
   articleData: CreateArticlePayload
@@ -40,6 +58,9 @@ export const getArticles = async (
     thumbnail: a.thumbnail || "",
     readTime: a.readTime || 1,
     tags: a.tags || [],
+    // Server-maintained counter; comment delete decrements it, so the admin
+    // list is the source of truth for the moderation badge.
+    commentCount: a.commentCount ?? 0,
   }));
   return { articles, total: articles.length, page: 1, limit: articles.length };
 };
@@ -186,6 +207,38 @@ export const createComment = async (
     console.error("Failed to create comment:", error);
     throw new Error("Failed to create comment");
   }
+};
+
+/** GET /api/articles/:id/comments — public listing, used by admin moderation. */
+export const getArticleComments = async (
+  articleId: string
+): Promise<ArticleComment[]> => {
+  const { data } = await api.get(`/api/articles/${articleId}/comments`);
+  return (data?.comments ?? []) as ArticleComment[];
+};
+
+/** PUT /api/articles/:id/comments/:commentId (admin-gated) — body {"text": string},
+ *  400 when text is missing/empty, 404 when the article or comment is gone,
+ *  200 with the updated comment. */
+export const updateArticleComment = async (
+  articleId: string,
+  commentId: string,
+  payload: UpdateArticleCommentPayload
+): Promise<ArticleComment> => {
+  const { data } = await api.put(
+    `/api/articles/${articleId}/comments/${commentId}`,
+    payload
+  );
+  return data as ArticleComment;
+};
+
+/** DELETE /api/articles/:id/comments/:commentId (admin-gated) — 204, and the
+ *  server decrements the article's commentCount. */
+export const deleteArticleComment = async (
+  articleId: string,
+  commentId: string
+): Promise<void> => {
+  await api.delete(`/api/articles/${articleId}/comments/${commentId}`);
 };
 
 // Upload article image (not implemented; use existing image service if available)

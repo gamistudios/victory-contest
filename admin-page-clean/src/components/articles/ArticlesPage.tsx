@@ -166,6 +166,10 @@ const ArticlesPage: React.FC = () => {
     setCurrentArticle(null);
   };
 
+  /** Re-read the article rows (commentCount is server-maintained). */
+  const refreshArticles = () =>
+    setTriggerLoadingArticles((prev) => !prev);
+
   // Render based on current view
   if (view === "editor") {
     return (
@@ -205,6 +209,7 @@ const ArticlesPage: React.FC = () => {
         onEdit={handleEditArticle}
         onDelete={handleDeleteArticle}
         onTogglePublish={handleTogglePublish}
+        onRefresh={refreshArticles}
       />
     </div>
   );

@@ -15,6 +15,7 @@ export interface Article {
   readTime: number;
   viewCount: number;
   likeCount: number;
+  commentCount?: number;
 }
 
 export interface MediaItem {
@@ -49,6 +50,7 @@ export interface ArticleSummary {
   thumbnail?: string;
   readTime: number;
   tags: string[];
+  commentCount?: number;
 }
 
 export interface ArticleFormData {
