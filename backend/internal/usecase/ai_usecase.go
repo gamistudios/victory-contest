@@ -243,7 +243,10 @@ func (a *aiUsecase) CompleteDocumentParse(prompt string, images []DocumentImage)
 	}
 	model := provider.ResolveModel(modelName)
 	maxTokens := documentParseMaxTokensBudget()
-	if model.MaxOutputTokens > 0 && model.MaxOutputTokens < maxTokens {
+	if model.MaxOutputTokens > 0 {
+		// An explicitly configured model budget is authoritative in BOTH
+		// directions: it clamps over-generous defaults and raises the budget
+		// for models that support long outputs (big exams need it).
 		maxTokens = model.MaxOutputTokens
 	}
 

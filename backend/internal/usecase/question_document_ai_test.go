@@ -75,7 +75,8 @@ Hope that helps!`
 		// The prompt must carry the spec, the manifest, the inline image
 		// markers and the text.
 		if !strings.Contains(fc.prompt, "IMAGE MANIFEST") ||
-			!strings.Contains(fc.prompt, "1-based option index") ||
+			!strings.Contains(fc.prompt, "STRICT OUTPUT CONTRACT") ||
+			!strings.Contains(fc.prompt, "1-based index of the correct option") ||
 			!strings.Contains(fc.prompt, "![image 1](/tmp/b.jpg)") {
 			t.Fatalf("prompt missing spec sections/markers: %.400s", fc.prompt)
 		}
@@ -157,6 +158,81 @@ Hope that helps!`
 // fakeCompleteFunc adapts a plain function to the complete seam; the named
 // type is assignable to the plain func signature ParseQuestionsWithAI takes.
 type fakeCompleteFunc func(prompt string, images []DocumentImage) (string, error)
+
+// TestSalvageTruncatedReplies pins the MAX_TOKENS salvage: when the model stops
+// mid-JSON, every element that completed is still extracted instead of
+// failing the whole part with "unexpected end of JSON input".
+func TestSalvageTruncatedReplies(t *testing.T) {
+	t.Run("object form cut mid second question", func(t *testing.T) {
+		raw := `{"questions": [{"number": 1, "question_text": "q1?", "multiple_choice": ["a", "b"], "answer": 1}, {"number": 2, "question_text": "q2`
+		qs, key, err := parseChunkResponse(raw, map[int]bool{})
+		if err != nil {
+			t.Fatalf("parseChunkResponse: %v", err)
+		}
+		if len(qs) != 1 || qs[0].Number != 1 || qs[0].Answer != 1 {
+			t.Fatalf("salvaged = %+v", qs)
+		}
+		if len(key) != 0 {
+			t.Fatalf("key = %+v, want empty", key)
+		}
+	})
+
+	t.Run("complete object form with answer key", func(t *testing.T) {
+		raw := `{"questions": [{"number": 1, "question_text": "q1?", "multiple_choice": ["a", "b"], "answer": 0, "image_index": 2}], "answer_key": [{"number": 1, "answer": "B", "explanation": "because"}]}`
+		qs, key, err := parseChunkResponse(raw, map[int]bool{2: true})
+		if err != nil {
+			t.Fatalf("parseChunkResponse: %v", err)
+		}
+		if len(qs) != 1 || qs[0].ImageIndex != 2 || qs[0].Answer != 0 {
+			t.Fatalf("qs = %+v", qs)
+		}
+		if len(key) != 1 || key[0].Answer != "B" || key[0].Explanation != "because" {
+			t.Fatalf("key = %+v", key)
+		}
+	})
+
+	t.Run("bare array truncated mid element", func(t *testing.T) {
+		raw := `[{"number": 1, "question_text": "q1?", "multiple_choice": ["a", "b"], "answer": 1}, {"number": 2, "question_text": "q2?","multiple_choice": ["c"`
+		qs, err := parseAIQuestions(raw, nil)
+		if err != nil {
+			t.Fatalf("parseAIQuestions: %v", err)
+		}
+		if len(qs) != 1 || qs[0].Number != 1 {
+			t.Fatalf("salvaged = %+v", qs)
+		}
+	})
+
+	t.Run("truncated reply with nothing complete is an error", func(t *testing.T) {
+		if _, _, err := parseChunkResponse(`{"questions": [{"number": 1, "question_text": "q`, map[int]bool{}); err == nil {
+			t.Fatal("expected an error for an unsalvageable truncated reply")
+		}
+	})
+
+	t.Run("key-only part with no complete questions", func(t *testing.T) {
+		// The spec says an empty part reports "questions": [] plus the key lines
+		// it did find — the salvage path must keep the key, not fail.
+		raw := `{"questions": [], "answer_key": [{"number": 12, "answer": "B", "explanation": "CO2"}]}`
+		qs, key, err := parseChunkResponse(raw, map[int]bool{})
+		if err != nil {
+			t.Fatalf("parseChunkResponse: %v", err)
+		}
+		if len(qs) != 0 || len(key) != 1 || key[0].Number != 12 {
+			t.Fatalf("got qs=%+v key=%+v", qs, key)
+		}
+	})
+
+	t.Run("spec worked example parses to its documented output", func(t *testing.T) {
+		// Pins the no-images example straight from documentParseSpec.
+		raw := `{"questions": [{"number": 12, "question_text": "Which gas contributes most to global warming?", "multiple_choice": ["O2", "CO2"], "answer": 2, "explanation": "CO2 absorbs infrared radiation.", "grade": "", "subject": "", "chapter": ""}], "answer_key": [{"number": 12, "answer": "B", "explanation": "CO2 absorbs infrared radiation."}]}`
+		qs, key, err := parseChunkResponse(raw, map[int]bool{})
+		if err != nil {
+			t.Fatalf("parseChunkResponse: %v", err)
+		}
+		if len(qs) != 1 || qs[0].Answer != 2 || len(key) != 1 || key[0].Answer != "B" {
+			t.Fatalf("got qs=%+v key=%+v", qs, key)
+		}
+	})
+}
 
 // fakeJPEG is not a decodable image — the extractors treat DCTDecode streams
 // as opaque JPEG bytes, so the signature is all that matters for tests. It is

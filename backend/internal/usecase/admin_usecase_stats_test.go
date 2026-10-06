@@ -22,7 +22,9 @@ type statsFakeSubmissionRepo struct {
 	subs []domain.Submission
 }
 
-func (f *statsFakeSubmissionRepo) GetAllSubmissions() ([]domain.Submission, error) { return f.subs, nil }
+func (f *statsFakeSubmissionRepo) GetAllSubmissions() ([]domain.Submission, error) {
+	return f.subs, nil
+}
 
 type statsFakePaymentRepo struct {
 	PaymentRepository

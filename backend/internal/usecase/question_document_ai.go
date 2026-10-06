@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -460,47 +461,57 @@ type keyEntry struct {
 	Explanation string `json:"explanation"`
 }
 
-// chunkResponse is the per-chunk model contract. A bare question array is
-// still accepted for older prompts and test fakes.
-type chunkResponse struct {
-	Questions []aiParsedQuestion `json:"questions"`
-	AnswerKey []keyEntry         `json:"answer_key"`
-}
-
 // documentParseSpec tells the model exactly what the backend needs. The
 // format rules mirror domain.Question and the 1-based answer convention the
 // grader relies on.
-const documentParseSpec = `You are a question-bank structuring assistant. You receive a PART of the raw text extracted from a quiz/exam document (page by page), plus the manifest of images embedded in that part (also attached inline when this model supports images).
+const documentParseSpec = `You are a question-bank extraction API. Input: ONE PART of a document's extracted text (pages marked "=== Page N ==="), the images embedded in this part attached inline, and their locations marked inline as ![image N](path).
 
-Reconstruct EVERY multiple-choice question fully contained in this part. Account for:
-- Questions numbered "1.", "Q1.", "16 " (the dot is sometimes missing) or similar.
-- Options listed as "a.", "A.", "a)", often wrapped across several lines.
-- A trailing answer key ("1. Answer: C"): letter answers map to option positions a=1, b=2, c=3, d=4; attach the key's "Explanation:" text to the matching question.
-- Page headers, footers and ads repeated on every page: drop them, never let them into question text.
-- Superscripts/subscripts extracted as separate fragments ("1s2", "2p6") and split words: join them back into sensible text.
-- Formula-heavy content may appear as images: read the attached images and transcribe what you need (e.g. to complete an explanation) rather than leaving it out.
-- Image locations appear inline in the text as markdown markers like ![image 3](/path/to/file.jpg) exactly where the image sits on the page; the path is informational — when a question needs that image, tag it with "image_index": 3.
+TASK: reconstruct every multiple-choice question fully contained in this part.
 
-Return ONLY a JSON object — no prose, no markdown fences:
-{
-  "questions": [
-    {
-      "number": 1,
-      "question_text": "the full question text",
-      "multiple_choice": ["first option", "second option"],
-      "answer": 3,
-      "explanation": "explanation stated next to the question, or empty when unknown here",
-      "grade": "", "subject": "", "chapter": "",
-      "image_index": 2
-    }
-  ],
-  "answer_key": [
-    { "number": 12, "answer": "D", "explanation": "the key's explanation text" }
-  ]
-}
-"questions.number" is the question's number in the document (required — the answer key is matched by it). "multiple_choice" keeps the original option order (2+ entries). "answer" is the 1-based option index when THIS part shows the answer (inline or via the key); use 0 when the answer lives in another part. "answer_key" lists every "N. Answer: X" entry found in this part with its "Explanation:" text, even when the questions themselves are in another part (letter positions a=1..d=4 are resolved server-side). "grade"/"subject"/"chapter" come from header lines like Subject:/Grade:/Chapter: when present, otherwise "". "image_index" is included ONLY when the question clearly belongs to one of the manifest images (it references a diagram/figure, or sits directly beside it on the page); otherwise omit the field.
+STRICT OUTPUT CONTRACT — reply with exactly ONE JSON object and NOTHING else: no markdown fences, no prose before or after it.
+{"questions": [QUESTION_OBJECTS], "answer_key": [KEY_OBJECTS]}
 
-Rules: never invent questions, options or answers; preserve the original wording (fix only extraction artifacts); omit a question whose options are cut off at this part's boundaries — it is handled by the adjacent part; every question MUST have at least 2 options.`
+QUESTION_OBJECT — exact keys:
+{"number": 12, "question_text": "Which gas contributes most to global warming?", "multiple_choice": ["O2", "CO2", "N2", "CH4"], "answer": 2, "explanation": "CO2 absorbs infrared radiation.", "grade": "9", "subject": "Chemistry", "chapter": "", "image_index": 2}
+- "number": the question's number in the document ("12." or "Q12." -> 12). REQUIRED.
+- "multiple_choice": option TEXTS only (strip the "a."/"A." prefixes), in original order, 2+ entries.
+- "answer": 1-based index of the correct option (a=1, b=2, c=3, d=4) when THIS part proves it — inline ("Answer: 2") or via this part's key; otherwise 0.
+- "explanation": the explanation stated in this part (or readable from an attached image); "" when unknown here.
+- "grade"/"subject"/"chapter": from "Subject:/Grade:/Chapter:" header lines in this part, else "".
+- "image_index": ONLY when the question belongs to an image — the N of its ![image N](path) marker. Omit the field otherwise.
+
+KEY_OBJECT — for every "N. Answer: X" line found in this part, even when the questions themselves are in another part:
+{"number": 12, "answer": "B", "explanation": "the Explanation: text following that key line"}
+
+WORKED EXAMPLE (without images) — page text:
+=== Page 7 ===
+12. Which gas contributes most to global warming?
+a. O2
+b. CO2
+12. Answer: B
+Explanation: CO2 absorbs infrared radiation.
+-> exactly this output:
+{"questions": [{"number": 12, "question_text": "Which gas contributes most to global warming?", "multiple_choice": ["O2", "CO2"], "answer": 2, "explanation": "CO2 absorbs infrared radiation.", "grade": "", "subject": "", "chapter": ""}], "answer_key": [{"number": 12, "answer": "B", "explanation": "CO2 absorbs infrared radiation."}]}
+If the "12. Answer: B / Explanation:" lines were NOT in this part, the question would instead carry "answer": 0 and "explanation": "", and the key line would still be reported via "answer_key": [{"number": 12, "answer": "B", "explanation": "…"}].
+If this part holds no complete multiple-choice question at all, "questions" is simply [] — never invent one to fill it.
+
+WITH IMAGES — page text shows the figure marker inline where the image sits:
+=== Page 5 ===
+![image 2](/tmp/x/p005-01.jpg)
+12. In the circuit diagram, what is R1?
+a. 2 ohm
+b. 4 ohm
+Question 12 references that figure, so its object additionally carries "image_index": 2:
+{"number": 12, "question_text": "In the circuit diagram, what is R1?", "multiple_choice": ["2 ohm", "4 ohm"], "answer": 0, "explanation": "", "grade": "", "subject": "", "chapter": "", "image_index": 2}
+Questions that do not reference a figure OMIT the "image_index" key entirely.
+
+RULES:
+- Drop repeated page headers, footers and ads; never let them into question text.
+- Join split fragments ("1s2", "2p6", broken words) back into sensible text; read formula content from the attached images.
+- Omit questions whose options are cut off at this part's boundaries.
+- Never invent questions, options or answers.
+- Escape quotes and newlines inside JSON strings properly; the reply must parse as strict JSON.
+- Do not wrap the JSON in markdown fences; start your reply at the first { and end at the final }.`
 
 // buildChunkPrompt assembles the spec, the chunk's image manifest, its
 // page-marked text — with each image's markdown marker inserted at its page
@@ -787,41 +798,139 @@ func isRateLimitError(err error) bool {
 	return strings.Contains(msg, "rate limit") || strings.Contains(msg, "429")
 }
 
-// parseChunkResponse slices the model's reply and validates it. The object
-// form carries questions + answer-key entries; a bare question array is
-// still accepted. Per-question validation here only checks shape (text,
-// options, image tag) — answers may legitimately arrive from another part's
-// key and are resolved during the merge.
+// parseChunkResponse parses the model's reply. The object form carries
+// questions + answer-key entries; a bare question array is still accepted.
+// When the reply is truncated (finish_reason MAX_TOKENS cuts the JSON mid
+// object), the salvage decoder recovers every element that completed — a
+// partial question list beats failing the whole part.
 func parseChunkResponse(raw string, validIndexes map[int]bool) ([]aiParsedQuestion, []keyEntry, error) {
-	start := strings.Index(raw, "{")
-	end := strings.LastIndex(raw, "}")
-	if start != -1 && end > start {
-		var obj chunkResponse
-		if err := json.Unmarshal([]byte(raw[start:end+1]), &obj); err == nil &&
-			(len(obj.Questions) > 0 || len(obj.AnswerKey) > 0) {
-			return validateChunkQuestions(obj.Questions, validIndexes), obj.AnswerKey, nil
+	// Object form first: locate the "questions" / "answer_key" arrays.
+	qs, qsFound := salvageArray[aiParsedQuestion](raw, "questions")
+	key, keyFound := salvageArray[keyEntry](raw, "answer_key")
+	if qsFound || keyFound {
+		qs = validateChunkQuestions(qs, validIndexes)
+		if len(qs) > 0 || len(key) > 0 {
+			return qs, key, nil
 		}
 	}
+	// Bare array form.
 	qs, err := parseAIQuestions(raw, validIndexes)
 	return qs, nil, err
 }
 
-// parseAIQuestions accepts the bare question-array reply shape.
+// salvageArray decodes the elements of the array assigned to the given key
+// ("questions": [...]) using json.Decoder element-by-element, so a response
+// truncated mid-array still yields every complete element.
+func salvageArray[T any](raw, key string) ([]T, bool) {
+	re := regexp.MustCompile(`"` + key + `"\s*:\s*\[`)
+	loc := re.FindStringIndex(raw)
+	if loc == nil {
+		return nil, false
+	}
+	dec := json.NewDecoder(strings.NewReader(raw[loc[1]-1:])) // start at '['
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, false
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '[' {
+		return nil, false
+	}
+	var out []T
+	for dec.More() {
+		var v T
+		if err := dec.Decode(&v); err != nil {
+			log.Printf("ai document parse: %s array truncated — salvaged %d complete entries", key, len(out))
+			break
+		}
+		out = append(out, v)
+	}
+	return out, true
+}
+
+// decodeArrayPrefix decodes the elements of a bare top-level JSON array
+// ("[" at raw[0]) one by one, so a truncated reply still yields every
+// complete element. The error is non-nil only when no element completed.
+func decodeArrayPrefix[T any](raw string) ([]T, error) {
+	dec := json.NewDecoder(strings.NewReader(raw))
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, fmt.Errorf("read array opener: %w", err)
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '[' {
+		return nil, errors.New("expected '[' at the start of the array reply")
+	}
+	var out []T
+	for dec.More() {
+		var v T
+		if err := dec.Decode(&v); err != nil {
+			if len(out) > 0 {
+				break // truncated mid-element: keep what completed
+			}
+			return out, err
+		}
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// parseAIQuestions accepts the bare question-array reply shape, salvaging
+// the complete prefix when the array was truncated.
 func parseAIQuestions(raw string, validIndexes map[int]bool) ([]aiParsedQuestion, error) {
 	start := strings.Index(raw, "[")
-	end := strings.LastIndex(raw, "]")
-	if start == -1 || end == -1 || start > end {
-		return nil, errors.New("could not find a valid JSON array in the AI response")
+	if start == -1 {
+		return nil, errors.New("could not find a JSON array in the AI response")
 	}
+	body := raw[start:]
 	var parsed []aiParsedQuestion
-	if err := json.Unmarshal([]byte(raw[start:end+1]), &parsed); err != nil {
-		return nil, fmt.Errorf("parse AI question JSON: %w", err)
+	if _, end := completeArrayBounds(body); end < 0 {
+		// Truncated mid-array: decode the complete elements only.
+		var err error
+		parsed, err = decodeArrayPrefix[aiParsedQuestion](body)
+		if err != nil || len(parsed) == 0 {
+			return nil, fmt.Errorf("AI response JSON incomplete and unsalvageable: %v", err)
+		}
+		log.Printf("ai document parse: salvaged %d complete questions from a truncated bare-array reply", len(parsed))
+	} else {
+		if err := json.Unmarshal([]byte(body[:end+1]), &parsed); err != nil {
+			return nil, fmt.Errorf("parse AI question JSON: %w", err)
+		}
 	}
 	qs := validateChunkQuestions(parsed, validIndexes)
 	if len(qs) == 0 {
 		return nil, errors.New("the AI response contained no valid questions")
 	}
 	return qs, nil
+}
+
+// completeArrayBounds returns the index of the ']' that closes the array
+// opened at raw[0], tracking string/escape state; -1 when the array never
+// closes (truncated output).
+func completeArrayBounds(raw string) (int, int) {
+	depth := 0
+	inString := false
+	escaped := false
+	for i, r := range raw {
+		if escaped {
+			escaped = false
+			continue
+		}
+		switch {
+		case r == '\\' && inString:
+			escaped = true
+		case r == '"':
+			inString = !inString
+		case inString:
+			// ignore delimiters inside strings
+		case r == '[' || r == '{':
+			depth++
+		case r == ']' || r == '}':
+			depth--
+			if depth == 0 {
+				return 0, i
+			}
+		}
+	}
+	return 0, -1
 }
 
 // validateChunkQuestions keeps entries with text and 2+ options and clears

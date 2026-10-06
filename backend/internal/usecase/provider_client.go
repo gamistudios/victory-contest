@@ -434,20 +434,24 @@ func parseGeminiResponse(body []byte) (string, error) {
 			Content struct {
 				Parts []geminiPart `json:"parts"`
 			} `json:"content"`
+			FinishReason string `json:"finishReason"`
 		} `json:"candidates"`
+		PromptFeedback struct {
+			BlockReason string `json:"blockReason"`
+		} `json:"promptFeedback"`
 	}
 	if err := json.Unmarshal(body, &out); err != nil {
-		return "", fmt.Errorf("parse gemini response: %w", err)
+		return "", fmt.Errorf("parse gemini response: %w (body: %.300s)", err, body)
 	}
 	if len(out.Candidates) == 0 {
-		return "", errors.New("gemini response contained no candidates")
+		return "", fmt.Errorf("gemini response contained no candidates (blockReason=%q, body: %.300s)", out.PromptFeedback.BlockReason, body)
 	}
 	var sb strings.Builder
 	for _, part := range out.Candidates[0].Content.Parts {
 		sb.WriteString(part.Text)
 	}
 	if sb.Len() == 0 {
-		return "", errors.New("gemini response contained no text parts")
+		return "", fmt.Errorf("gemini response had empty content (finishReason=%q, body: %.300s)", out.Candidates[0].FinishReason, body)
 	}
 	return sb.String(), nil
 }
