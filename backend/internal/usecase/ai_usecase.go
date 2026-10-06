@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
+	"time"
+
 	"victory-contest-go/internal/domain"
 )
 
@@ -129,17 +132,18 @@ Each object must have these exact keys: "question_text", "multiple_choice", "ans
 // selectProvider resolves the provider row every AI call goes through:
 // the admin-tagged default provider wins (only when enabled with at least
 // one model, using its default model or first model); otherwise the oldest
-// enabled row; with no usable rows we fall back to the legacy GOOGLE_API_KEY
-// Gemini setup so existing deployments keep working. A repository read
-// failure also degrades to the env fallback when a key is present (the AI
-// surface must not hard-depend on the new table), and only errors when
-// neither path can serve a request.
+// enabled row; with no usable rows we fall back to the env-configured
+// OpenAI-compatible endpoint (AI_API_URL/AI_API_KEY/MODEL_NAME) and then the
+// legacy GOOGLE_API_KEY Gemini setup, so existing deployments keep working.
+// A repository read failure also degrades to the env fallbacks when keys are
+// present (the AI surface must not hard-depend on the new table), and only
+// errors when neither path can serve a request.
 func (a *aiUsecase) selectProvider() (*domain.AIProvider, string, error) {
 	var providers []domain.AIProvider
 	if a.providerRepo != nil {
 		list, err := a.providerRepo.GetAllProviders()
 		if err != nil {
-			if fb := a.envFallbackProvider(); fb != nil {
+			if fb := a.envProviderFallback(); fb != nil {
 				return fb, modelFor(fb), nil
 			}
 			return nil, "", fmt.Errorf("list ai providers: %w", err)
@@ -149,10 +153,52 @@ func (a *aiUsecase) selectProvider() (*domain.AIProvider, string, error) {
 	if p := pickProvider(providers); p != nil {
 		return p, modelFor(p), nil
 	}
-	if fb := a.envFallbackProvider(); fb != nil {
+	if fb := a.envProviderFallback(); fb != nil {
 		return fb, modelFor(fb), nil
 	}
-	return nil, "", errors.New("no enabled AI provider configured and GOOGLE_API_KEY is not set")
+	return nil, "", errors.New("no enabled AI provider configured and no AI_* / GOOGLE_API_KEY env fallback is set")
+}
+
+// envProviderFallback returns the env-configured provider, preferring the
+// explicit OpenAI-compatible endpoint (AI_API_URL + AI_API_KEY + MODEL_NAME)
+// over the legacy GOOGLE_API_KEY Gemini setup.
+func (a *aiUsecase) envProviderFallback() *domain.AIProvider {
+	if fb := a.envOpenAIProvider(); fb != nil {
+		return fb
+	}
+	return a.envFallbackProvider()
+}
+
+// envOpenAIProvider builds a provider from AI_API_URL/AI_API_KEY/MODEL_NAME —
+// the quickest way to bring a deployment live without a panel round-trip.
+// Limits default to GLM-4.7-Flash's published specs (131k context / 98k max
+// output) and are overridable with AI_MODEL_CONTEXT_WINDOW and
+// AI_MODEL_MAX_OUTPUT_TOKENS.
+func (a *aiUsecase) envOpenAIProvider() *domain.AIProvider {
+	baseURL, key, model := os.Getenv("AI_API_URL"), os.Getenv("AI_API_KEY"), os.Getenv("MODEL_NAME")
+	if baseURL == "" || key == "" || model == "" {
+		return nil
+	}
+	contextWindow := 131_072
+	if v := os.Getenv("AI_MODEL_CONTEXT_WINDOW"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			contextWindow = n
+		}
+	}
+	maxOutput := 98_304
+	if v := os.Getenv("AI_MODEL_MAX_OUTPUT_TOKENS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			maxOutput = n
+		}
+	}
+	return &domain.AIProvider{
+		Name:     "env:AI_API_URL",
+		BaseURL:  baseURL,
+		APIKey:   key,
+		Protocol: domain.AIProtocolOpenAI,
+		Models:   domain.ModelList{{Name: model, ContextWindow: contextWindow, MaxOutputTokens: maxOutput}},
+		Enabled:  true,
+	}
 }
 
 func (a *aiUsecase) envFallbackProvider() *domain.AIProvider {
@@ -183,7 +229,7 @@ func (a *aiUsecase) generate(prompt string) (string, error) {
 
 // CompleteDocumentParse runs one bulk-question-parsing completion. Document
 // parses are the largest AI surface in the app — a 60-question exam's JSON
-// alone is ~10k output tokens — so the call carries its own longer timeout,
+// alone can run ~8k output tokens — so the call carries its own longer timeout,
 // inline page images (vision) when the provider model supports them, and the
 // model's own limits: max_output_tokens clamps the generation budget and the
 // context window is checked up-front so an oversized part fails with a clear
@@ -196,15 +242,16 @@ func (a *aiUsecase) CompleteDocumentParse(prompt string, images []DocumentImage)
 		return "", err
 	}
 	model := provider.ResolveModel(modelName)
-	maxTokens := documentParseMaxTokens
+	maxTokens := documentParseMaxTokensBudget()
 	if model.MaxOutputTokens > 0 && model.MaxOutputTokens < maxTokens {
 		maxTokens = model.MaxOutputTokens
 	}
 
+	timeout := documentParseTimeout()
 	req := completionRequest{
 		prompt:    prompt,
 		maxTokens: maxTokens,
-		timeout:   aiDocumentParseTimeout,
+		timeout:   timeout,
 	}
 	for _, img := range images {
 		b64, err := encodeImageFileB64(img.Path, maxDocumentImageBytes)
@@ -226,9 +273,18 @@ func (a *aiUsecase) CompleteDocumentParse(prompt string, images []DocumentImage)
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), aiDocumentParseTimeout)
+	log.Printf("ai document parse: calling %s/%s (prompt %d chars, %d inline images, max_tokens %d, timeout %s)",
+		provider.Name, model.Name, len(prompt), len(req.images), maxTokens, timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return completeProvider(ctx, *provider, modelName, req)
+	start := time.Now()
+	text, err := completeProvider(ctx, *provider, modelName, req)
+	if err != nil {
+		log.Printf("ai document parse: call failed after %s: %v", time.Since(start).Round(time.Millisecond), err)
+		return "", err
+	}
+	log.Printf("ai document parse: call succeeded in %s (%d chars back)", time.Since(start).Round(time.Millisecond), len(text))
+	return text, nil
 }
 
 type AiUsecase interface {

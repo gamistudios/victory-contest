@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,23 +24,50 @@ import (
 	"victory-contest-go/internal/domain"
 )
 
-// Document parsing constants. An exam's full JSON (~10k output tokens) does
-// not fit inside any proxy-safe single request, so the AI parse runs in
-// chunks: page groups are sent as separate concurrent completions (each with
-// its own images and retry), and the results are merged with dedupe.
+// Document parsing constants. Documents that fit in one request go in a
+// single AI call (one request cannot trip per-minute request quotas the way
+// a chunk wave does); oversized documents fall back to page-group chunks.
 const (
-	aiDocumentParseTimeout = 180 * time.Second
-	documentParseMaxTokens = 16384
+	documentParseMaxTokens = 16384 // reasoning models spend thousands of tokens before any content
 	// Vision payload guards: extracted images ride inline as base64.
 	maxDocumentImages     = 12
 	maxDocumentImageBytes = 4 << 20  // per image
 	maxDocumentImageTotal = 48 << 20 // per document
 
-	chunkTargetChars  = 12_000 // page text per AI call
-	chunkOverlapPages = 1      // boundary pages repeated so cross-page questions survive
-	chunkMaxAttempts  = 2      // one retry per chunk on provider/parse errors
-	chunkConcurrency  = 3      // concurrent AI calls
+	singleCallMaxChars = 30_000           // ~8k input tokens: whole document in one request below this
+	chunkTargetChars   = 6_000            // page text per AI call — smaller calls finish faster
+	chunkOverlapPages  = 1                // boundary pages repeated so cross-page questions survive
+	chunkMaxAttempts   = 3                // rate-limited providers need patience, not failure
+	chunkConcurrency   = 1                // strict-quota providers (GLM flash tier) allow ~1 inflight
+	chunkRetryBackoff  = 5 * time.Second  // plain failure backoff
+	chunk429Backoff    = 30 * time.Second // rate-limit recovery window
 )
+
+// documentParseMaxTokensBudget is the generation budget per chunk. Reasoning
+// models spend a large invisible budget before content, so the default is
+// generous; AI_DOCUMENT_MAX_TOKENS overrides it downward for cheaper models.
+func documentParseMaxTokensBudget() int {
+	if v := os.Getenv("AI_DOCUMENT_MAX_TOKENS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 256 {
+			return n
+		}
+		log.Printf("AI_DOCUMENT_MAX_TOKENS=%q is invalid (min 256) — using the 16384 default", v)
+	}
+	return documentParseMaxTokens
+}
+
+// documentParseTimeout is the per-call budget for one document chunk. Slow
+// providers (reasoning models, distant proxies) can exceed the 180s default;
+// AI_DOCUMENT_TIMEOUT_SECONDS raises it without a redeploy code change.
+func documentParseTimeout() time.Duration {
+	if v := os.Getenv("AI_DOCUMENT_TIMEOUT_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 30 {
+			return time.Duration(n) * time.Second
+		}
+		log.Printf("AI_DOCUMENT_TIMEOUT_SECONDS=%q is invalid (min 30) — using the 180s default", v)
+	}
+	return 180 * time.Second
+}
 
 // DocumentImage is one image extracted from an uploaded document. Index is
 // the document order used by the AI's "image_index" tagging, Page the 1-based
@@ -172,7 +200,10 @@ func extractDocxImages(content []byte, sink imageSink) error {
 // from the raw file by the scanner and attributed back to the referencing
 // page via the stream length. Anything else is skipped.
 func extractPDFImages(r *pdf.Reader, content []byte, sink imageSink) {
-	type dctRef struct{ page int; length int64 }
+	type dctRef struct {
+		page   int
+		length int64
+	}
 	var dctRefs []dctRef
 
 	for p := 1; p <= r.NumPage(); p++ {
@@ -413,10 +444,27 @@ func encodeImageFileB64(path string, capBytes int64) (string, error) {
 }
 
 // aiParsedQuestion is one AI-proposed question: the stored shape plus the
-// optional tag pointing at an extracted document image.
+// document question number (so a trailing answer key can be merged on) and
+// the optional tag pointing at an extracted document image.
 type aiParsedQuestion struct {
 	domain.Question
+	Number     int `json:"number,omitempty"`
 	ImageIndex int `json:"image_index,omitempty"`
+}
+
+// keyEntry is one answer-key line ("12. Answer: D" + Explanation) the model
+// reports separately from the questions.
+type keyEntry struct {
+	Number      int    `json:"number"`
+	Answer      string `json:"answer"`
+	Explanation string `json:"explanation"`
+}
+
+// chunkResponse is the per-chunk model contract. A bare question array is
+// still accepted for older prompts and test fakes.
+type chunkResponse struct {
+	Questions []aiParsedQuestion `json:"questions"`
+	AnswerKey []keyEntry         `json:"answer_key"`
 }
 
 // documentParseSpec tells the model exactly what the backend needs. The
@@ -433,18 +481,26 @@ Reconstruct EVERY multiple-choice question fully contained in this part. Account
 - Formula-heavy content may appear as images: read the attached images and transcribe what you need (e.g. to complete an explanation) rather than leaving it out.
 - Image locations appear inline in the text as markdown markers like ![image 3](/path/to/file.jpg) exactly where the image sits on the page; the path is informational — when a question needs that image, tag it with "image_index": 3.
 
-Return ONLY a JSON array — no prose, no markdown fences. One object per question:
+Return ONLY a JSON object — no prose, no markdown fences:
 {
-  "question_text": "the full question text",
-  "multiple_choice": ["first option", "second option"],
-  "answer": 3,
-  "explanation": "explanation from the document (or read from an image), or \"\"",
-  "grade": "", "subject": "", "chapter": "",
-  "image_index": 2
+  "questions": [
+    {
+      "number": 1,
+      "question_text": "the full question text",
+      "multiple_choice": ["first option", "second option"],
+      "answer": 3,
+      "explanation": "explanation stated next to the question, or empty when unknown here",
+      "grade": "", "subject": "", "chapter": "",
+      "image_index": 2
+    }
+  ],
+  "answer_key": [
+    { "number": 12, "answer": "D", "explanation": "the key's explanation text" }
+  ]
 }
-"multiple_choice" keeps the original option order (2+ entries). "answer" is the 1-based option index. "grade"/"subject"/"chapter" come from header lines like Subject:/Grade:/Chapter: when present, otherwise "". "image_index" is included ONLY when the question clearly belongs to one of the manifest images (it references a diagram/figure, or sits directly beside it on the page); otherwise omit the field.
+"questions.number" is the question's number in the document (required — the answer key is matched by it). "multiple_choice" keeps the original option order (2+ entries). "answer" is the 1-based option index when THIS part shows the answer (inline or via the key); use 0 when the answer lives in another part. "answer_key" lists every "N. Answer: X" entry found in this part with its "Explanation:" text, even when the questions themselves are in another part (letter positions a=1..d=4 are resolved server-side). "grade"/"subject"/"chapter" come from header lines like Subject:/Grade:/Chapter: when present, otherwise "". "image_index" is included ONLY when the question clearly belongs to one of the manifest images (it references a diagram/figure, or sits directly beside it on the page); otherwise omit the field.
 
-Rules: never invent questions, options or answers; preserve the original wording (fix only extraction artifacts); omit a question whose options are cut off at this part's boundaries — it is handled by the adjacent part; every question MUST have at least 2 options and an answer between 1 and the option count.`
+Rules: never invent questions, options or answers; preserve the original wording (fix only extraction artifacts); omit a question whose options are cut off at this part's boundaries — it is handled by the adjacent part; every question MUST have at least 2 options.`
 
 // buildChunkPrompt assembles the spec, the chunk's image manifest, its
 // page-marked text — with each image's markdown marker inserted at its page
@@ -511,17 +567,40 @@ func chunkImages(images []DocumentImage, from, to int) []DocumentImage {
 // ParseQuestionsWithAI structures the extracted document with the configured
 // AI provider: the document is split into page-group chunks, each chunk is
 // completed (with retries) against the provider — images of that chunk ride
-// inline — and the per-chunk question arrays are merged with dedupe (the
+// inline — and the per-chunk results are merged: questions dedupe (the
 // one-page overlap between chunks makes boundary questions surface whole in
-// at least one chunk). Any chunk that still fails fails the parse with the
-// failing part numbers; an empty valid set is an error, never garbage.
+// at least one chunk) and answer-key entries attach to their questions by
+// number, so a key printed after the questions still wins. Any chunk that
+// still fails fails the parse naming the part and the reason; an empty valid
+// set is an error, never garbage.
 func ParseQuestionsWithAI(pages []string, images []DocumentImage, complete func(prompt string, images []DocumentImage) (string, error)) ([]aiParsedQuestion, error) {
 	if len(pages) == 0 {
 		pages = []string{""}
 	}
+	// A document that fits in one call goes in ONE request: typical exams are
+	// ~8k input tokens and 131k-context models take the whole thing easily,
+	// and one request cannot trip per-minute request quotas the way a chunk
+	// wave does. Chunking stays for oversized documents only.
+	totalChars := 0
+	for _, p := range pages {
+		totalChars += len(p)
+	}
+	if totalChars <= singleCallMaxChars {
+		log.Printf("ai document parse: single-call path (%d pages, %d chars, %d images)", len(pages), totalChars, len(images))
+		qs, key, err := runChunkWithRetry(1, 1, pages, 1, images, complete)
+		if err != nil {
+			return nil, err
+		}
+		merged := finalizeQuestions(qs, key)
+		if len(merged) == 0 {
+			return nil, errors.New("the AI response contained no valid questions (none had a resolvable answer)")
+		}
+		return merged, nil
+	}
 	ranges := splitPageRanges(pages)
 	type chunkResult struct {
 		questions []aiParsedQuestion
+		key       []keyEntry
 		err       error
 	}
 	results := make([]chunkResult, len(ranges))
@@ -543,21 +622,44 @@ func ParseQuestionsWithAI(pages []string, images []DocumentImage, complete func(
 			}
 			chunkPages := pages[overlapFrom : to+1]
 			chunkImgs := chunkImages(images, from, to)
-			qs, err := runChunkWithRetry(i+1, len(ranges), chunkPages, overlapFrom+1, chunkImgs, complete)
-			results[i] = chunkResult{questions: qs, err: err}
+			chunkChars := 0
+			for _, p := range chunkPages {
+				chunkChars += len(p)
+			}
+			log.Printf("ai document parse: part %d/%d = pages %d-%d (%d chars, %d images)", i+1, len(ranges), overlapFrom+1, to+1, chunkChars, len(chunkImgs))
+			start := time.Now()
+			qs, key, err := runChunkWithRetry(i+1, len(ranges), chunkPages, overlapFrom+1, chunkImgs, complete)
+			if err != nil {
+				log.Printf("ai document parse: part %d/%d FAILED after %s: %v", i+1, len(ranges), time.Since(start).Round(time.Millisecond), err)
+			} else {
+				log.Printf("ai document parse: part %d/%d done in %s (%d questions, %d key entries)", i+1, len(ranges), time.Since(start).Round(time.Millisecond), len(qs), len(key))
+			}
+			results[i] = chunkResult{questions: qs, key: key, err: err}
 		}(i, r[0], r[1])
 	}
 	wg.Wait()
 
 	var (
-		merged []aiParsedQuestion
-		seen   = map[string]bool{}
-		failed []int
+		merged     []aiParsedQuestion
+		seen       = map[string]bool{}
+		details    []string
+		keyAnswers = map[int]string{} // question number → key letter
+		keyExpl    = map[int]string{} // question number → key explanation
 	)
 	for i := range ranges {
 		if results[i].err != nil {
-			failed = append(failed, i+1)
+			msg := results[i].err.Error()
+			if len(msg) > 240 {
+				msg = msg[:240] + "…"
+			}
+			details = append(details, fmt.Sprintf("part %d: %s", i+1, msg))
 			continue
+		}
+		for _, k := range results[i].key {
+			if _, ok := keyAnswers[k.Number]; !ok && k.Number > 0 && k.Answer != "" {
+				keyAnswers[k.Number] = k.Answer
+				keyExpl[k.Number] = k.Explanation
+			}
 		}
 		for _, q := range results[i].questions {
 			key := normalizeQuestionKey(q.QuestionText)
@@ -568,46 +670,143 @@ func ParseQuestionsWithAI(pages []string, images []DocumentImage, complete func(
 			merged = append(merged, q)
 		}
 	}
-	if len(failed) > 0 {
-		return nil, fmt.Errorf("AI parsing failed for document part(s) %v — retry; check the provider's speed/quota or switch to mode=text", failed)
+	if len(details) > 0 {
+		return nil, fmt.Errorf("AI parsing failed — %s — retry, or switch to mode=text", strings.Join(details, " | "))
 	}
-	if len(merged) == 0 {
-		return nil, errors.New("the AI response contained no valid questions")
+
+	// Attach the answer key (letters a=1..d=4) and its explanations.
+	for i := range merged {
+		q := &merged[i]
+		if q.Answer == 0 {
+			if letter, ok := keyAnswers[q.Number]; ok {
+				q.Answer = letterOptionIndex(letter)
+			}
+		}
+		if strings.TrimSpace(q.Explanation) == "" {
+			if expl, ok := keyExpl[q.Number]; ok {
+				q.Explanation = expl
+			}
+		}
 	}
-	return merged, nil
+	// The answer range is only enforceable now, after the key had its chance.
+	final := finalizeQuestions(merged, nil)
+	if len(final) == 0 {
+		return nil, errors.New("the AI response contained no valid questions (none had a resolvable answer)")
+	}
+	return final, nil
+}
+
+// finalizeQuestions applies answer-key answers/explanations (when the caller
+// has not already merged them) and drops questions whose answer never
+// resolved to a valid option index.
+func finalizeQuestions(questions []aiParsedQuestion, key []keyEntry) []aiParsedQuestion {
+	keyAnswers := map[int]string{}
+	keyExpl := map[int]string{}
+	for _, k := range key {
+		if _, ok := keyAnswers[k.Number]; !ok && k.Number > 0 && k.Answer != "" {
+			keyAnswers[k.Number] = k.Answer
+			keyExpl[k.Number] = k.Explanation
+		}
+	}
+	final := make([]aiParsedQuestion, 0, len(questions))
+	for _, q := range questions {
+		if q.Answer == 0 {
+			if letter, ok := keyAnswers[q.Number]; ok {
+				q.Answer = letterOptionIndex(letter)
+			}
+		}
+		if strings.TrimSpace(q.Explanation) == "" {
+			if expl, ok := keyExpl[q.Number]; ok {
+				q.Explanation = expl
+			}
+		}
+		if q.Answer >= 1 && q.Answer <= len(q.MultipleChoice) {
+			final = append(final, q)
+		}
+	}
+	return final
 }
 
 // runChunkWithRetry completes one chunk, retrying once on provider or parse
 // failures (transient truncation and rate limits are the common cases).
-func runChunkWithRetry(part, total int, chunkPages []string, firstPageNo int, images []DocumentImage, complete func(string, []DocumentImage) (string, error)) ([]aiParsedQuestion, error) {
+// Later attempts drop the inline images: some providers hang indefinitely on
+// vision parts (observed in production), and a text-only retry still yields
+// the questions.
+func runChunkWithRetry(part, total int, chunkPages []string, firstPageNo int, images []DocumentImage, complete func(string, []DocumentImage) (string, error)) ([]aiParsedQuestion, []keyEntry, error) {
 	prompt := buildChunkPrompt(part, total, chunkPages, firstPageNo, images)
 	validIndexes := make(map[int]bool, len(images))
 	for _, img := range images {
 		validIndexes[img.Index] = true
 	}
 	var lastErr error
-	for attempt := 0; attempt < chunkMaxAttempts; attempt++ {
-		if attempt > 0 {
-			time.Sleep(2 * time.Second)
+	lastWasRateLimit := false
+	for attempt := 1; attempt <= chunkMaxAttempts; attempt++ {
+		if attempt > 1 {
+			if lastWasRateLimit {
+				log.Printf("ai document parse: part %d/%d rate limited — waiting %s before retry", part, total, chunk429Backoff)
+				time.Sleep(chunk429Backoff)
+			} else {
+				time.Sleep(chunkRetryBackoff)
+			}
 		}
-		raw, err := complete(prompt, images)
+		attemptImages := images
+		if attempt > 1 {
+			attemptImages = nil
+		}
+		attemptStart := time.Now()
+		raw, err := complete(prompt, attemptImages)
 		if err != nil {
+			lastWasRateLimit = isRateLimitError(err)
+			log.Printf("ai document parse: part %d/%d attempt %d failed after %s: %v", part, total, attempt, time.Since(attemptStart).Round(time.Millisecond), err)
 			lastErr = err
 			continue
 		}
-		qs, perr := parseAIQuestions(raw, validIndexes)
+		qs, key, perr := parseChunkResponse(raw, validIndexes)
 		if perr == nil {
-			return qs, nil
+			if len(qs) == 0 && len(key) == 0 {
+				lastErr = errors.New("the AI response contained no questions and no answer-key entries")
+				log.Printf("ai document parse: part %d/%d attempt %d unusable after %s (%d chars back): %v", part, total, attempt, time.Since(attemptStart).Round(time.Millisecond), len(raw), lastErr)
+				continue
+			}
+			return qs, key, nil
 		}
+		lastWasRateLimit = isRateLimitError(perr)
+		log.Printf("ai document parse: part %d/%d attempt %d returned unusable output after %s (%d chars back): %v", part, total, attempt, time.Since(attemptStart).Round(time.Millisecond), len(raw), perr)
 		lastErr = perr
 	}
-	return nil, fmt.Errorf("part %d/%d: %w", part, total, lastErr)
+	return nil, nil, fmt.Errorf("part %d/%d: %w", part, total, lastErr)
 }
 
-// parseAIQuestions slices the JSON array out of the model's reply and
-// validates every entry; invalid ones are dropped. Image tags are kept only
-// when they point at one of this chunk's manifest images (the manifest uses
-// global document indices).
+// isRateLimitError reports whether err is the provider's 429 family (the
+// friendly mapping from providerHTTPError or an explicit code).
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "rate limit") || strings.Contains(msg, "429")
+}
+
+// parseChunkResponse slices the model's reply and validates it. The object
+// form carries questions + answer-key entries; a bare question array is
+// still accepted. Per-question validation here only checks shape (text,
+// options, image tag) — answers may legitimately arrive from another part's
+// key and are resolved during the merge.
+func parseChunkResponse(raw string, validIndexes map[int]bool) ([]aiParsedQuestion, []keyEntry, error) {
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start != -1 && end > start {
+		var obj chunkResponse
+		if err := json.Unmarshal([]byte(raw[start:end+1]), &obj); err == nil &&
+			(len(obj.Questions) > 0 || len(obj.AnswerKey) > 0) {
+			return validateChunkQuestions(obj.Questions, validIndexes), obj.AnswerKey, nil
+		}
+	}
+	qs, err := parseAIQuestions(raw, validIndexes)
+	return qs, nil, err
+}
+
+// parseAIQuestions accepts the bare question-array reply shape.
 func parseAIQuestions(raw string, validIndexes map[int]bool) ([]aiParsedQuestion, error) {
 	start := strings.Index(raw, "[")
 	end := strings.LastIndex(raw, "]")
@@ -618,6 +817,18 @@ func parseAIQuestions(raw string, validIndexes map[int]bool) ([]aiParsedQuestion
 	if err := json.Unmarshal([]byte(raw[start:end+1]), &parsed); err != nil {
 		return nil, fmt.Errorf("parse AI question JSON: %w", err)
 	}
+	qs := validateChunkQuestions(parsed, validIndexes)
+	if len(qs) == 0 {
+		return nil, errors.New("the AI response contained no valid questions")
+	}
+	return qs, nil
+}
+
+// validateChunkQuestions keeps entries with text and 2+ options and clears
+// image tags that don't point at one of this chunk's manifest images (the
+// manifest uses global document indices). Answers are NOT range-checked here
+// — they may arrive from another part's answer key.
+func validateChunkQuestions(parsed []aiParsedQuestion, validIndexes map[int]bool) []aiParsedQuestion {
 	valid := make([]aiParsedQuestion, 0, len(parsed))
 	for i := range parsed {
 		p := parsed[i]
@@ -625,18 +836,12 @@ func parseAIQuestions(raw string, validIndexes map[int]bool) ([]aiParsedQuestion
 		if p.QuestionText == "" || len(p.MultipleChoice) < 2 {
 			continue
 		}
-		if p.Answer < 1 || p.Answer > len(p.MultipleChoice) {
-			continue
-		}
 		if p.ImageIndex != 0 && !validIndexes[p.ImageIndex] {
 			p.ImageIndex = 0
 		}
 		valid = append(valid, p)
 	}
-	if len(valid) == 0 {
-		return nil, errors.New("the AI response contained no valid questions")
-	}
-	return valid, nil
+	return valid
 }
 
 // normalizeQuestionKey is the merge-dedupe key: case- and whitespace-folded

@@ -140,17 +140,18 @@ export async function getParseJob(jobId: string): Promise<ParseJobStatus> {
 }
 
 /** parseQuestionsDocument uploads the file and polls the job until it
- *  finishes, resolving with the parsed document. Polls every 2s with a
- *  5-minute ceiling covering the slowest AI parses; proxy timeouts can no
- *  longer kill the request because each poll is short-lived. */
+ *  finishes, resolving with the parsed document. Polls every 3s with a
+ *  25-minute ceiling — strict-quota providers are parsed sequentially and
+ *  legitimately take many minutes; proxy timeouts can no longer kill the
+ *  request because each poll is short-lived. */
 export async function parseQuestionsDocument(
   file: File,
   mode: "ai" | "text" = "ai"
 ): Promise<ParsedDocument> {
   const jobId = await startParseJob(file, mode);
-  const deadline = Date.now() + 5 * 60 * 1000;
+  const deadline = Date.now() + 25 * 60 * 1000;
   for (;;) {
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 3000));
     const job = await getParseJob(jobId);
     if (job.status === "done") {
       return { questions: job.questions ?? [], images: job.images ?? [] };

@@ -242,17 +242,27 @@ func parseOpenAIResponse(body []byte) (string, error) {
 	var out struct {
 		Choices []struct {
 			Message struct {
-				Content string `json:"content"`
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(body, &out); err != nil {
-		return "", fmt.Errorf("parse openai response: %w", err)
+		return "", fmt.Errorf("parse openai response: %w (body: %.300s)", err, body)
 	}
 	if len(out.Choices) == 0 {
-		return "", errors.New("openai response contained no choices")
+		return "", fmt.Errorf("openai response contained no choices (body: %.300s)", body)
 	}
-	return out.Choices[0].Message.Content, nil
+	c := out.Choices[0]
+	if strings.TrimSpace(c.Message.Content) == "" {
+		// Reasoning-style models can burn the whole budget before writing
+		// any content; finish_reason + sizes make that diagnosable.
+		return "", fmt.Errorf(
+			"openai response had empty content (finish_reason=%q, reasoning=%d chars, body: %.300s)",
+			c.FinishReason, len(c.Message.ReasoningContent), body)
+	}
+	return c.Message.Content, nil
 }
 
 // --- Anthropic Messages ---

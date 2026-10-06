@@ -96,7 +96,7 @@ Hope that helps!`
 		// Two chunks (page 2 text exceeds chunkTargetChars): chunk 1 = page 1,
 		// chunk 2 = page 2 (+ backward overlap of page 1). Page 1 holds a question
 		// repeated on page 2 (the overlap) and page 2 holds a second one.
-		longPage := strings.Repeat("filler text so this page exceeds the chunk target. ", 300)
+		longPage := strings.Repeat("filler text so this page exceeds the chunk target. ", 700)
 		pages := []string{
 			"1. What does the overlap diagram show?\na. A cell\nb. A bulb\nAnswer: 1",
 			longPage + "2. Which particle is neutral?\na. Proton\nb. Neutron\nAnswer: 2",
@@ -127,7 +127,7 @@ Hope that helps!`
 	})
 
 	t.Run("a failing chunk fails the parse naming the part", func(t *testing.T) {
-		longPage := strings.Repeat("filler text so this page exceeds the chunk target. ", 300)
+		longPage := strings.Repeat("filler text so this page exceeds the chunk target. ", 700)
 		pages := []string{"1. q?\na. x\nb. y\nAnswer: 1", longPage + "2. q2?\na. x\nb. y\nAnswer: 1"}
 		fc := fakeCompleteFunc(func(prompt string, images []DocumentImage) (string, error) {
 			if strings.Contains(prompt, "PART 2 of 2") {
@@ -136,7 +136,7 @@ Hope that helps!`
 			return `[{"question_text":"q?","multiple_choice":["x","y"],"answer":1}]`, nil
 		})
 		_, err := ParseQuestionsWithAI(pages, nil, fc)
-		if err == nil || !strings.Contains(err.Error(), "part(s) [2]") {
+		if err == nil || !strings.Contains(err.Error(), "part 2:") || !strings.Contains(err.Error(), "provider down") {
 			t.Fatalf("expected part-2 failure, got %v", err)
 		}
 	})
