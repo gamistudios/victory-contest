@@ -528,7 +528,7 @@ export default function ContestById() {
         open={updateContestDialogOpen}
         onClose={() => setUpdateContestDialogOpen(false)}
         contest={contest}
-        onUpdate={async (contestId, updates) => {
+        onUpdate={async (_contestId, updates) => {
           if (!contest) return;
 
           const promise = updateContest(contest, updates);

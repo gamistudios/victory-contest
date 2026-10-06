@@ -107,7 +107,10 @@ export default function CustomizedDataGrid({
                   : "odd-row hover:bg-blue-50/50 transition-colors duration-200"
               }
               onCellClick={({ row }) => onSelectionChange?.(row)}
-              processRowUpdate={(newRow) => console.log(newRow)}
+              processRowUpdate={(newRow) => {
+                console.log(newRow);
+                return newRow;
+              }}
               initialState={{
                 pagination: { paginationModel: { pageSize: 20 } },
               }}
@@ -220,7 +223,9 @@ export default function CustomizedDataGrid({
                 },
                 pagination: {
                   rowsPerPageOptions: isPhone ? [10, 20] : [10, 20, 50],
-                  labelDisplayedRows: ({ from, to, count }) =>
+                  labelDisplayedRows: (
+                    { from, to, count }: { from: number; to: number; count: number }
+                  ) =>
                     isPhone
                       ? `${from}-${to}/${count}`
                       : `${from}-${to} of ${count}`,

@@ -69,7 +69,7 @@ const ArticlesPage: React.FC = () => {
   const handleSaveArticle = async (articleData: Article) => {
     try {
       if (editId && editId != "new") {
-        const promise = updateArticle({ id: editId, ...articleData });
+        const promise = updateArticle({ ...articleData, id: editId });
         toast.promise(promise, {
           loading: "Updating article...",
           success: "Article updated successfully",
@@ -102,8 +102,8 @@ const ArticlesPage: React.FC = () => {
     try {
       if (editId && editId != "new") {
         const promise = updateArticle({
-          id: editId,
           ...articleData,
+          id: editId,
           status: "published",
         });
         toast.promise(promise, {

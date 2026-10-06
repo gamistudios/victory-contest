@@ -145,7 +145,7 @@ export default function Home() {
           />
         </Grid>
         <Grid size={{ xs: 12, lg: 3 }}>
-          <Stack gap={2} direction={{ xs: "column", sm: "row", lg: "column" }}>
+          <Stack spacing={2} direction={{ xs: "column", sm: "row", lg: "column" }}>
             <ChartUserByCountry userStats={dashboardData.user_stats} />
           </Stack>
         </Grid>

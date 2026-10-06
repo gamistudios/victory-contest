@@ -26,7 +26,6 @@ export default function MobileNav() {
         direction="left"
         open={open}
         onOpenChange={setOpen}
-        removeScrollbar={false}
       >
         {/* Without the portal the sheet renders in normal flow inside the app
             bar, so the drawer's logo, close button and profile card spill onto

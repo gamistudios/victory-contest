@@ -263,7 +263,7 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => [
+                        formatter={(value) => [
                           `${value} questions`,
                           "Missed",
                         ]}
@@ -341,7 +341,7 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
                       unit="%"
                     />
                     <Tooltip
-                      formatter={(value: number) => [`${value}%`, "Accuracy"]}
+                      formatter={(value) => [`${value}%`, "Accuracy"]}
                     />
                     <Line
                       type="monotone"
