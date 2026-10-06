@@ -41,4 +41,4 @@ func (u *achievementUsecase) GetAllAchievements() ([]domain.Achievement, error) 
 
 func (u *achievementUsecase) GetAchievementsByStudent(studentID string) ([]domain.Achievement, error) {
 	return u.repo.GetAchievementsByStudent(studentID)
-} 
+}

@@ -194,8 +194,8 @@ func TestAddSubmission_FullyCoveredMissedListIsGradedAsSheet(t *testing.T) {
 	u := newScoringUsecase(repo, &scoringFakeContest{current: scoringContest("")})
 
 	missed := []domain.SubmissionMissedQuestionDto{
-		{ID: "q1", SelectedAnswer: 1}, // actually correct despite the claim
-		{ID: "q2", SelectedAnswer: 1}, // actually wrong
+		{ID: "q1", SelectedAnswer: 1},  // actually correct despite the claim
+		{ID: "q2", SelectedAnswer: 1},  // actually wrong
 		{ID: "q3", SelectedAnswer: -1}, // skipped
 	}
 	_, score, err := u.AddSubmission(scoringDto(0, missed, nil))

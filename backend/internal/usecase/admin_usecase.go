@@ -159,6 +159,7 @@ func (u *adminUsecase) AddAdmin(admin domain.Admin) (string, error) {
 	admin.Password = string(hash)
 	return u.repo.AddAdmin(admin)
 }
+
 // UpdateAdmin performs a read-modify-write on the row keyed by id: the stored
 // item is loaded first (404-equivalent ErrAdminNotFound when absent, so a PUT
 // can never mint a brand-new admin), then only the non-nil fields of the

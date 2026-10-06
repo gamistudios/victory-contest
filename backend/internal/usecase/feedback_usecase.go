@@ -162,4 +162,4 @@ func (u *feedbackResponseUsecase) GetFeedbackAnalytics(filter domain.AnalyticsFi
 
 func (u *feedbackResponseUsecase) DeleteContactByPhoneNumber(phoneNumber string) error {
 	return u.repo.DeleteContactByPhoneNumber(phoneNumber)
-} 
+}

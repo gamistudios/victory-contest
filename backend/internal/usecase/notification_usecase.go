@@ -97,6 +97,7 @@ func (u *notificationUsecase) GetNotificationByID(id string) (*domain.Notificati
 func (u *notificationUsecase) GetAllNotifications() ([]domain.Notification, error) {
 	return u.repo.GetAllNotifications()
 }
+
 // sortNotificationsNewestFirst orders by sent_at descending. Notifications
 // with unparseable timestamps sink to the end instead of being dropped.
 func sortNotificationsNewestFirst(notifications []domain.Notification) {
@@ -185,7 +186,7 @@ func (s *notificationUsecase) SendNotification(title, message, Type, recipientId
 	}
 	return nil
 }
-func GenerateUniqueId() string{
+func GenerateUniqueId() string {
 	id := shortuuid.New() // compressed uuid
-	return id 
+	return id
 }

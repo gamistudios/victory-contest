@@ -40,14 +40,14 @@ func sub(id, userID, contestID, name, timeSpend string, score float64, missed in
 		mq[i] = domain.SubmissionMissedQuestionDto{ID: string(rune('a' + i)), SelectedAnswer: 0}
 	}
 	return domain.Submission{
-		ID:             id,
-		ContestID:      contestID,
-		StudentID:      userID,
-		Student:        domain.StudentSub{ID: userID, Name: name},
-		Score:          score,
+		ID:              id,
+		ContestID:       contestID,
+		StudentID:       userID,
+		Student:         domain.StudentSub{ID: userID, Name: name},
+		Score:           score,
 		MissedQuestions: mq,
-		SubmissionTime: when,
-		TimeSpend:      timeSpend,
+		SubmissionTime:  when,
+		TimeSpend:       timeSpend,
 	}
 }
 
