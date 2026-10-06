@@ -33,7 +33,7 @@ export const createArticle = async (
   articleData: CreateArticlePayload
 ): Promise<Article> => {
   const { data } = await api.post("/api/articles", articleData);
-  return data;
+  return normalizeArticle(data);
 };
 
 // Get all articles (backend returns an array; we adapt to ArticleListResponse)
@@ -65,10 +65,16 @@ export const getArticles = async (
   return { articles, total: articles.length, page: 1, limit: articles.length };
 };
 
+/** Normalize a raw backend article so UI can safely call `.map` etc. on
+ *  `tags` — the API returns `tags: null` for articles without tags. */
+export function normalizeArticle<T extends Article>(a: T): T {
+  return { ...a, tags: a.tags ?? [] };
+}
+
 // Get a single article by ID
 export const getArticleById = async (id: string): Promise<Article> => {
   const { data } = await api.get(`/api/articles/${id}`);
-  return data.article ?? data;
+  return normalizeArticle(data.article ?? data);
 };
 
 // Update an article
@@ -79,7 +85,7 @@ export const updateArticle = async (
     `/api/articles/${articleData.id}`,
     articleData
   );
-  return data;
+  return normalizeArticle(data);
 };
 
 // Delete an article
@@ -93,7 +99,7 @@ export const toggleArticleStatus = async (
   status: "published" | "draft"
 ): Promise<Article> => {
   const { data } = await api.patch(`/api/articles/${id}/status`, { status });
-  return data;
+  return normalizeArticle(data);
 };
 
 // Bulk operations (not implemented on backend yet) - placeholder to avoid runtime errors

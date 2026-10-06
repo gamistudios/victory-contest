@@ -373,11 +373,10 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
     }
   }, [deleteDialogOpen, commentsArticle]);
   const filteredArticles = articles.filter((article) => {
+    const tags = article.tags ?? [];
     const matchesSearch =
       article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      article.tags.some((tag) =>
-        tag.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesStatus =
       statusFilter === "all" || article.status === statusFilter;
@@ -622,7 +621,9 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedArticles.map((article) => (
+                  sortedArticles.map((article) => {
+                    const tags = article.tags ?? [];
+                    return (
                     <TableRow key={article.id}>
                       <TableCell>
                         <div className="min-w-0 max-w-[280px]">
@@ -647,7 +648,7 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
                       <TableCell>{getStatusBadge(article.status)}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {article.tags.slice(0, 2).map((tag) => (
+                          {tags.slice(0, 2).map((tag) => (
                             <Badge
                               key={tag}
                               variant="outline"
@@ -656,9 +657,9 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
                               {tag}
                             </Badge>
                           ))}
-                          {article.tags.length > 2 && (
+                          {tags.length > 2 && (
                             <Badge variant="outline" className="text-xs">
-                              +{article.tags.length - 2}
+                              +{tags.length - 2}
                             </Badge>
                           )}
                         </div>
@@ -732,7 +733,8 @@ const ArticleManagement: React.FC<ArticleManagementProps> = ({
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

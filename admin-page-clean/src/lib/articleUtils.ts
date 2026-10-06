@@ -114,7 +114,7 @@ export const articleToSummary = (article: Article): ArticleSummary => {
     publishedAt: article.publishedAt,
     thumbnail: article.thumbnail,
     readTime: article.readTime,
-    tags: article.tags,
+    tags: article.tags ?? [],
     createdAt: article.createdAt,
     updatedAt: article.updatedAt,
     status: article.status,

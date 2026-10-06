@@ -35,20 +35,19 @@ const ArticlesList: React.FC<ArticlesListProps> = ({
 
   // Get unique tags from all articles
   const allTags = Array.from(
-    new Set(articles.flatMap((article) => article.tags))
+    new Set(articles.flatMap((article) => article.tags ?? []))
   ).sort();
 
   const filteredArticles = articles.filter((article) => {
+    const tags = article.tags ?? [];
     const matchesSearch =
       article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       article.excerpt.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      article.tags.some((tag) =>
-        tag.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesTags =
       selectedTags.length === 0 ||
-      selectedTags.some((tag) => article.tags.includes(tag));
+      selectedTags.some((tag) => tags.includes(tag));
 
     return matchesSearch && matchesTags;
   });

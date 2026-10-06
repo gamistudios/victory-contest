@@ -24,6 +24,8 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
     });
   };
 
+  const tags = article.tags ?? [];
+
   if (viewMode === "list") {
     return (
       <Card
@@ -80,14 +82,14 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
 
                   {/* Tags */}
                   <div className="flex flex-wrap gap-2">
-                    {article.tags.slice(0, 3).map((tag) => (
+                    {tags.slice(0, 3).map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
                         {tag}
                       </Badge>
                     ))}
-                    {article.tags.length > 3 && (
+                    {tags.length > 3 && (
                       <Badge variant="outline" className="text-xs">
-                        +{article.tags.length - 3}
+                        +{tags.length - 3}
                       </Badge>
                     )}
                   </div>
@@ -167,14 +169,14 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
 
             {/* Tags */}
             <div className="flex flex-wrap gap-1">
-              {article.tags.slice(0, 2).map((tag) => (
+              {tags.slice(0, 2).map((tag) => (
                 <Badge key={tag} variant="secondary" className="text-xs">
                   {tag}
                 </Badge>
               ))}
-              {article.tags.length > 2 && (
+              {tags.length > 2 && (
                 <Badge variant="outline" className="text-xs">
-                  +{article.tags.length - 2}
+                  +{tags.length - 2}
                 </Badge>
               )}
             </div>
