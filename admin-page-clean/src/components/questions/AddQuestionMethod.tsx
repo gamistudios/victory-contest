@@ -12,10 +12,10 @@ import { useSearchParams } from "react-router-dom";
 import {
   addMultipleQuestions,
   addQuestion,
-  parseQuestionsDocument,
+  pollParseJob,
   questionApiErrorMessage,
+  startParseJob,
   updateQuestion,
-  type ParsedDocument,
   type UpdateQuestionInput,
 } from "@/services/questionServices";
 import * as React from "react";
@@ -449,34 +449,41 @@ export function EnhancedUploadQuestions() {
   const [useAI, setUseAI] = useState(true);
 
   const handleFileSelect = async (selectedFile: File | null) => {
-    if (!selectedFile) return;
+    if (!selectedFile || isFileProcessing) return;
     setFile(selectedFile);
     setIsFileProcessing(true);
 
-    // Parsing happens server-side (POST /api/question/parse-document) so the
-    // .pdf/.docx/.txt handling lives in one place; nothing is persisted until
-    // the reviewed questions are submitted below.
-    const promise = parseQuestionsDocument(
-      selectedFile,
-      useAI ? "ai" : "text"
-    );
-
-    toast.promise(promise, {
-      loading: useAI
-        ? "Processing file with AI... This may take a moment."
-        : "Processing file... This may take a moment.",
-      success: (parsed: ParsedDocument) => {
-        setQuestions(parsed.questions);
-        setCurrentPage(1); // Reset to first page
-        const imageNote =
-          parsed.images.length > 0
-            ? ` (${parsed.images.length} images extracted — attach them to questions while reviewing)`
-            : "";
-        return `${parsed.questions.length} questions processed successfully!${imageNote}`;
-      },
-      error: (err: unknown) => questionApiErrorMessage(err),
-      finally: () => setIsFileProcessing(false),
-    });
+    // Two phases with distinct feedback: the upload POST (file transfer +
+    // server-side extraction) and then the parse job (AI/provider work).
+    // The same sonner toast is reused by id across the phases.
+    const toastId = toast.loading("Uploading file...");
+    try {
+      const jobId = await startParseJob(
+        selectedFile,
+        useAI ? "ai" : "text"
+      );
+      toast.loading(
+        useAI
+          ? "Processing file with AI... This can take a couple of minutes."
+          : "Parsing file... This may take a moment.",
+        { id: toastId }
+      );
+      const parsed = await pollParseJob(jobId);
+      setQuestions(parsed.questions);
+      setCurrentPage(1); // Reset to first page
+      const imageNote =
+        parsed.images.length > 0
+          ? ` (${parsed.images.length} images extracted — attach them to questions while reviewing)`
+          : "";
+      toast.success(
+        `${parsed.questions.length} questions processed successfully!${imageNote}`,
+        { id: toastId }
+      );
+    } catch (err) {
+      toast.error(questionApiErrorMessage(err), { id: toastId });
+    } finally {
+      setIsFileProcessing(false);
+    }
   };
 
   const handlePasteParse = () => {
@@ -589,6 +596,7 @@ export function EnhancedUploadQuestions() {
             file={file}
             onFileSelect={handleFileSelect}
             onClear={handleClear}
+            disabled={isFileProcessing}
           />
           <div>
             <button
@@ -690,6 +698,8 @@ interface FileDropzoneProps {
   onFileSelect: (file: File | null) => void;
   onClear: () => void;
   acceptedFileTypes?: string;
+  /** While a parse is running, drops and new selections are ignored. */
+  disabled?: boolean;
 }
 
 export function FileDropzone({
@@ -697,9 +707,20 @@ export function FileDropzone({
   onFileSelect,
   onClear,
   acceptedFileTypes,
+  disabled,
 }: FileDropzoneProps) {
+  const [isDragging, setIsDragging] = useState(false);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFileSelect(e.target.files ? e.target.files[0] : null);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (disabled) return;
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) onFileSelect(dropped);
   };
 
   if (file) {
@@ -722,9 +743,26 @@ export function FileDropzone({
   }
 
   return (
-    <label className="flex flex-col items-center justify-center w-full max-w-full p-6 sm:p-8 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors text-center">
+    <label
+      className={`flex flex-col items-center justify-center w-full max-w-full p-6 sm:p-8 border-2 border-dashed rounded-lg cursor-pointer transition-colors text-center ${
+        isDragging
+          ? "border-primary bg-primary/10"
+          : "border-muted hover:bg-muted/50"
+      }`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!disabled) setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+      }}
+      onDrop={handleDrop}
+    >
       <UploadCloud className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground" />
-      <p className="mt-4 font-semibold">Click to upload or drag &amp; drop</p>
+      <p className="mt-4 font-semibold">
+        {isDragging ? "Drop the file to upload" : "Click to upload or drag & drop"}
+      </p>
       <p className="text-sm text-muted-foreground">
         Supports: DOCX, PDF, TXT
       </p>

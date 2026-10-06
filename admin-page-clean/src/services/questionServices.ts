@@ -139,16 +139,11 @@ export async function getParseJob(jobId: string): Promise<ParseJobStatus> {
   return res.data;
 }
 
-/** parseQuestionsDocument uploads the file and polls the job until it
- *  finishes, resolving with the parsed document. Polls every 3s with a
- *  25-minute ceiling — strict-quota providers are parsed sequentially and
- *  legitimately take many minutes; proxy timeouts can no longer kill the
- *  request because each poll is short-lived. */
-export async function parseQuestionsDocument(
-  file: File,
-  mode: "ai" | "text" = "ai"
-): Promise<ParsedDocument> {
-  const jobId = await startParseJob(file, mode);
+/** Polls a parse job until it finishes, resolving with the parsed document.
+ *  Polls every 3s with a 25-minute ceiling — strict-quota providers are
+ *  parsed sequentially and legitimately take many minutes; proxy timeouts
+ *  can no longer kill the request because each poll is short-lived. */
+export async function pollParseJob(jobId: string): Promise<ParsedDocument> {
   const deadline = Date.now() + 25 * 60 * 1000;
   for (;;) {
     await new Promise((r) => setTimeout(r, 3000));
@@ -165,6 +160,15 @@ export async function parseQuestionsDocument(
       );
     }
   }
+}
+
+/** Convenience wrapper: start a job and poll it to completion. */
+export async function parseQuestionsDocument(
+  file: File,
+  mode: "ai" | "text" = "ai"
+): Promise<ParsedDocument> {
+  const jobId = await startParseJob(file, mode);
+  return pollParseJob(jobId);
 }
 
 /** Extracts the backend error message from an axios error response. */
