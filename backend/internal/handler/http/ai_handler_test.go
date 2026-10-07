@@ -19,6 +19,7 @@ import (
 type fakeAiUsecase struct {
 	practiceCalls int
 	recoCalls     int
+	explainCalls  int
 }
 
 func (f *fakeAiUsecase) PracticeWithAi(setting domain.AiPracticeSetting) (*[]domain.Question, error) {
@@ -34,6 +35,11 @@ func (f *fakeAiUsecase) GenerateRecommendations(in domain.RecommendationInput) (
 
 func (f *fakeAiUsecase) CompleteDocumentParse(prompt string, images []usecase.DocumentImage) (string, error) {
 	return "", fmt.Errorf("unused")
+}
+
+func (f *fakeAiUsecase) ChatExplain(req domain.AiChatExplainRequest) (string, error) {
+	f.explainCalls++
+	return "Guided explanation for: " + req.Focus.QuestionText, nil
 }
 
 // signStudentJWT mints a student session JWT with an explicit secret (the
@@ -201,4 +207,87 @@ func TestAiGatePremiumRequired(t *testing.T) {
 			t.Fatalf("premium reco: status %d calls %d", w.Code, fake.recoCalls)
 		}
 	})
+}
+
+// /explain shares the premium gate: public when the switch is off, 403 with
+// the exact upgrade message when it is on, and the paid ChatExplain path is
+// only reached when the gate passes.
+func TestExplainEndpointGatesOnPremium(t *testing.T) {
+	const body = `{"quiz":[],"focus":{"question_text":"2+2?","multiple_choice":["3","4","5","6"],"answer":1},"ask_text":""}`
+
+	t.Run("public when switch off", func(t *testing.T) {
+		r, fake, access := newAiGateTestServer(t)
+		access.settings.RequirePremium = false
+		w := doReq(r, http.MethodPost, "/api/ai/explain", strings.NewReader(body), nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d body %s", w.Code, w.Body.String())
+		}
+		var out map[string]string
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out["reply"], "Guided explanation") {
+			t.Fatalf("reply = %q, want the canned tutor reply", out["reply"])
+		}
+		if fake.explainCalls != 1 {
+			t.Fatalf("explainCalls = %d, want 1", fake.explainCalls)
+		}
+	})
+
+	t.Run("403 with exact message when on (free / anonymous)", func(t *testing.T) {
+		r, fake, access := newAiGateTestServer(t)
+		access.settings.RequirePremium = true
+		w := doReq(r, http.MethodPost, "/api/ai/explain", strings.NewReader(body), nil)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("status = %d body %s", w.Code, w.Body.String())
+		}
+		var out map[string]string
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		if out["error"] != aiPremiumRequiredMessage {
+			t.Fatalf("error = %q, want the contract message %q", out["error"], aiPremiumRequiredMessage)
+		}
+		if fake.explainCalls != 0 {
+			t.Fatal("blocked request must not reach the paid tutor path")
+		}
+	})
+
+	t.Run("premium student passes", func(t *testing.T) {
+		r, fake, access := newAiGateTestServer(t)
+		access.settings.RequirePremium = true
+		access.premium["900"] = true
+		w := doBearer(r, http.MethodPost, "/api/ai/explain", body,
+			signStudentJWT(t, []byte(aiAdminSecret), "900", time.Now().Add(time.Hour)))
+		if w.Code != http.StatusOK || fake.explainCalls != 1 {
+			t.Fatalf("premium explain: status %d calls %d body %s", w.Code, fake.explainCalls, w.Body.String())
+		}
+	})
+
+	t.Run("malformed body is 400, not 403/500", func(t *testing.T) {
+		r, _, access := newAiGateTestServer(t)
+		access.settings.RequirePremium = false
+		w := doReq(r, http.MethodPost, "/api/ai/explain", strings.NewReader(`{not json`), nil)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d body %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+// /settings is public and reflects the switch state (fail-open when the
+// settings source is unavailable).
+func TestExplainSettingsEndpointIsPublic(t *testing.T) {
+	r, _, access := newAiGateTestServer(t)
+
+	access.settings.RequirePremium = false
+	w := doReq(r, http.MethodGet, "/api/ai/settings", nil, nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"require_premium":false`) {
+		t.Fatalf("status %d body %s", w.Code, w.Body.String())
+	}
+
+	access.settings.RequirePremium = true
+	w = doReq(r, http.MethodGet, "/api/ai/settings", nil, nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"require_premium":true`) {
+		t.Fatalf("status %d body %s", w.Code, w.Body.String())
+	}
 }

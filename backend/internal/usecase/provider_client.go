@@ -45,6 +45,11 @@ type completionRequest struct {
 	prompt    string
 	maxTokens int // 0 = protocol default (omitted where optional)
 	timeout   time.Duration
+	// chatMessages, when non-empty, replaces the single user prompt with a
+	// full multi-turn conversation (role user/assistant, plain-string
+	// content). The single-prompt shape (prompt + optional images) is the
+	// historical wire contract and stays untouched when chatMessages is nil.
+	chatMessages []openAIChatMsg
 	// images, when set, ride inline as vision parts alongside the prompt.
 	// Text-only requests keep the exact wire shape the protocols used before
 	// vision existed (plain string content), so existing callers/tests are
@@ -220,9 +225,13 @@ func openAIContent(req completionRequest) any {
 }
 
 func buildOpenAIRequest(ctx context.Context, p domain.AIProvider, model string, req completionRequest) (*http.Request, func([]byte) (string, error), error) {
+	messages := req.chatMessages
+	if len(messages) == 0 {
+		messages = []openAIChatMsg{{Role: "user", Content: openAIContent(req)}}
+	}
 	payload := openAIChatRequest{
 		Model:     model,
-		Messages:  []openAIChatMsg{{Role: "user", Content: openAIContent(req)}},
+		Messages:  messages,
 		MaxTokens: req.maxTokens,
 	}
 	body, err := json.Marshal(payload)
@@ -270,6 +279,7 @@ func parseOpenAIResponse(body []byte) (string, error) {
 type anthropicRequest struct {
 	Model     string          `json:"model"`
 	MaxTokens int             `json:"max_tokens"`
+	System    string          `json:"system,omitempty"`
 	Messages  []openAIChatMsg `json:"messages"`
 }
 
@@ -315,15 +325,47 @@ func anthropicContent(req completionRequest) any {
 	return parts
 }
 
+// anthropicChatMessages splits a generic message list into Anthropic's shape:
+// system-role messages fold into the top-level system field; the rest keep
+// user/assistant roles (a "model" role from other providers is the assistant).
+// Content is always a plain string here — chat messages never carry images.
+func anthropicChatMessages(req completionRequest) (system string, messages []openAIChatMsg) {
+	rest := make([]openAIChatMsg, 0, len(req.chatMessages))
+	for _, m := range req.chatMessages {
+		role := m.Role
+		if role == "system" {
+			if s, ok := m.Content.(string); ok {
+				if system == "" {
+					system = s
+				} else {
+					system += "\n" + s
+				}
+				continue
+			}
+		}
+		if role == "model" {
+			role = "assistant"
+		}
+		rest = append(rest, openAIChatMsg{Role: role, Content: m.Content})
+	}
+	return system, rest
+}
+
 func buildAnthropicRequest(ctx context.Context, p domain.AIProvider, model string, req completionRequest) (*http.Request, func([]byte) (string, error), error) {
 	maxTokens := req.maxTokens
 	if maxTokens <= 0 {
 		maxTokens = anthropicDefaultMaxTokens
 	}
-	payload := anthropicRequest{
-		Model:     model,
-		MaxTokens: maxTokens,
-		Messages:  []openAIChatMsg{{Role: "user", Content: anthropicContent(req)}},
+	var payload anthropicRequest
+	if len(req.chatMessages) > 0 {
+		system, messages := anthropicChatMessages(req)
+		payload = anthropicRequest{Model: model, MaxTokens: maxTokens, System: system, Messages: messages}
+	} else {
+		payload = anthropicRequest{
+			Model:     model,
+			MaxTokens: maxTokens,
+			Messages:  []openAIChatMsg{{Role: "user", Content: anthropicContent(req)}},
+		}
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -404,11 +446,28 @@ func geminiParts(req completionRequest) []geminiPart {
 }
 
 func buildGeminiRequest(ctx context.Context, p domain.AIProvider, model string, req completionRequest) (*http.Request, func([]byte) (string, error), error) {
+	contents := []geminiContent{{
+		Role:  "user",
+		Parts: geminiParts(req),
+	}}
+	if len(req.chatMessages) > 0 {
+		contents = nil
+		for _, m := range req.chatMessages {
+			// Gemini conversation roles are "user" and "model"; "system"
+			// prompts are folded into the first user turn.
+			role := m.Role
+			text, _ := m.Content.(string)
+			if role == "system" || role == "model" {
+				role = "user"
+			}
+			if role == "assistant" {
+				role = "model"
+			}
+			contents = append(contents, geminiContent{Role: role, Parts: []geminiPart{{Text: text}}})
+		}
+	}
 	payload := geminiRequest{
-		Contents: []geminiContent{{
-			Role:  "user",
-			Parts: geminiParts(req),
-		}},
+		Contents: contents,
 	}
 	if req.maxTokens > 0 {
 		payload.GenerationConfig = &geminiGenConfig{MaxOutputTokens: req.maxTokens}

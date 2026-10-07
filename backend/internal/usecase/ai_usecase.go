@@ -227,6 +227,91 @@ func (a *aiUsecase) generate(prompt string) (string, error) {
 	return completeProvider(ctx, *provider, model, completionRequest{prompt: prompt})
 }
 
+// ChatExplain runs the on-question AI tutor: it receives the whole generated
+// quiz (with each question's correct answer, for context only) plus the
+// focused question and an optional free-text follow-up. The hard requirement
+// is that the model NEVER reveal the focused question's answer — it guides
+// with the concept, reasoning patterns and topic notes instead. Output is
+// markdown. The quiz context is inlined as data so the model can reference
+// "option C is about X" without stating which option is correct.
+func (a *aiUsecase) ChatExplain(req domain.AiChatExplainRequest) (string, error) {
+	if len(req.Quiz) == 0 {
+		// A solo ask with no quiz: fall back to just the focus question so
+		// the tutor still has subject/grade/chapter context.
+		req.Quiz = []domain.Question{req.Focus}
+	}
+
+	// Data block: the full quiz with answers (context, not a spoiler for the
+	// focused question — the system instruction says so explicitly).
+	quizJSON, err := json.MarshalIndent(req.Quiz, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal quiz context: %w", err)
+	}
+	focusJSON, err := json.MarshalIndent(req.Focus, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal focused question: %w", err)
+	}
+
+	var ctxBits []string
+	if req.Focus.Subject != "" {
+		ctxBits = append(ctxBits, "Subject: "+req.Focus.Subject)
+	}
+	if req.Focus.Grade != "" {
+		ctxBits = append(ctxBits, "Grade level: "+req.Focus.Grade)
+	}
+	if req.Focus.Chapter != "" {
+		ctxBits = append(ctxBits, "Chapter/topic: "+req.Focus.Chapter)
+	}
+	if len(ctxBits) > 0 {
+		ctxBits = append([]string{"Context —"}, ctxBits...)
+	}
+
+	system := "You are a patient, encouraging academic tutor for a student studying this topic.\n" +
+		strings.Join(ctxBits, "\n") +
+		`
+The student is working through a short generated quiz and is now focused on ONE specific question shown below.
+
+ABSOLUTE RULES:
+1. NEVER reveal, state, hint at, or identify the correct answer to the focused question, and never reveal the answers of any other quiz question. Do not say "the answer is X", "option B is correct", or equivalent.
+2. Do NOT solve the focused question for the student. Instead, guide them: explain the underlying concept or principle, walk through the kind of reasoning the topic requires, and point out common traps.
+3. Provide clear topic notes the student can apply, using step-by-step "how to think about it" guidance rather than "which option to pick".
+4. If the student asks a follow-up about the focused question, keep guiding without giving the answer — help them reason it out themselves.
+5. Format your reply in clear Markdown: use short headings, bullet points, and a small worked example of the *reasoning method* (use a different, unrelated value if it helps), not the specific answer to this question.
+
+Be warm, concise, and encouraging. If a concept is unclear, restate it more simply.`
+
+	userParts := []string{
+		"Here is the full quiz (JSON, for context only — do not disclose these answers):",
+		string(quizJSON),
+		"\nThe focused question the student is asking about now:",
+		string(focusJSON),
+	}
+	if strings.TrimSpace(req.AskText) != "" {
+		userParts = append(userParts, "\nStudent's follow-up question: "+strings.TrimSpace(req.AskText))
+	} else {
+		userParts = append(userParts, "\nThe student wants a guided explanation of this question (they have not asked a specific follow-up yet).")
+	}
+	userMsg := strings.Join(userParts, "\n")
+
+	// Build the multi-message conversation for the provider.
+	msgs := []openAIChatMsg{
+		{Role: "system", Content: system},
+		{Role: "user", Content: userMsg},
+	}
+
+	provider, modelName, err := a.selectProvider()
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), aiCallTimeout)
+	defer cancel()
+	// Chat replies are short-to-medium; keep a modest output budget.
+	return completeProvider(ctx, *provider, modelName, completionRequest{
+		chatMessages: msgs,
+		maxTokens:    2048,
+	})
+}
+
 // CompleteDocumentParse runs one bulk-question-parsing completion. Document
 // parses are the largest AI surface in the app — a 60-question exam's JSON
 // alone can run ~8k output tokens — so the call carries its own longer timeout,
@@ -294,6 +379,9 @@ type AiUsecase interface {
 	PracticeWithAi(seting domain.AiPracticeSetting) (*[]domain.Question, error)
 	GenerateRecommendations(input domain.RecommendationInput) (*domain.Recommendations, error)
 	CompleteDocumentParse(prompt string, images []DocumentImage) (string, error)
+	// ChatExplain is the on-question AI tutor (guide, never spoiler). See
+	// the method for the system-instruction contract.
+	ChatExplain(req domain.AiChatExplainRequest) (string, error)
 }
 
 func NewAiUsecase(subRepo SubmissionRepository, providerRepo AiProviderRepository) AiUsecase {

@@ -35,6 +35,10 @@ func NewAiHandler(uc usecase.AiUsecase, access usecase.AiSettingsUsecase, jwtSec
 func (h *AiHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/practice", h.Practice)
 	rg.POST("/getRecommendation", h.GetRecommendation)
+	rg.POST("/explain", h.Explain)
+	// The switch state is public (it is the gate itself, not AI work): the
+	// student app reads it to decide whether to pre-lock the AI entry.
+	rg.GET("/settings", h.GetSettings)
 }
 
 // gate reports whether the request may proceed. When require_premium is off
@@ -88,4 +92,42 @@ func (h *AiHandler) GetRecommendation(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"recommendation": recommendation})
+}
+
+// Explain is the on-question AI tutor. It passes through the same premium
+// gate as every other /api/ai call, then hands the full quiz context plus the
+// focused question (and an optional follow-up) to the model, which is
+// instructed to guide without revealing the answer. The reply is markdown.
+func (h *AiHandler) Explain(c *gin.Context) {
+	if !h.gate(c) {
+		return
+	}
+	var req domain.AiChatExplainRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	reply, err := h.usecase.ChatExplain(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"reply": reply})
+}
+
+// GetSettings returns the AI feature switch state for the student app to read
+// on load. It is intentionally NOT behind the premium gate — it is the gate,
+// not AI work — and answers the fail-open value when the settings row is
+// unreadable (mirrors RequirePremium).
+func (h *AiHandler) GetSettings(c *gin.Context) {
+	requirePremium := false
+	if h.access != nil {
+		if s, err := h.access.GetSettings(); err == nil {
+			requirePremium = s.RequirePremium
+		} else {
+			// Fall back to the fail-open read used on the request path.
+			requirePremium = h.access.RequirePremium()
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"require_premium": requirePremium})
 }

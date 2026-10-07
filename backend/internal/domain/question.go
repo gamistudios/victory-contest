@@ -33,6 +33,17 @@ type AiPracticeSetting struct {
 	Topic      string `json:"topic"`
 	Difficulty string `json:"difficulty"`
 }
+
+// AiChatExplainRequest is the body for the on-question AI tutor: the whole
+// generated quiz (including each question's correct answer, for context)
+// plus the question being explained and an optional follow-up question. The
+// model is instructed to guide, never to reveal the focused question's answer.
+type AiChatExplainRequest struct {
+	Quiz    []Question `json:"quiz"`
+	Focus   Question   `json:"focus"`
+	AskText string     `json:"ask_text"`
+}
+
 type MultipleQuestionRequest struct {
 	Questions []Question `json:"questions"`
 }
