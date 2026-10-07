@@ -132,26 +132,31 @@ export default function ContestById() {
     const fetchContestCities = async () => {
       if (contest?.id) {
         try {
-          const submissions = await getSubmissionByContest(contest.id);
-          const contestantCities = new Set<string>();
+          // Fetch submissions AND the full student roster ONCE each, then
+          // resolve every contestant's city from the in-memory map. The old
+          // code called getAllStudents() inside the per-submission loop (an
+          // N+1 full-table fetch) — that was the main perf regression on this
+          // page (client task 5).
+          const [submissions, students] = await Promise.all([
+            getSubmissionByContest(contest.id),
+            getAllStudents(),
+          ]);
+          const byId = new Map<string, (typeof students)[number]>();
+          for (const s of students) {
+            if (s.telegram_id) byId.set(s.telegram_id, s);
+            if (s.id) byId.set(s.id, s);
+            if (s.name) byId.set(s.name, s);
+          }
 
-          // Get unique cities from contestants
+          const contestantCities = new Set<string>();
           for (const submission of submissions) {
-            if (submission.student?.student_id) {
-              // Try to find student info to get city
-              try {
-                const students = await getAllStudents();
-                const student = students.find(
-                  (s) =>
-                    s.telegram_id === submission.student.student_id ||
-                    s.id === submission.student.student_id ||
-                    s.name === submission.student.name
-                );
-                if (student?.city) {
-                  contestantCities.add(student.city);
-                }
-              } catch (error) {
-                console.warn("Could not fetch student info for city:", error);
+            const sid = submission.student?.student_id;
+            if (sid) {
+              const student =
+                byId.get(sid) ??
+                byId.get(submission.student?.name ?? "");
+              if (student?.city) {
+                contestantCities.add(student.city);
               }
             }
           }

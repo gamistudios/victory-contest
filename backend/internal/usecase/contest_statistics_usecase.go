@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 	"time"
 	"victory-contest-go/internal/domain"
 )
@@ -20,6 +21,32 @@ type contestStatisticsUsecase struct {
 	studentUsecase    StudentUsecase
 	questionUsecase   QuestionUsecase
 	statsRepo         ContestStatisticsRepository
+
+	// Short-TTL cache for the per-contest aggregates (client task 5): each
+	// call re-scans submissions + students (a GetStudents() alone is two full
+	// scans), and the admin Statistics tab re-fires them on every filter
+	// change. A hot copy keyed on the inputs makes repeat loads within the
+	// window O(1) instead of N round-trips.
+	cacheMu    sync.Mutex
+	cacheStats map[string]*domain.ContestStatistics
+	cachePerf  map[string]*domain.StudentPerformanceList
+	cacheAt    map[string]time.Time
+}
+
+// contestStatsCacheTTL bounds how long a computed aggregate stays hot. Long
+// enough that a rapid filter-toggle session doesn't re-scan every table,
+// short enough that numbers are never minutes stale.
+const contestStatsCacheTTL = 30 * time.Second
+
+// contestStatsCacheKey builds the cache key for a statistics aggregate:
+// method + contest + the filter fields (and page size where relevant).
+func contestStatsCacheKey(method, contestID string, filters domain.StatisticsFilters, page, pageSize int) string {
+	return method + "|" + contestID + "|" + filters.Gender + "|" + filters.City + "|" + filters.School + "|" + filters.Grade +
+		"|" + itoaInt(page) + "/" + itoaInt(pageSize)
+}
+
+func itoaInt(n int) string {
+	return fmt.Sprintf("%d", n)
 }
 
 func NewContestStatisticsUsecase(
@@ -35,10 +62,86 @@ func NewContestStatisticsUsecase(
 		studentUsecase:    studentUsecase,
 		questionUsecase:   questionUsecase,
 		statsRepo:         statsRepo,
+		cacheStats:        make(map[string]*domain.ContestStatistics),
+		cachePerf:         make(map[string]*domain.StudentPerformanceList),
+		cacheAt:           make(map[string]time.Time),
 	}
 }
 
+// contestStatsCacheGet / Set are the read/write halves of the short-TTL
+// aggregate cache. Callers share the returned pointer (read-only: the
+// handlers only JSON-encode it), and the cache self-evicts expired entries so
+// a long-running process does not grow unbounded.
+func (u *contestStatisticsUsecase) contestStatsCacheGet(key string) *domain.ContestStatistics {
+	u.cacheMu.Lock()
+	defer u.cacheMu.Unlock()
+	v, ok := u.cacheStats[key]
+	if ok && time.Since(u.cacheAt[key]) < contestStatsCacheTTL {
+		return v
+	}
+	if len(u.cacheStats) > 512 {
+		u.evictExpiredLocked()
+	}
+	return nil
+}
+
+func (u *contestStatisticsUsecase) contestStatsCacheSet(key string, v *domain.ContestStatistics) {
+	u.cacheMu.Lock()
+	defer u.cacheMu.Unlock()
+	u.cacheStats[key] = v
+	u.cacheAt[key] = time.Now()
+}
+
+func (u *contestStatisticsUsecase) perfCacheGet(key string) *domain.StudentPerformanceList {
+	u.cacheMu.Lock()
+	defer u.cacheMu.Unlock()
+	v, ok := u.cachePerf[key]
+	if ok && time.Since(u.cacheAt[key]) < contestStatsCacheTTL {
+		return v
+	}
+	if len(u.cachePerf) > 512 {
+		u.evictExpiredLocked()
+	}
+	return nil
+}
+
+func (u *contestStatisticsUsecase) perfCacheSet(key string, v *domain.StudentPerformanceList) {
+	u.cacheMu.Lock()
+	defer u.cacheMu.Unlock()
+	u.cachePerf[key] = v
+	u.cacheAt[key] = time.Now()
+}
+
+// evictExpiredLocked drops cache entries past the TTL (and their timestamps).
+// Caller must hold cacheMu.
+func (u *contestStatisticsUsecase) evictExpiredLocked() {
+	now := time.Now()
+	for k, at := range u.cacheAt {
+		if now.Sub(at) >= contestStatsCacheTTL {
+			delete(u.cacheStats, k)
+			delete(u.cachePerf, k)
+			delete(u.cacheAt, k)
+		}
+	}
+}
+
+// GetContestStatistics returns the contest aggregate, served from the
+// short-TTL cache when hot and computed (then cached) otherwise. The
+// underlying computation is in computeContestStatistics.
 func (u *contestStatisticsUsecase) GetContestStatistics(contestID string, filters domain.StatisticsFilters) (*domain.ContestStatistics, error) {
+	key := contestStatsCacheKey("stats", contestID, filters, 0, 0)
+	if cached := u.contestStatsCacheGet(key); cached != nil {
+		return cached, nil
+	}
+	stats, err := u.computeContestStatistics(contestID, filters)
+	if err != nil {
+		return nil, err
+	}
+	u.contestStatsCacheSet(key, stats)
+	return stats, nil
+}
+
+func (u *contestStatisticsUsecase) computeContestStatistics(contestID string, filters domain.StatisticsFilters) (*domain.ContestStatistics, error) {
 	// Get contest details
 	contestObj, err := u.contestUsecase.GetContestByID(contestID)
 	if err != nil {
@@ -95,7 +198,26 @@ func (u *contestStatisticsUsecase) GetContestStatistics(contestID string, filter
 	return stats, nil
 }
 
+// GetStudentPerformancesByContest returns the per-student performance list,
+// served from the short-TTL cache when hot and computed (then cached)
+// otherwise. The underlying computation is in computeStudentPerformances.
 func (u *contestStatisticsUsecase) GetStudentPerformancesByContest(contestID string, filters domain.StatisticsFilters, page, pageSize int) (*domain.StudentPerformanceList, error) {
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	key := contestStatsCacheKey("perf", contestID, filters, page, pageSize)
+	if cached := u.perfCacheGet(key); cached != nil {
+		return cached, nil
+	}
+	list, err := u.computeStudentPerformances(contestID, filters, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	u.perfCacheSet(key, list)
+	return list, nil
+}
+
+func (u *contestStatisticsUsecase) computeStudentPerformances(contestID string, filters domain.StatisticsFilters, page, pageSize int) (*domain.StudentPerformanceList, error) {
 	// Get contest details
 	contestObj, err := u.contestUsecase.GetContestByID(contestID)
 	if err != nil {
@@ -179,7 +301,23 @@ func (u *contestStatisticsUsecase) GetStudentPerformancesByContest(contestID str
 	}, nil
 }
 
+// GetContestSummary returns the contest summary aggregate, served from the
+// short-TTL cache when hot and computed (then cached) otherwise. The
+// underlying computation is in computeContestSummary.
 func (u *contestStatisticsUsecase) GetContestSummary(contestID string) (*domain.ContestStatistics, error) {
+	key := contestStatsCacheKey("summary", contestID, domain.StatisticsFilters{}, 0, 0)
+	if cached := u.contestStatsCacheGet(key); cached != nil {
+		return cached, nil
+	}
+	stats, err := u.computeContestSummary(contestID)
+	if err != nil {
+		return nil, err
+	}
+	u.contestStatsCacheSet(key, stats)
+	return stats, nil
+}
+
+func (u *contestStatisticsUsecase) computeContestSummary(contestID string) (*domain.ContestStatistics, error) {
 	// Get contest details
 	contestObj, err := u.contestUsecase.GetContestByID(contestID)
 	if err != nil {
