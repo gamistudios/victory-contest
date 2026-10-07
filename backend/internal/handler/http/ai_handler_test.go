@@ -17,9 +17,11 @@ import (
 
 // fakeAiUsecase records whether the (paid) generation path was reached.
 type fakeAiUsecase struct {
-	practiceCalls int
-	recoCalls     int
-	explainCalls  int
+	practiceCalls   int
+	recoCalls       int
+	explainCalls    int
+	bankCalls       int
+	bankSubjectCalls int
 }
 
 func (f *fakeAiUsecase) PracticeWithAi(setting domain.AiPracticeSetting) (*[]domain.Question, error) {
@@ -40,6 +42,16 @@ func (f *fakeAiUsecase) CompleteDocumentParse(prompt string, images []usecase.Do
 func (f *fakeAiUsecase) ChatExplain(req domain.AiChatExplainRequest) (string, error) {
 	f.explainCalls++
 	return "Guided explanation for: " + req.Focus.QuestionText, nil
+}
+
+func (f *fakeAiUsecase) PracticeSubjects() ([]string, error) {
+	f.bankSubjectCalls++
+	return []string{"Math", "Physics"}, nil
+}
+
+func (f *fakeAiUsecase) PracticeBankQuestions(subject, topic string, count int) ([]domain.Question, error) {
+	f.bankCalls++
+	return []domain.Question{{QuestionText: "bank question", MultipleChoice: []string{"a", "b", "c", "d"}, Answer: 1}}, nil
 }
 
 // signStudentJWT mints a student session JWT with an explicit secret (the
@@ -290,4 +302,61 @@ func TestExplainSettingsEndpointIsPublic(t *testing.T) {
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"require_premium":true`) {
 		t.Fatalf("status %d body %s", w.Code, w.Body.String())
 	}
+}
+
+// /subjects is public (it is not AI work, just a bank inventory) and lists the
+// subjects that have stored questions.
+func TestPracticeSubjectsEndpointIsPublic(t *testing.T) {
+	r, fake, _ := newAiGateTestServer(t)
+	w := doReq(r, http.MethodGet, "/api/ai/subjects", nil, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"subjects"`) {
+		t.Fatalf("missing subjects key: %s", w.Body.String())
+	}
+	if fake.bankSubjectCalls != 1 {
+		t.Fatalf("bankSubjectCalls = %d, want 1", fake.bankSubjectCalls)
+	}
+}
+
+// /practice-questions shares the premium gate and pulls from the stored bank.
+func TestPracticeBankQuestionsGatesOnPremium(t *testing.T) {
+	const body = `{"subject":"Math","question_count":5}`
+
+	t.Run("public when switch off", func(t *testing.T) {
+		r, fake, access := newAiGateTestServer(t)
+		access.settings.RequirePremium = false
+		w := doReq(r, http.MethodPost, "/api/ai/practice-questions", strings.NewReader(body), nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d body %s", w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), `"questions"`) {
+			t.Fatalf("missing questions key: %s", w.Body.String())
+		}
+		if fake.bankCalls != 1 {
+			t.Fatalf("bankCalls = %d, want 1", fake.bankCalls)
+		}
+	})
+
+	t.Run("403 when premium required and caller is free", func(t *testing.T) {
+		r, fake, access := newAiGateTestServer(t)
+		access.settings.RequirePremium = true
+		w := doReq(r, http.MethodPost, "/api/ai/practice-questions", strings.NewReader(body), nil)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("status = %d body %s", w.Code, w.Body.String())
+		}
+		if fake.bankCalls != 0 {
+			t.Fatal("blocked request must not reach the bank path")
+		}
+	})
+
+	t.Run("missing subject is 400 (not 500)", func(t *testing.T) {
+		r, _, access := newAiGateTestServer(t)
+		access.settings.RequirePremium = false
+		w := doReq(r, http.MethodPost, "/api/ai/practice-questions", strings.NewReader(`{}`), nil)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d body %s", w.Code, w.Body.String())
+		}
+	})
 }

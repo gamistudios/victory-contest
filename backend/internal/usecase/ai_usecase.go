@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +28,7 @@ const (
 type aiUsecase struct {
 	subRepo      SubmissionRepository
 	providerRepo AiProviderRepository
+	questionRepo QuestionRepository
 }
 
 func (a *aiUsecase) GenerateRecommendations(input domain.RecommendationInput) (*domain.Recommendations, error) {
@@ -127,6 +130,103 @@ Each object must have these exact keys: "question_text", "multiple_choice", "ans
 
 	return &questions, nil
 
+}
+
+// PracticeSubjects reports which subjects have questions in the stored bank,
+// so the practice UI can offer them without an LLM call.
+func (a *aiUsecase) PracticeSubjects() ([]string, error) {
+	if a.questionRepo == nil {
+		// No bank wired (unit tests / stripped wiring): nothing to list.
+		return nil, nil
+	}
+	questions, err := a.questionRepo.GetAllQuestions()
+	if err != nil {
+		log.Printf("ai practice: listing bank subjects failed: %v", err)
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var subjects []string
+	for _, q := range questions {
+		if !isGradeableQuestion(q) {
+			continue
+		}
+		s := strings.TrimSpace(q.Subject)
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		subjects = append(subjects, s)
+	}
+	sort.Strings(subjects)
+	return subjects, nil
+}
+
+// isGradeableQuestion reports whether a stored bank question can be used in a
+// practice session: it must have options and a valid 1-based answer index into
+// them. Bank rows parsed from documents can carry answer=0 (unresolved key)
+// or an out-of-range index; those would break scoring, so they are excluded.
+func isGradeableQuestion(q domain.Question) bool {
+	return len(q.MultipleChoice) > 0 && q.Answer >= 1 && q.Answer <= len(q.MultipleChoice)
+}
+
+// PracticeBankQuestions pulls a practice session of bankQuestions from the
+// stored bank for a subject. If a topic is given, it prefers questions
+// matching that chapter; otherwise it samples from the whole subject. When
+// there are fewer matching questions than requested, it falls back to the
+// full subject pool, so a session is always sized to the requested count.
+func (a *aiUsecase) PracticeBankQuestions(subject, topic string, count int) ([]domain.Question, error) {
+	if a.questionRepo == nil {
+		return nil, errors.New("stored question bank is not available")
+	}
+	if count <= 0 {
+		count = 10
+	}
+	all, err := a.questionRepo.GetAllQuestions()
+	if err != nil {
+		log.Printf("ai practice: loading bank questions failed: %v", err)
+		return nil, err
+	}
+
+	var pool []domain.Question
+	for _, q := range all {
+		if !strings.EqualFold(strings.TrimSpace(q.Subject), strings.TrimSpace(subject)) {
+			continue
+		}
+		// Drop non-gradeable rows (see isGradeableQuestion) so the session
+		// always scores correctly.
+		if !isGradeableQuestion(q) {
+			continue
+		}
+		pool = append(pool, q)
+	}
+	if len(pool) == 0 {
+		return nil, fmt.Errorf("no gradeable stored questions found for subject %q", subject)
+	}
+
+	// Prefer a topic/chapter subset when one is requested and exists.
+	if strings.TrimSpace(topic) != "" {
+		var match []domain.Question
+		for _, q := range pool {
+			if strings.EqualFold(strings.TrimSpace(q.Chapter), strings.TrimSpace(topic)) ||
+				strings.Contains(strings.ToLower(q.QuestionText), strings.ToLower(strings.TrimSpace(topic))) {
+				match = append(match, q)
+			}
+		}
+		if len(match) > 0 {
+			pool = match
+		}
+	}
+
+	// Shuffle and take up to `count`. Use a deterministic-enough shuffle so
+	// repeated practice runs vary.
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rnd.Shuffle(len(pool), func(i, j int) {
+		pool[i], pool[j] = pool[j], pool[i]
+	})
+	if len(pool) > count {
+		pool = pool[:count]
+	}
+	return pool, nil
 }
 
 // selectProvider resolves the provider row every AI call goes through:
@@ -382,8 +482,15 @@ type AiUsecase interface {
 	// ChatExplain is the on-question AI tutor (guide, never spoiler). See
 	// the method for the system-instruction contract.
 	ChatExplain(req domain.AiChatExplainRequest) (string, error)
+	// PracticeSubjects reports which subjects have stored-bank questions, so
+	// the practice UI can offer them without an LLM call.
+	PracticeSubjects() ([]string, error)
+	// PracticeBankQuestions pulls a practice session from the stored bank for a
+	// subject (optionally scoped to a topic). Fails with a clear error when
+	// the bank has no matching questions.
+	PracticeBankQuestions(subject, topic string, count int) ([]domain.Question, error)
 }
 
-func NewAiUsecase(subRepo SubmissionRepository, providerRepo AiProviderRepository) AiUsecase {
-	return &aiUsecase{subRepo: subRepo, providerRepo: providerRepo}
+func NewAiUsecase(subRepo SubmissionRepository, providerRepo AiProviderRepository, questionRepo QuestionRepository) AiUsecase {
+	return &aiUsecase{subRepo: subRepo, providerRepo: providerRepo, questionRepo: questionRepo}
 }

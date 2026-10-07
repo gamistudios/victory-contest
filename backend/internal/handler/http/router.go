@@ -125,7 +125,7 @@ func NewServer() *Server {
 	bankUsecase := usecase.NewBankUsecase(bankRepo)
 	contestRegistrationUsecase := usecase.NewContestRegistrationUsecase(contestRegistrationRepo)
 	paymentUsecase := usecase.NewPaymentUsecases(paymentRepo)
-	aiUsecase := usecase.NewAiUsecase(submissionRepo, aiProviderRepo)
+	aiUsecase := usecase.NewAiUsecase(submissionRepo, aiProviderRepo, questionRepo)
 	aiProviderUsecase := usecase.NewAiProviderUsecase(aiProviderRepo)
 	aiSettingsUsecase := usecase.NewAiSettingsUsecase(aiSettingsRepo, paymentRepo)
 	paymentSettingsUsecase := usecase.NewPaymentSettingsUsecase(paymentSettingsRepo)

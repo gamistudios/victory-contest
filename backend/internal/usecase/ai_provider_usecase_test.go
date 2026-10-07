@@ -188,7 +188,7 @@ func TestPracticeWithAiUsesSelectedProvider(t *testing.T) {
 	repo := newFakeAiProviderRepo()
 	repo.seed(domain.AIProvider{ID: "p", Name: "local-gemini", Protocol: domain.AIProtocolGemini,
 		BaseURL: srv.URL, APIKey: "k", Models: domain.ModelList{{Name: "gemini-local"}}, Enabled: true, CreatedAt: "2026-01-01T00:00:00Z"})
-	a := NewAiUsecase(nil, repo)
+	a := NewAiUsecase(nil, repo, nil)
 
 	qs, err := a.PracticeWithAi(domain.AiPracticeSetting{Subject: "Math", Topic: "Algebra", Difficulty: "easy"})
 	if err != nil {

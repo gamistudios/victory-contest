@@ -1,7 +1,9 @@
 package http
 
 import (
+	"log"
 	"net/http"
+	"strings"
 	"victory-contest-go/internal/domain"
 	"victory-contest-go/internal/usecase"
 
@@ -36,6 +38,11 @@ func (h *AiHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/practice", h.Practice)
 	rg.POST("/getRecommendation", h.GetRecommendation)
 	rg.POST("/explain", h.Explain)
+	// Stored-bank practice: which subjects have bank questions, and a session
+	// drawn from the bank (no LLM call, so it keeps working when no provider
+	// is configured).
+	rg.GET("/subjects", h.PracticeSubjects)
+	rg.POST("/practice-questions", h.PracticeBankQuestions)
 	// The switch state is public (it is the gate itself, not AI work): the
 	// student app reads it to decide whether to pre-lock the AI entry.
 	rg.GET("/settings", h.GetSettings)
@@ -71,6 +78,7 @@ func (h *AiHandler) Practice(c *gin.Context) {
 	}
 	questions, err := h.usecase.PracticeWithAi(setting)
 	if err != nil {
+		log.Printf("ai: practice generation for subject %q failed: %v", setting.Subject, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -88,6 +96,7 @@ func (h *AiHandler) GetRecommendation(c *gin.Context) {
 	}
 	recommendation, err := h.usecase.GenerateRecommendations(recommendationInput)
 	if err != nil {
+		log.Printf("ai: recommendation for subject %q failed: %v", recommendationInput.Subject, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -109,6 +118,7 @@ func (h *AiHandler) Explain(c *gin.Context) {
 	}
 	reply, err := h.usecase.ChatExplain(req)
 	if err != nil {
+		log.Printf("ai: explain for subject %q failed: %v", req.Focus.Subject, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -130,4 +140,59 @@ func (h *AiHandler) GetSettings(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"require_premium": requirePremium})
+}
+
+// PracticeSubjects lists the subjects that have stored-bank questions so the
+// practice UI can offer them without an LLM call.
+func (h *AiHandler) PracticeSubjects(c *gin.Context) {
+	subjects, err := h.usecase.PracticeSubjects()
+	if err != nil {
+		log.Printf("ai: listing practice subjects failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if subjects == nil {
+		subjects = []string{}
+	}
+	c.JSON(http.StatusOK, gin.H{"subjects": subjects})
+}
+
+// bankPracticeRequest is the /practice-questions body: a subject, an optional
+// topic/chapter filter, and how many questions to pull.
+type bankPracticeRequest struct {
+	Subject  string `json:"subject"`
+	Topic    string `json:"topic"`
+	Question int    `json:"question_count"`
+}
+
+// PracticeBankQuestions draws a practice session from the stored bank (no LLM
+// call), so it works even when no provider is configured.
+func (h *AiHandler) PracticeBankQuestions(c *gin.Context) {
+	if !h.gate(c) {
+		return
+	}
+	var req bankPracticeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(req.Subject) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "subject is required"})
+		return
+	}
+	count := req.Question
+	if count <= 0 {
+		count = 10
+	}
+	questions, err := h.usecase.PracticeBankQuestions(req.Subject, req.Topic, count)
+	if err != nil {
+		log.Printf("ai: bank practice for subject %q (topic %q) failed: %v", req.Subject, req.Topic, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if len(questions) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no stored questions for this subject"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"questions": questions})
 }
