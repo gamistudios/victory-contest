@@ -6,6 +6,11 @@ export interface DashboardStatsResponse {
   contest_stats: ContestStats;
   page_view_stats: PageViewStats;
   recent_activity: RecentContest[];
+  // Additive deep-system stats (client task 4): the question bank and the
+  // payments ledger, plus when the aggregate was computed.
+  question_stats: QuestionStats;
+  payment_stats: PaymentStats;
+  generated_at: string;
 }
 
 export interface OverviewStats {
@@ -39,6 +44,9 @@ export interface GenderDistribution {
   male: number;
   female: number;
   other: number;
+  // Added by issue #5: students whose gender is empty/malformed. Every student
+  // lands in exactly one bucket, so male+female+other+unknown == total.
+  unknown?: number;
 }
 
 export interface GradeDistribution {
@@ -87,5 +95,31 @@ export interface PageViewStats {
 export interface PageViewSummary {
   page: string;
   views: number;
+  percentage: number;
+}
+
+// Question-bank stats (client task 4).
+export interface QuestionStats {
+  total: number;
+  by_subject: SubjectStat[];
+  by_grade: GradeDistribution[];
+  with_explanation: number;
+  with_image: number;
+}
+
+// Payments-ledger stats (client task 4).
+export interface PaymentStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  approved_revenue: number;
+  by_status: PaymentStatusStat[];
+  trend: number[];
+}
+
+export interface PaymentStatusStat {
+  status: string;
+  count: number;
   percentage: number;
 }

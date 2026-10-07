@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"net/http"
@@ -239,9 +240,17 @@ func (h *AdminHandler) Logout(c *gin.Context) {
 }
 
 func (h *AdminHandler) GetDashboardStats(c *gin.Context) {
-	// Call usecase to get dashboard data
-	dashboardStats, err := h.usecase.GetDashboardStats()
+	// Call usecase to get dashboard data. ?refresh=1 bypasses the in-memory
+	// cache for on-demand up-to-date numbers (client task 4).
+	var dashboardStats *domain.DashboardStatsResponse
+	var err error
+	if c.Query("refresh") == "1" {
+		dashboardStats, err = h.usecase.RefreshDashboardStats()
+	} else {
+		dashboardStats, err = h.usecase.GetDashboardStats()
+	}
 	if err != nil {
+		log.Printf("dashboard stats: %v", err)
 		// Return appropriate error response based on error type
 		if strings.Contains(err.Error(), "connection") || strings.Contains(err.Error(), "timeout") {
 			c.JSON(http.StatusServiceUnavailable, gin.H{

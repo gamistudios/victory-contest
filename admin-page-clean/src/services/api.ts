@@ -20,8 +20,15 @@ export async function userLogout() {
   return response.data;
 }
 
-export async function getDashboardStats(): Promise<DashboardStatsResponse> {
-  const response = await api.get("/api/admin/dashboard");
+export async function getDashboardStats(
+  refresh = false
+): Promise<DashboardStatsResponse> {
+  // ?refresh=1 tells the backend to bypass its in-memory cache and re-scan the
+  // tables for up-to-date numbers (client task 4 / performance).
+  const response = await api.get(
+    "/api/admin/dashboard",
+    refresh ? { params: { refresh: 1 } } : undefined
+  );
   return response.data;
 }
 

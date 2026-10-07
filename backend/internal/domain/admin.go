@@ -27,6 +27,12 @@ type DashboardStatsResponse struct {
 	ContestStats   ContestStats    `json:"contest_stats" validate:"required"`
 	PageViewStats  PageViewStats   `json:"page_view_stats" validate:"required"`
 	RecentActivity []RecentContest `json:"recent_activity" validate:"required"`
+	// Additive deep-system stats (client task 4): the question bank and the
+	// payments ledger, aggregated in the same single-pass scans as everything
+	// else. Both are optional on the wire so older clients that predate them
+	// still decode the response.
+	QuestionStats QuestionStats `json:"question_stats"`
+	PaymentStats  PaymentStats  `json:"payment_stats"`
 	// GeneratedAt is the UTC RFC 3339 timestamp at which the request-time
 	// full-scan aggregation ran, so the admin UI can show data freshness
 	// (additive field, client issue #5).
@@ -109,6 +115,37 @@ type ContestStats struct {
 	// overall submission summary computed from the already-fetched scans.
 	SubjectScores   []SubjectScoreStat `json:"subject_scores"`
 	SubmissionStats SubmissionStats    `json:"submission_stats"`
+}
+
+// QuestionStats summarizes the stored question bank (client task 4), computed
+// in a single in-memory pass over one GetAllQuestions scan so it adds no extra
+// round-trips to the dashboard.
+type QuestionStats struct {
+	Total            int          `json:"total" validate:"min=0"`
+	BySubject        []SubjectStat `json:"by_subject"`
+	ByGrade          []GradeDistribution `json:"by_grade"`
+	WithExplanation int          `json:"with_explanation" validate:"min=0"`
+	WithImage        int          `json:"with_image" validate:"min=0"`
+}
+
+// PaymentStats summarizes the payments ledger (client task 4): a status
+// breakdown, approved revenue, and a 30-day request trend, all derived from
+// the one ListAll scan the dashboard already performs.
+type PaymentStats struct {
+	Total          int     `json:"total" validate:"min=0"`
+	Pending        int     `json:"pending" validate:"min=0"`
+	Approved       int     `json:"approved" validate:"min=0"`
+	Rejected       int     `json:"rejected" validate:"min=0"`
+	ApprovedRevenue float64 `json:"approved_revenue"`
+	ByStatus       []PaymentStatusStat `json:"by_status"`
+	Trend          []int   `json:"trend" validate:"required"`
+}
+
+// PaymentStatusStat is one bucket of the payments status distribution.
+type PaymentStatusStat struct {
+	Status     string  `json:"status"`
+	Count      int     `json:"count" validate:"min=0"`
+	Percentage float64 `json:"percentage" validate:"min=0,max=100"`
 }
 
 // SubjectScoreStat carries average and median submission scores for one

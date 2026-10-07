@@ -1,27 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import StatCard, { StatCardProps } from "./StatCard";
 
 import { Box, Stack, Typography, Grid } from "@mui/material";
-import HighlightedCard from "./HighlightedCard";
 import SessionsChart from "./SessionsChart";
 import PageViewsBarChart from "./PageViewsBarChart";
 import ChartUserByCountry from "./ChartUserByCountry";
+import SystemStats from "./SystemStats";
 import CustomizedDataGrid from "./CustomizedDataGrid";
 import { columns } from "./gridData";
 import { getDashboardStats } from "../../services/api";
 import { DashboardStatsResponse } from "../../types/dashboard";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, Loader2 } from "lucide-react";
 
 export default function Home() {
   const [dashboardData, setDashboardData] =
     useState<DashboardStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
+  const fetchDashboard = useCallback(
+    async (refresh = false) => {
+      setLoading(true);
+      if (refresh) setRefreshing(true);
       try {
-        setLoading(true);
-        const data = await getDashboardStats();
+        const data = await getDashboardStats(refresh);
         setDashboardData(data);
         setError(null);
       } catch (err) {
@@ -29,11 +33,15 @@ export default function Home() {
         setError("Failed to load dashboard data");
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
-    };
+    },
+    []
+  );
 
-    fetchDashboardData();
-  }, []);
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
 
   if (loading) {
     return (
@@ -85,12 +93,20 @@ export default function Home() {
       change: dashboardData.overview.revenue.change,
     },
     {
-      title: "Contest count",
+      title: "Contests",
       value: dashboardData.overview.total_contests.value,
       interval: "Last 30 days",
       trend: dashboardData.overview.total_contests.trend,
       data: dashboardData.overview.total_contests.data,
       change: dashboardData.overview.total_contests.change,
+    },
+    {
+      title: "Questions",
+      value: String(dashboardData.question_stats?.total ?? 0),
+      interval: "Stored in bank",
+      trend: "neutral",
+      data: Array(30).fill(0),
+      change: "bank",
     },
   ];
 
@@ -103,13 +119,51 @@ export default function Home() {
         overflowX: "hidden",
       }}
     >
-      <Typography
-        component="h2"
-        variant="h6"
-        sx={{ mb: 2, fontFamily: "'Public Sans',sans-serif", fontWeight: 700 }}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          alignItems: "center",
+          gap: 2,
+          mb: 2,
+        }}
       >
-        Overview
-      </Typography>
+        <Typography
+          component="h2"
+          variant="h6"
+          sx={{ fontFamily: "'Public Sans',sans-serif", fontWeight: 700 }}
+        >
+          Overview
+        </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            ml: { xs: 0, sm: "auto" },
+          }}
+        >
+          {dashboardData.generated_at && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
+              Updated {new Date(dashboardData.generated_at).toLocaleString()}
+            </Typography>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchDashboard(true)}
+            disabled={refreshing || loading}
+            className="gap-1"
+          >
+            {refreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            Refresh
+          </Button>
+        </Box>
+      </Box>
       <Grid
         container
         spacing={{ xs: 1.5, sm: 2 }}
@@ -121,9 +175,6 @@ export default function Home() {
             <StatCard {...card} />
           </Grid>
         ))}
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <HighlightedCard />
-        </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <SessionsChart userStats={dashboardData.user_stats} />
         </Grid>
@@ -131,6 +182,19 @@ export default function Home() {
           <PageViewsBarChart pageViewStats={dashboardData.page_view_stats} />
         </Grid>
       </Grid>
+      <Typography
+        component="h2"
+        variant="h6"
+        sx={{ mb: 2, fontFamily: "'Public Sans',sans-serif", fontWeight: 700 }}
+      >
+        System
+      </Typography>
+      <Box sx={{ mb: (theme) => theme.spacing(2) }}>
+        <SystemStats
+          questionStats={dashboardData.question_stats}
+          paymentStats={dashboardData.payment_stats}
+        />
+      </Box>
       <Typography
         component="h2"
         variant="h6"

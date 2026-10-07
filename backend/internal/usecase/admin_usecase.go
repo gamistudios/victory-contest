@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"victory-contest-go/internal/domain"
 
@@ -122,6 +123,15 @@ type AdminUsecase interface {
 	SignIn(email, password string) (*domain.Admin, error)
 	GetAdminByEmail(email string) (*domain.Admin, error)
 	GetDashboardStats() (*domain.DashboardStatsResponse, error)
+	// RefreshDashboardStats recomputes the dashboard, bypassing the in-memory
+	// cache, for on-demand up-to-date numbers (client task 4).
+	RefreshDashboardStats() (*domain.DashboardStatsResponse, error)
+	// WithQuestionRepo attaches the question bank to the dashboard aggregation.
+	// It is a builder method (returns the interface) so wiring can compose it
+	// onto the usecase without changing the stable NewAdminUsecase signature
+	// that existing unit tests use; a usecase that never gets a question repo
+	// simply reports zero question stats.
+	WithQuestionRepo(q QuestionRepository) AdminUsecase
 }
 
 type adminUsecase struct {
@@ -132,7 +142,22 @@ type adminUsecase struct {
 	contestRegistrationRepo ContestRegistrationRepository
 	paymentRepo             PaymentRepository
 	pageViewRepo            PageViewRepository
+	questionRepo            QuestionRepository
+
+	// Dashboard stats cache (client task 4 / performance): the aggregation is
+	// full-table scans, so serving a fresh copy from the network on every
+	// admin load is wasteful. A short-TTL in-memory copy means repeat loads
+	// within the window are O(1); a Refresh still re-scans on demand.
+	cacheMu    sync.Mutex
+	cacheValue *domain.DashboardStatsResponse
+	cacheAt    time.Time
 }
+
+// dashboardCacheTTL is how long a computed dashboard stays hot in memory.
+// Long enough that a couple of rapid loads (or a live chart refresh) don't
+// re-scan every table, short enough that "current" stats are never minutes
+// stale.
+const dashboardCacheTTL = 30 * time.Second
 
 // GetAdminByEmail implements AdminUsecase.
 func (u *adminUsecase) GetAdminByEmail(email string) (*domain.Admin, error) {
@@ -149,6 +174,15 @@ func NewAdminUsecase(repo AdminRepository, studentRepo StudentRepository, contes
 		paymentRepo:             paymentRepo,
 		pageViewRepo:            pageViewRepo,
 	}
+}
+
+// WithQuestionRepo attaches the question bank to the dashboard aggregation
+// (client task 4). It is a separate builder method so the stable
+// NewAdminUsecase signature used by existing unit tests is unchanged; a
+// usecase that never gets a question repo simply reports zero question stats.
+func (u *adminUsecase) WithQuestionRepo(q QuestionRepository) AdminUsecase {
+	u.questionRepo = q
+	return u
 }
 
 func (u *adminUsecase) AddAdmin(admin domain.Admin) (string, error) {
@@ -272,7 +306,41 @@ func (u *adminUsecase) hasApprovedAdmin() (bool, error) {
 	return false, nil
 }
 
+// GetDashboardStats returns the system statistics, serving the cached
+// aggregate when it is still hot (client task 4 / performance) and
+// recomputing on a full set of table scans otherwise. Callers receive a
+// shared pointer that must be treated as read-only (the handler only
+// JSON-encodes it); any mutation would corrupt the in-memory copy.
 func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, error) {
+	if cached, ok := u.cachedDashboard(); ok {
+		return cached, nil
+	}
+	resp, err := u.computeDashboardStats()
+	if err != nil {
+		return nil, err
+	}
+	u.storeDashboard(resp)
+	return resp, nil
+}
+
+// RefreshDashboardStats bypasses the cache and recomputes the dashboard from
+// the live tables. The /api/admin/dashboard route exposes it via ?refresh=1
+// so an admin can pull up-to-date numbers on demand.
+func (u *adminUsecase) RefreshDashboardStats() (*domain.DashboardStatsResponse, error) {
+	resp, err := u.computeDashboardStats()
+	if err != nil {
+		return nil, err
+	}
+	u.storeDashboard(resp)
+	return resp, nil
+}
+
+// computeDashboardStats runs the actual aggregation: one scan per table
+// (students, contests, submissions, payments, registrations, page views,
+// questions) and single-pass in-memory summarization over each. The full
+// system-statistics surface lives here so a single endpoint returns every
+// metric the admin dashboard needs (client task 4).
+func (u *adminUsecase) computeDashboardStats() (*domain.DashboardStatsResponse, error) {
 	// Get all required data
 	students, err := u.studentRepo.GetStudents()
 	if err != nil {
@@ -301,6 +369,17 @@ func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, erro
 		return nil, err
 	}
 
+	// Question bank for the dashboard's question-stats block (client task 4).
+	// A nil questionRepo (unit tests / stripped wiring) yields an empty,
+	// well-formed shape so the response stays valid.
+	var questions []domain.Question
+	if u.questionRepo != nil {
+		questions, err = u.questionRepo.GetAllQuestions()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Calculate overview stats
 	overviewStats := u.calculateOverviewStats(students, contests, registrations, payments)
 
@@ -327,16 +406,43 @@ func (u *adminUsecase) GetDashboardStats() (*domain.DashboardStatsResponse, erro
 	// Get recent activity
 	recentActivity := u.getRecentActivity(contests, submissions)
 
+	// Question-bank and payments-ledger stats (client task 4), derived in the
+	// same single passes so they add no extra queries.
+	questionStats := u.calculateQuestionStats(questions)
+	paymentStats := u.calculatePaymentStats(payments)
+
 	return &domain.DashboardStatsResponse{
 		Overview:       overviewStats,
 		UserStats:      userStats,
 		ContestStats:   contestStats,
 		PageViewStats:  *pageViewStats,
 		RecentActivity: recentActivity,
+		QuestionStats:  questionStats,
+		PaymentStats:   paymentStats,
 		// Freshness marker (issue #5): stats are computed request-time from
 		// full scans, so the admin UI can show exactly when they were built.
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 	}, nil
+}
+
+// cachedDashboard returns the in-memory dashboard if it was computed within
+// dashboardCacheTTL, else reports a miss. Safe for concurrent use.
+func (u *adminUsecase) cachedDashboard() (*domain.DashboardStatsResponse, bool) {
+	u.cacheMu.Lock()
+	defer u.cacheMu.Unlock()
+	if u.cacheValue != nil && time.Since(u.cacheAt) < dashboardCacheTTL {
+		return u.cacheValue, true
+	}
+	return nil, false
+}
+
+// storeDashboard publishes a freshly computed dashboard into the in-memory
+// cache. Safe for concurrent use.
+func (u *adminUsecase) storeDashboard(resp *domain.DashboardStatsResponse) {
+	u.cacheMu.Lock()
+	defer u.cacheMu.Unlock()
+	u.cacheValue = resp
+	u.cacheAt = time.Now()
 }
 
 // fetchRegistrations returns every contest registration row with a single
@@ -858,6 +964,127 @@ func bucketInstant(windows []dayWindow, counts []int, t time.Time) {
 			counts[i]++
 		}
 	}
+}
+
+// calculateQuestionStats summarizes the stored question bank in a single
+// in-memory pass (client task 4): no extra DynamoDB round-trips beyond the
+// one GetAllQuestions scan already needed for the contest detail. A nil
+// questionRepo (unit tests / stripped wiring) yields an empty, well-formed
+// shape so the response stays valid.
+func (u *adminUsecase) calculateQuestionStats(questions []domain.Question) domain.QuestionStats {
+	stats := domain.QuestionStats{
+		Total:     len(questions),
+		BySubject: []domain.SubjectStat{},
+		ByGrade:   []domain.GradeDistribution{},
+	}
+	if len(questions) == 0 {
+		return stats
+	}
+
+	subjectCounts := make(map[string]int)
+	gradeCounts := make(map[string]int)
+	for _, q := range questions {
+		if q.Subject != "" {
+			subjectCounts[q.Subject]++
+		}
+		if q.Grade != "" {
+			gradeCounts[q.Grade]++
+		}
+		if q.Explanation != "" {
+			stats.WithExplanation++
+		}
+		if q.QuestionImg != "" {
+			stats.WithImage++
+		}
+	}
+
+	total := len(questions)
+	stats.BySubject = make([]domain.SubjectStat, 0, len(subjectCounts))
+	for subject, count := range subjectCounts {
+		stats.BySubject = append(stats.BySubject, domain.SubjectStat{
+			Subject:    subject,
+			Count:      count,
+			Percentage: math.Round(float64(count)/float64(total)*100*100) / 100,
+		})
+	}
+	sort.Slice(stats.BySubject, func(i, j int) bool {
+		return stats.BySubject[i].Count > stats.BySubject[j].Count
+	})
+
+	stats.ByGrade = make([]domain.GradeDistribution, 0, len(gradeCounts))
+	for grade, count := range gradeCounts {
+		stats.ByGrade = append(stats.ByGrade, domain.GradeDistribution{
+			Grade:      grade,
+			Count:      count,
+			Percentage: math.Round(float64(count)/float64(total)*100*100) / 100,
+		})
+	}
+	sort.Slice(stats.ByGrade, func(i, j int) bool {
+		return stats.ByGrade[i].Grade < stats.ByGrade[j].Grade
+	})
+
+	return stats
+}
+
+// calculatePaymentStats summarizes the payments ledger in a single in-memory
+// pass over the ListAll scan the dashboard already performs (client task 4):
+// status breakdown, approved revenue, and a 30-day request trend.
+func (u *adminUsecase) calculatePaymentStats(payments []domain.PaymentRequest) domain.PaymentStats {
+	stats := domain.PaymentStats{
+		Total:    len(payments),
+		ByStatus: []domain.PaymentStatusStat{},
+		Trend:    make([]int, 30),
+	}
+	if len(payments) == 0 {
+		return stats
+	}
+
+	statusCounts := make(map[domain.PaymentStatus]int)
+	now := time.Now()
+	trendCounts := make(map[[2]int]int, len(payments))
+	for _, p := range payments {
+		statusCounts[p.Status]++
+		if p.Status == domain.StatusApproved {
+			stats.ApprovedRevenue += p.Amount
+		}
+		// A request created on any day counts toward that day's trend,
+		// regardless of its current status.
+		created := p.CreatedAt
+		if created.IsZero() {
+			created = p.UpdatedAt
+		}
+		if !created.IsZero() {
+			trendCounts[dayKey(created)]++
+		}
+	}
+
+	for _, st := range []domain.PaymentStatus{domain.StatusPending, domain.StatusApproved, domain.StatusRejected} {
+		count := statusCounts[st]
+		percentage := 0.0
+		if stats.Total > 0 {
+			percentage = math.Round(float64(count)/float64(stats.Total)*100*100) / 100
+		}
+		stats.ByStatus = append(stats.ByStatus, domain.PaymentStatusStat{
+			Status:     string(st),
+			Count:      count,
+			Percentage: percentage,
+		})
+		switch st {
+		case domain.StatusPending:
+			stats.Pending = count
+		case domain.StatusApproved:
+			stats.Approved = count
+		case domain.StatusRejected:
+			stats.Rejected = count
+		}
+	}
+
+	for i := 0; i < 30; i++ {
+		target := now.AddDate(0, 0, -29+i)
+		stats.Trend[i] = trendCounts[dayKey(target)]
+	}
+
+	return stats
 }
 
 func (u *adminUsecase) calculateUserTrendData(students []domain.Student) []int {

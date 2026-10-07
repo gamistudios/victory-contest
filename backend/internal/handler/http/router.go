@@ -117,7 +117,7 @@ func NewServer() *Server {
 	studentUsecase := usecase.NewStudentUsecase(studentRepo, paymentRepo, submissionRepo, contestRepo)
 	questionUsecase := usecase.NewQuestionUsecase(questionRepo)
 	submissionUsecase := usecase.NewSubmissionUsecase(submissionRepo, contestUsecase, questionRepo, studentRepo)
-	adminUsecase := usecase.NewAdminUsecase(adminRepo, studentRepo, contestRepo, submissionRepo, contestRegistrationRepo, paymentRepo, pageViewRepo)
+	adminUsecase := usecase.NewAdminUsecase(adminRepo, studentRepo, contestRepo, submissionRepo, contestRegistrationRepo, paymentRepo, pageViewRepo).WithQuestionRepo(questionRepo)
 	pageViewUsecase := usecase.NewPageViewUsecase(pageViewRepo)
 	articleUsecase := usecase.NewArticleUsecase(articleRepo, commentRepo)
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo, contestRepo, studentRepo)

@@ -265,3 +265,96 @@ func TestDashboardGeneratedAtPresent(t *testing.T) {
 		t.Fatalf("generated_at %q is not RFC 3339: %v", stats.GeneratedAt, err)
 	}
 }
+
+// --- question-bank + payments-ledger stats (client task 4) ---
+
+func TestQuestionStatsSinglePass(t *testing.T) {
+	questions := []domain.Question{
+		{ID: "1", Subject: "Math", Grade: "9", Explanation: "why", QuestionImg: "img1"},
+		{ID: "2", Subject: "Math", Grade: "10", Explanation: "why"},
+		{ID: "3", Subject: "Physics", Grade: "9", QuestionImg: "img3"},
+	}
+	u := &adminUsecase{}
+	stats := u.calculateQuestionStats(questions)
+
+	if stats.Total != 3 {
+		t.Fatalf("total = %d, want 3", stats.Total)
+	}
+	if stats.WithExplanation != 2 {
+		t.Fatalf("with_explanation = %d, want 2", stats.WithExplanation)
+	}
+	if stats.WithImage != 2 {
+		t.Fatalf("with_image = %d, want 2", stats.WithImage)
+	}
+	// Subject distribution: Math (2) sorts ahead of Physics (1).
+	if len(stats.BySubject) != 2 || stats.BySubject[0].Subject != "Math" || stats.BySubject[0].Count != 2 {
+		t.Fatalf("subject distribution wrong: %+v", stats.BySubject)
+	}
+	if len(stats.ByGrade) != 2 {
+		t.Fatalf("grade distribution wrong: %+v", stats.ByGrade)
+	}
+}
+
+func TestQuestionStatsEmpty(t *testing.T) {
+	u := &adminUsecase{}
+	stats := u.calculateQuestionStats(nil)
+	if stats.Total != 0 || len(stats.BySubject) != 0 || len(stats.ByGrade) != 0 {
+		t.Fatalf("empty bank must yield zeroed, empty slices: %+v", stats)
+	}
+}
+
+func TestPaymentStatsSinglePass(t *testing.T) {
+	now := time.Now()
+	payments := []domain.PaymentRequest{
+		{ID: "a", Status: domain.StatusApproved, Amount: 100, CreatedAt: now},
+		{ID: "b", Status: domain.StatusApproved, Amount: 50, CreatedAt: now},
+		{ID: "c", Status: domain.StatusPending, CreatedAt: now.AddDate(0, 0, -5)},
+		{ID: "d", Status: domain.StatusRejected, CreatedAt: now.AddDate(0, 0, -5)},
+	}
+	u := &adminUsecase{}
+	stats := u.calculatePaymentStats(payments)
+
+	if stats.Total != 4 || stats.Approved != 2 || stats.Pending != 1 || stats.Rejected != 1 {
+		t.Fatalf("counts wrong: %+v", stats)
+	}
+	if stats.ApprovedRevenue != 150 {
+		t.Fatalf("approved_revenue = %f, want 150", stats.ApprovedRevenue)
+	}
+	if len(stats.ByStatus) != 3 {
+		t.Fatalf("by_status buckets = %d, want 3", len(stats.ByStatus))
+	}
+	if len(stats.Trend) != 30 {
+		t.Fatalf("trend length = %d, want 30", len(stats.Trend))
+	}
+	// Today's bucket counts the two payments created now; the two created five
+	// days ago land in the matching earlier bucket.
+	if stats.Trend[29] != 2 {
+		t.Fatalf("trend[today] = %d, want 2", stats.Trend[29])
+	}
+	if stats.Trend[24] != 2 {
+		t.Fatalf("trend[5 days ago] = %d, want 2", stats.Trend[24])
+	}
+}
+
+func TestPaymentStatsEmpty(t *testing.T) {
+	u := &adminUsecase{}
+	stats := u.calculatePaymentStats(nil)
+	if stats.Total != 0 || len(stats.ByStatus) != 0 || len(stats.Trend) != 30 {
+		t.Fatalf("empty ledger must yield zeros + 30-day empty trend: %+v", stats)
+	}
+}
+
+// The dashboard surfaces the new blocks end-to-end.
+func TestDashboardStatsIncludesQuestionAndPaymentBlocks(t *testing.T) {
+	u := newStatsUsecase(nil, nil, nil)
+	stats, err := u.GetDashboardStats()
+	if err != nil {
+		t.Fatalf("GetDashboardStats: %v", err)
+	}
+	if len(stats.PaymentStats.Trend) != 30 {
+		t.Fatalf("payment trend length = %d, want 30", len(stats.PaymentStats.Trend))
+	}
+	if len(stats.QuestionStats.BySubject) != 0 {
+		t.Fatalf("question by_subject should be empty for an empty bank, got %+v", stats.QuestionStats.BySubject)
+	}
+}
