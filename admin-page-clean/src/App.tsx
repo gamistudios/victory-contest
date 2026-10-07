@@ -19,6 +19,7 @@ import FeedbackManagement from "./components/admin/FeedbackManagement";
 import HighScorersContactList from "./components/admin/HighScorersContactList";
 import AiManagement from "./components/admin/AiManagement";
 import { PaymentsPage } from "./components/payment/Payment";
+import { PaymentManagementPage } from "./components/settings/PaymentManagement";
 import QuestionsPage from "./components/questions/Questions";
 import ArticlesPage from "./components/articles/ArticlesPage";
 
@@ -60,6 +61,7 @@ const router = createBrowserRouter(
           { path: "high-scorers", element: <HighScorersContactList /> },
           { path: "payment", element: <PaymentsPage /> },
           { path: "ai", element: <AiManagement /> },
+          { path: "settings/payment", element: <PaymentManagementPage /> },
           // Without these, a mistyped URL rendered the sidebar and an empty
           // content area with nothing to explain it.
           { path: "*", element: <Navigate to="/dashboard" replace /> },

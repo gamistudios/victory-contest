@@ -9,6 +9,7 @@ import {
   FilePlus,
   BookOpen,
   BrainCircuit,
+  CreditCard,
 } from "lucide-react";
 import React from "react";
 export interface NavItem {
@@ -132,12 +133,6 @@ export const menuList: NavGroup[] = [
         path: "/dashboard/admins",
         icon: UserCog,
       },
-      {
-        id: 11,
-        title: "AI Management",
-        path: "/dashboard/ai",
-        icon: BrainCircuit,
-      },
     ],
   },
   {
@@ -171,6 +166,23 @@ export const menuList: NavGroup[] = [
         title: "High Scorers",
         path: "/dashboard/high-scorers",
         icon: BarChart2,
+      },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      {
+        id: 11,
+        title: "AI Management",
+        path: "/dashboard/ai",
+        icon: BrainCircuit,
+      },
+      {
+        id: 12,
+        title: "Payment Management",
+        path: "/dashboard/settings/payment",
+        icon: CreditCard,
       },
     ],
   },
