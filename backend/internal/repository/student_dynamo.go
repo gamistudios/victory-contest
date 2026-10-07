@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"victory-contest-go/internal/awsconfig"
 	"victory-contest-go/internal/domain"
@@ -21,6 +23,12 @@ import (
 type StudentDynamoRepository struct {
 	db        *dynamodb.Client
 	tableName string
+
+	// Memoized discovery of the student table's primary-key attribute names
+	// (see keyAttributes / pointKeyFor). One DescribeTable is enough for the
+	// repository's lifetime, so it is guarded by keyOnce.
+	keyOnce  sync.Once
+	keyCache []string
 }
 
 func NewStudentDynamoRepository(db *dynamodb.Client, table string) *StudentDynamoRepository {
@@ -113,9 +121,16 @@ func (r *StudentDynamoRepository) UpdateStudent(student domain.Student) error {
 		parts = append(parts, n+" = "+v)
 	}
 
-	key, err := attributevalue.MarshalMap(map[string]string{"id": student.ID})
+	// Build the point-operation key from the table's real key schema, not a
+	// hardcoded {id}: UpdateItem requires the table's COMPLETE primary key, and
+	// the live student table's key is discovered here so a composite or
+	// non-"id" key no longer trips "key element does not match the schema".
+	key, err := r.fullKeyFor(ctx, student.ID, student.TelegramID)
 	if err != nil {
 		return err
+	}
+	if key == nil {
+		return fmt.Errorf("student %s not found in %s table", student.ID, r.tableName)
 	}
 	_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                 &r.tableName,
@@ -379,14 +394,183 @@ func (r *StudentDynamoRepository) GetUserProfile(studentID string) (map[string]i
 // lives in the student usecase (internal/usecase/student_usecase.go), which
 // already receives those repositories.
 
+// SetSuspended forces isSuspended to the given value on the student's row.
+// Unlike UpdateStudent (which skips zero-valued fields and therefore cannot
+// clear a suspension), this writes the flag explicitly in both directions so
+// the admin suspend/reactivate lifecycle works. The write key is resolved via
+// fullKeyFor so a composite-key table is not broken by a partial {id} key.
+func (r *StudentDynamoRepository) SetSuspended(id string, suspended bool) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	if id == "" {
+		return fmt.Errorf("student id is required and cannot be empty")
+	}
+
+	// In this system the student's id equals its telegram id, so id serves as
+	// both the partition-key lookup and the scan-fallback attribute.
+	key, err := r.fullKeyFor(ctx, id, id)
+	if err != nil {
+		return err
+	}
+	if key == nil {
+		return fmt.Errorf("student %s not found in %s table", id, r.tableName)
+	}
+
+	susp, err := attributevalue.Marshal(suspended)
+	if err != nil {
+		return err
+	}
+	names := map[string]string{"#susp": "isSuspended", "#updated_at": "updated_at"}
+	values := map[string]types.AttributeValue{
+		":susp":       susp,
+		":updated_at": &types.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339)},
+	}
+	_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:                 &r.tableName,
+		Key:                       key,
+		UpdateExpression:          aws.String("SET #susp = :susp, #updated_at = :updated_at"),
+		ExpressionAttributeNames:  names,
+		ExpressionAttributeValues: values,
+	})
+	return err
+}
+
 func (r *StudentDynamoRepository) DeleteStudent(id string) error {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()
-	_, err := r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+	// Resolve the table's COMPLETE primary key for this row (see fullKeyFor).
+	// Deleting a missing item is a no-op in DynamoDB, so answer success when
+	// the row cannot be located to keep callers' delete-then-move-on intact.
+	key, err := r.fullKeyFor(ctx, id, id)
+	if err != nil {
+		return err
+	}
+	if key == nil {
+		return nil
+	}
+	_, err = r.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &r.tableName,
-		Key: map[string]types.AttributeValue{
-			"id": &types.AttributeValueMemberS{Value: id},
-		},
+		Key:       key,
 	})
 	return err
+}
+
+// keyAttributes memoizes the student table's key attribute names, discovered
+// once via DescribeTable. Point operations need the table's COMPLETE primary
+// key, and the live student table is not always provisioned with a plain "id"
+// hash key — some environments key it on telegram_id or a composite key, which
+// a hardcoded {id} key no longer satisfies.
+func (r *StudentDynamoRepository) keyAttributes(ctx context.Context) []string {
+	r.keyOnce.Do(func() {
+		r.keyCache = r.describeKeyAttributes(ctx)
+	})
+	return r.keyCache
+}
+
+func (r *StudentDynamoRepository) describeKeyAttributes(ctx context.Context) []string {
+	out, err := r.db.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+		TableName: &r.tableName,
+	})
+	if err != nil {
+		// On failure fall back to the code's assumed key, but surface it in the
+		// server log so a key-mismatch (which would otherwise 400 on every
+		// write) is diagnosable.
+		log.Printf("student table %s: DescribeTable failed, assuming key [id]: %v", r.tableName, err)
+		return []string{"id"}
+	}
+	var names []string
+	for _, k := range out.Table.KeySchema {
+		names = append(names, aws.ToString(k.AttributeName))
+	}
+	if len(names) == 0 {
+		log.Printf("student table %s: empty key schema, assuming [id]", r.tableName)
+		return []string{"id"}
+	}
+	return names
+}
+
+// fullKeyFor builds the table's COMPLETE primary key for the student row
+// identified by (id, telegramID). For a plain "id"-only key it is the same
+// {id} map the code always used (a no-op). For a composite or non-"id" key it
+// lifts every key attribute from the stored row's RAW item (not a domain
+// round-trip, which can change a range key's attribute type) so a write only
+// ever targets the row it describes. A nil key with a nil error means the row
+// does not exist yet (relevant to updates on a brand-new identity, where the
+// partition key is still resolvable but there is no range-key row to lift).
+func (r *StudentDynamoRepository) fullKeyFor(ctx context.Context, id, telegramID string) (map[string]types.AttributeValue, error) {
+	names := r.keyAttributes(ctx)
+	if len(names) == 1 && strings.EqualFold(names[0], "id") {
+		key, err := attributevalue.MarshalMap(map[string]string{"id": id})
+		if err != nil {
+			return nil, err
+		}
+		return key, nil
+	}
+
+	// Non-"id" key: pull the key attributes from the stored row's RAW item.
+	raw, err := r.storedItem(ctx, id, telegramID)
+	if err != nil {
+		return nil, err
+	}
+	if raw == nil {
+		return nil, nil
+	}
+	key := make(map[string]types.AttributeValue, len(names))
+	for _, n := range names {
+		av, ok := raw[n]
+		if !ok {
+			return nil, fmt.Errorf("student row %s missing key attribute %q", id, n)
+		}
+		key[n] = av
+	}
+	return key, nil
+}
+
+// storedItem returns the raw DynamoDB item for a student row, or nil when the
+// row is absent. It is the faithful source of key values: the stored item
+// carries every key attribute in its original type. It works for either live
+// key layout — a partition key of "id" (a Query on id) or a different one such
+// as telegram_id (a paged Scan on the real unique attribute, mirroring
+// GetStudentByTelegramID) — so a composite-key table can still be located and
+// its full key reconstructed.
+func (r *StudentDynamoRepository) storedItem(ctx context.Context, id, telegramID string) (map[string]types.AttributeValue, error) {
+	// Fast path: the table is partitioned on "id", so a Query by id is valid.
+	if id != "" {
+		out, err := r.db.Query(ctx, &dynamodb.QueryInput{
+			TableName:              &r.tableName,
+			KeyConditionExpression: aws.String("id = :id"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":id": &types.AttributeValueMemberS{Value: id},
+			},
+		})
+		if err == nil {
+			if len(out.Items) == 0 {
+				return nil, nil
+			}
+			return out.Items[0], nil
+		}
+		// Query by "id" fails when the partition key is not "id". The row may
+		// still exist under a telegram_id key, so fall through to the Scan.
+	}
+	if telegramID == "" {
+		return nil, nil
+	}
+
+	// Slow path: locate the row by telegram_id via a paged Scan (the student
+	// table has no GSI on telegram_id, so this mirrors GetStudentByTelegramID).
+	teleVal, _ := attributevalue.Marshal(telegramID)
+	items, err := scanPages(ctx, r.db, &dynamodb.ScanInput{
+		TableName:        &r.tableName,
+		FilterExpression: aws.String("telegram_id = :tele_id"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":tele_id": teleVal,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	return items[0], nil
 }

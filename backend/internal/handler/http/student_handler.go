@@ -30,11 +30,12 @@ func (h *StudentHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.Ha
 	// Registration, self-profile read/update and public rank boards stay
 	// open for the mini-app; rosters, paid lists and admin analytics do not.
 	auth := rg.Group("", adminAuth...)
-	auth.DELETE("/:id", h.DeleteStudent)
-	auth.GET("/", h.GetStudents)
-	auth.GET("/paid", h.GetPaidStudents)
-	auth.GET("/quickstat/:id", h.GetQuickStat)
-	auth.GET("/profile-admin/:student_id", h.GetUserStatForAdmin)
+		auth.DELETE("/:id", h.DeleteStudent)
+		auth.GET("/", h.GetStudents)
+		auth.GET("/paid", h.GetPaidStudents)
+		auth.GET("/quickstat/:id", h.GetQuickStat)
+		auth.GET("/profile-admin/:student_id", h.GetUserStatForAdmin)
+		auth.POST("/:id/suspension", h.SetSuspension)
 	rg.PUT("/:id", withStudentAuth(h.studentEditMw, h.UpdateStudent)...)
 	rg.GET("/rank", h.GetStudentRankings)
 	rg.GET("/rank/:contest_id", h.GetStudentRankingsByContest)
@@ -85,10 +86,40 @@ func (h *StudentHandler) UpdateStudent(c *gin.Context) {
 
 	err := h.usecase.UpdateStudent(student)
 	if err != nil {
+		log.Printf("update student %s: %v", id, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
+}
+
+// SetSuspension is the admin suspend/reactivate action. It explicitly writes
+// the isSuspended flag in both directions, so reactivating a suspended
+// student (isSuspended=false) actually persists — which the zero-value-
+// skipping UpdateStudent cannot express. Body: {"suspended": true|false}.
+func (h *StudentHandler) SetSuspension(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "student id is required"})
+		return
+	}
+	var payload struct {
+		Suspended *bool `json:"suspended"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if payload.Suspended == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "suspended (true or false) is required"})
+		return
+	}
+	if err := h.usecase.SetSuspended(id, *payload.Suspended); err != nil {
+		log.Printf("suspend %s: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id, "suspended": *payload.Suspended})
 }
 
 func (h *StudentHandler) GetStudents(c *gin.Context) {
@@ -247,6 +278,7 @@ func (h *StudentHandler) DeleteStudent(c *gin.Context) {
 	log.Printf("deleting student: database id=%s (lookup key=%s)", student.ID, id)
 	err = h.usecase.DeleteStudent(student.ID)
 	if err != nil {
+		log.Printf("delete student %s: %v", student.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete student: " + err.Error()})
 		return
 	}

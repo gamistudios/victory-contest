@@ -34,7 +34,9 @@ export const bankServices = {
     return res.data.id;
   },
 
-  update: async (id: string, input: BankInput & { is_active: boolean }): Promise<void> => {
+  // Omitting is_active keeps the stored flag (the backend preserves it on
+  // PUT when the field is absent), so the form shape is accepted as-is.
+  update: async (id: string, input: BankInput): Promise<void> => {
     await api.put(`/api/banks/${id}`, input);
   },
 

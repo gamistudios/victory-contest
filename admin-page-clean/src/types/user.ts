@@ -11,6 +11,7 @@ export interface User {
   gender: "male" | "female";
   telegram_id: string;
   totalPoints: number;
+  isSuspended?: boolean;
   payment: Payment;
 }
 export interface UserStats {

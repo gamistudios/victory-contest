@@ -32,7 +32,7 @@ import { useParams } from "react-router-dom";
 import { useState } from "react";
 import {
   sendStudentNotification,
-  updateUserInfo,
+  setStudentSuspended,
 } from "@/services/studentServices";
 
 interface PaymentManagementProps {
@@ -54,6 +54,10 @@ export function PaymentManagement({
     suspend: false,
     delete: false,
   });
+  // Mirrors user.isSuspended but flips locally the moment a suspend/reactivate
+  // call succeeds, so the "Suspend Account" / "Reactivate Account" panels swap
+  // without waiting for the parent to reload the whole profile.
+  const [suspended, setSuspended] = useState<boolean>(!!user.isSuspended);
   function formatDate(date: string | Date | null | undefined) {
     const d = parsePaymentDate(date);
     if (!d) return "no payment";
@@ -123,19 +127,22 @@ export function PaymentManagement({
   const handleSuspendAccount = async () => {
     try {
       setLoading({ ...loading, suspend: true });
-      // PUT /api/student/:id — the backend reads the row key from the URL and
-      // binds the body directly into domain.Student (only non-zero fields are
-      // written), so the patch goes un-wrapped.
-      await updateUserInfo(user.id || id, { isSuspended: true });
+      // Dedicated admin endpoint: it writes isSuspended=true (UpdateStudent
+      // via updateUserInfo can't reliably express this, and it previously
+      // failed with a DynamoDB key mismatch on composite-key tables).
+      await setStudentSuspended(user.id || id, true);
+      setSuspended(true);
       toast({
         title: "Account Suspended",
         description: `${user.name}'s account has been temporarily suspended due to unpaid fees.`,
         variant: "default",
       });
-    } catch {
+    } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to suspend ${user.name}'s account. Please try again later.`,
+        description: `Failed to suspend ${user.name}'s account: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
         variant: "destructive",
       });
     } finally {
@@ -143,11 +150,30 @@ export function PaymentManagement({
     }
   };
 
-  const handleReactivateAccount = () => {
-    toast({
-      title: "Account Reactivated",
-      description: `${user.name}'s account has been reactivated successfully.`,
-    });
+  const handleReactivateAccount = async () => {
+    try {
+      setLoading({ ...loading, suspend: true });
+      // Clear the suspension. This needs the dedicated endpoint because the
+      // generic update path skips zero-valued fields and cannot set
+      // isSuspended=false.
+      await setStudentSuspended(user.id || id, false);
+      setSuspended(false);
+      toast({
+        title: "Account Reactivated",
+        description: `${user.name}'s account has been reactivated successfully.`,
+        variant: "default",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to reactivate ${user.name}'s account: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading({ ...loading, suspend: false });
+    }
   };
 
   const handleSendFinalNotice = async () => {
@@ -198,7 +224,10 @@ export function PaymentManagement({
   const expirationDate = parsePaymentDate(user.payment.expirationDate);
   const today = new Date();
 
-  if (!expirationDate) {
+  if (suspended) {
+    // A suspended account shows the Reactivate panel regardless of payment date.
+    paymentStatus = "inactive";
+  } else if (!expirationDate) {
     // Case 1: No (valid) expiration date exists
     paymentStatus = "unpaid";
   } else {

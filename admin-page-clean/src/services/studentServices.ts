@@ -100,6 +100,20 @@ export async function updateUserInfo(
   return res.data;
 }
 
+// POST /api/student/:id/suspension (admin-gated) — explicitly sets the
+// isSuspended flag in BOTH directions. Use this for suspend AND reactivate:
+// updateUserInfo can only set a truthy isSuspended because the repository
+// skips zero values, so clearing a suspension needs this dedicated endpoint.
+export async function setStudentSuspended(
+  studentId: string,
+  suspended: boolean
+) {
+  const res = await api.post(`/api/student/${studentId}/suspension`, {
+    suspended,
+  });
+  return res.data;
+}
+
 // POST /api/notification/ (admin-gated). Mirrors domain.Notification; the
 // backend persists the row and owns every delivery concern.
 export interface StudentNotificationInput {

@@ -23,6 +23,9 @@ var ErrStudentNotFound = errors.New("student not found")
 type StudentUsecase interface {
 	AddStudent(student domain.Student) error
 	UpdateStudent(student domain.Student) error
+	// SetSuspended writes the isSuspended flag explicitly (both true and
+	// false), enabling the admin suspend/reactivate lifecycle.
+	SetSuspended(id string, suspended bool) error
 	DeleteStudent(id string) error
 	VerifyStudentPaid(telegramID string) (bool, error)
 	GetPaidStudents() ([]domain.Student, error)
@@ -54,6 +57,13 @@ func (u *studentUsecase) AddStudent(student domain.Student) error {
 }
 func (u *studentUsecase) UpdateStudent(student domain.Student) error {
 	return u.repo.UpdateStudent(student)
+}
+
+// SetSuspended explicitly writes the isSuspended flag (both true and false),
+// so an admin can reactivate a previously suspended student — something the
+// zero-value-skipping UpdateStudent cannot express.
+func (u *studentUsecase) SetSuspended(id string, suspended bool) error {
+	return u.repo.SetSuspended(id, suspended)
 }
 
 func (u *studentUsecase) DeleteStudent(id string) error {

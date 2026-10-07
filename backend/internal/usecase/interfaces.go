@@ -16,6 +16,11 @@ type ContestRepository interface {
 type StudentRepository interface {
 	AddStudent(student domain.Student) error
 	UpdateStudent(student domain.Student) error
+	// SetSuspended forces is_suspended to the given value. UpdateStudent skips
+	// zero-valued fields, so it cannot clear a suspension (is_suspended=false
+	// would be treated as "not provided"); this dedicated write closes that
+	// gap for the admin suspend/reactivate lifecycle.
+	SetSuspended(id string, suspended bool) error
 	UpdateStudentIfExist(student domain.Student) error
 	DeleteStudent(id string) error
 	GetStudentByTelegramID(telegramID string) (*domain.Student, error)
