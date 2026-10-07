@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTelegram } from "../hooks/useTelegram";
-import { Bell, Settings } from "lucide-react";
+import { Bell, Settings, Lock } from "lucide-react";
 import NotificationCenter from "./NotificationCenter";
 import { useNotification } from "../context/NotificationContext";
 import {
@@ -18,6 +18,8 @@ import FeedbackIcon from "../assets/comment-add-01-stroke-rounded.svg?react";
 import UpgradeIcon from "../assets/sparkles-stroke-rounded.svg?react";
 import PaymentHistoryIcon from "../assets/document-validation-stroke-rounded.svg?react";
 import { useAuth } from "../context/AuthContext";
+import { getAiSettings } from "../services/aiService";
+import { toast } from "sonner";
 const TopNavigation: React.FC = () => {
   const { user: tgUser, hapticFeedback } = useTelegram();
   const { user } = useAuth();
@@ -26,6 +28,25 @@ const TopNavigation: React.FC = () => {
   const { notifications } = useNotification();
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const navigate = useNavigate();
+
+  // AI-access switch (admin-controlled): when require_premium is on, the AI
+  // Practice entry is locked for non-premium students. Read once on mount; a
+  // failure to fetch is fail-open (public), matching the backend gate.
+  const [aiRequirePremium, setAiRequirePremium] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getAiSettings()
+      .then((s) => {
+        if (active) setAiRequirePremium(!!s.require_premium);
+      })
+      .catch(() => {
+        /* fail-open: leave AI available */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const aiLocked = aiRequirePremium && !user?.is_premium;
 
   // useEffect(()=>{
   //   const checktgUser
@@ -91,6 +112,18 @@ const TopNavigation: React.FC = () => {
   };
 
   const handleAiPracticeClick = () => {
+    if (aiLocked) {
+      toast.error("Buy Premium to unlock AI Practice", {
+        style: {
+          backgroundColor: "#fff3cd",
+          color: "#664d03",
+          border: "1px solid #ffe69c",
+          padding: "10px",
+          borderRadius: "8px",
+        },
+      });
+      return;
+    }
     navigate("/ai-practice");
   };
   const handleUpgradeClick = () => {
@@ -153,12 +186,17 @@ const TopNavigation: React.FC = () => {
                   <DropdownMenuSeparator />
                   <DropdownMenuGroup>
                     <DropdownMenuItem
-                      disabled={!user?.is_premium}
                       onSelect={handleAiPracticeClick}
-                      className="cursor-pointer"
+                      className={`cursor-pointer ${aiLocked ? "opacity-70" : ""}`}
                     >
-                      <BotIcon className="mr-2 h-6 w-6 dark:text-white" />
-                      <span>AI Practice</span>
+                      {aiLocked ? (
+                        <Lock className="mr-2 h-5 w-5 text-yellow-500" />
+                      ) : (
+                        <BotIcon className="mr-2 h-6 w-6 dark:text-white" />
+                      )}
+                      <span>
+                        AI Practice{aiLocked ? " (Premium)" : ""}
+                      </span>
                     </DropdownMenuItem>
                     {!user?.is_premium && (
                       <DropdownMenuItem

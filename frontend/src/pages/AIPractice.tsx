@@ -6,8 +6,11 @@ import {
   BrainCircuit,
   CheckCircle,
   Clock,
+  Lightbulb,
   Loader2,
+  Lock,
   RotateCcw,
+  Send,
   Sparkles,
   Target,
   Timer,
@@ -32,10 +35,12 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Label } from "../components/ui/label";
-import { getAiGeneratedQuestions, isPremiumRequiredError } from "../services/aiService";
+import { getAiGeneratedQuestions, isPremiumRequiredError, aiExplain } from "../services/aiService";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import { useTelegram } from "../hooks/useTelegram";
 import { Input } from "../components/ui/input";
+import MarkdownMessage from "../components/chat/MarkdownMessage";
 // import { Skeleton } from "@/components/ui/skeleton";
 // NOTE: QuestionNavigationDropdown is a placeholder for your custom component
 // import QuestionNavigationDropdown from "../components/QuestionNavigationDropdown";
@@ -81,7 +86,83 @@ export function AIPracticePage() {
   const [answers, setAnswers] = React.useState<Answer[]>([]);
   const [timeLeft, setTimeLeft] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(false);
+  const navigate = useNavigate();
   const { showBackButton, hideBackButton } = useTelegram();
+
+  // --- On-question AI tutor (explain / ask) ---
+  // A mini-conversation scoped to the CURRENT question: it resets when the
+  // student moves to a different question, so context never bleeds across
+  // items. The first entry is a request to "explain this question" (empty
+  // ask text); afterwards the student can ask free-text follow-ups.
+  const [aiMessages, setAiMessages] = React.useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
+  const [aiAskText, setAiAskText] = React.useState("");
+  const [aiLoading, setAiLoading] = React.useState(false);
+  const [aiPremiumLocked, setAiPremiumLocked] = React.useState(false);
+
+  // Reset the per-question conversation whenever the focused question index
+  // changes (or the session is torn down).
+  React.useEffect(() => {
+    setAiMessages([]);
+    setAiAskText("");
+    setAiPremiumLocked(false);
+  }, [currentQuestionIndex, pageState]);
+
+  const handleAiExplain = async (askText: string) => {
+    if (!currentQuestion || aiLoading) return;
+    const nextAsk = askText.trim();
+    // Append the student turn (an "Explain" press is recorded as a generic
+    // request; a typed follow-up records its text) and mark a pending slot.
+    const pendingId = `pending-${Date.now()}`;
+    const studentTurn =
+      nextAsk === "" ? "Explain this question" : nextAsk;
+    setAiMessages((prev) => [
+      ...prev,
+      { role: "user", content: studentTurn },
+      { role: "assistant", content: `__pending:${pendingId}__` },
+    ]);
+    setAiLoading(true);
+    try {
+      const reply = await aiExplain(questions, currentQuestion, nextAsk);
+      setAiMessages((prev) =>
+        prev.map((m) =>
+          m.content === `__pending:${pendingId}__` ? { role: "assistant", content: reply } : m
+        )
+      );
+    } catch (err) {
+      if (isPremiumRequiredError(err)) {
+        // The admin switched AI to premium-only and this student is not
+        // premium: surface the upgrade prompt and drop the pending slot.
+        setAiMessages((prev) => prev.filter((m) => m.content !== `__pending:${pendingId}__`));
+        setAiPremiumLocked(true);
+        toast.error("AI explanations need a premium account — pay to unlock", {
+          style: {
+            backgroundColor: "#fff3cd",
+            color: "#664d03",
+            border: "1px solid #ffe69c",
+            padding: "10px",
+            borderRadius: "8px",
+          },
+        });
+      } else {
+        // Other failure: remove the pending marker and keep the student turn
+        // visible so they can retry.
+        setAiMessages((prev) => prev.filter((m) => m.content !== `__pending:${pendingId}__`));
+        toast.error("Couldn't reach the AI tutor. Please try again.", {
+          style: {
+            backgroundColor: "#f8d7da",
+            color: "#721c24",
+            border: "1px solid #f5c6cb",
+            padding: "10px",
+            borderRadius: "8px",
+          },
+        });
+      }
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   // --- TIMER LOGIC ---
   React.useEffect(() => {
@@ -311,7 +392,7 @@ export function AIPracticePage() {
             </div>
           </CardContent>
 
-          {/* --- Footer with Explanation and Navigation --- */}
+          {/* --- Footer with Explanation, AI tutor and Navigation --- */}
           {selectedAnswer !== undefined && selectedAnswer !== null && (
             <CardFooter className="flex-col items-start gap-4 mt-4 p-4 bg-muted/50 rounded-b-lg">
               <div>
@@ -323,6 +404,118 @@ export function AIPracticePage() {
                   {currentQuestion.explanation}
                 </p>
               </div>
+
+              {/* --- On-question AI tutor: guided explanation + free ask --- */}
+              <div className="w-full">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="flex items-center text-base font-bold text-gray-800 dark:text-white">
+                    <Sparkles className="w-5 h-5 text-purple-500 mr-2" />
+                    AI Tutor
+                  </h4>
+                  <span className="text-xs text-muted-foreground dark:text-gray-400">
+                    Guided help — it will not give away the answer.
+                  </span>
+                </div>
+
+                {aiPremiumLocked ? (
+                  <div className="w-full rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/40 p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                      <Lock className="h-4 w-4" />
+                      AI Tutor is a premium feature
+                    </div>
+                    <p className="text-xs text-yellow-800/80 dark:text-yellow-200/80">
+                      Unlock guided explanations and follow-up questions by
+                      upgrading to a premium account.
+                    </p>
+                    <Button
+                      size="sm"
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                      onClick={() => navigate("/payment")}
+                    >
+                      Get Premium
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-full space-y-3">
+                    {/* Conversation */}
+                    {aiMessages.length > 0 && (
+                      <div className="space-y-3">
+                        {aiMessages.map((m, i) => {
+                          const isPending = m.content.startsWith("__pending:");
+                          return (
+                            <div key={i}>
+                              {m.role === "user" ? (
+                                <div className="text-xs text-gray-700 dark:text-gray-300">
+                                  <span className="font-semibold">You: </span>
+                                  {m.content}
+                                </div>
+                              ) : isPending ? (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Thinking…
+                                </div>
+                              ) : (
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
+                                  <MarkdownMessage content={m.content} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Explain button (only before the student has asked) */}
+                    {aiMessages.length === 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200"
+                        disabled={aiLoading}
+                        onClick={() => handleAiExplain("")}
+                      >
+                        {aiLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Lightbulb className="mr-2 h-4 w-4" />
+                        )}
+                        Explain with AI
+                      </Button>
+                    )}
+
+                    {/* Free-ask box for follow-ups about this question */}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="Ask about this question…"
+                        value={aiAskText}
+                        disabled={aiLoading}
+                        onChange={(e) => setAiAskText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && aiAskText.trim() && !aiLoading) {
+                            e.preventDefault();
+                            const text = aiAskText;
+                            setAiAskText("");
+                            handleAiExplain(text);
+                          }
+                        }}
+                        className="text-sm"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={aiLoading || !aiAskText.trim()}
+                        onClick={() => {
+                          const text = aiAskText;
+                          setAiAskText("");
+                          handleAiExplain(text);
+                        }}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={
                   currentQuestionIndex < questions.length - 1
