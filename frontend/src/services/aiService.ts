@@ -48,6 +48,34 @@ export async function getAiGeneratedQuestions(setting: PracticeSettings) {
   return res.data.questions;
 }
 
+// --- Stored-bank practice (no LLM) ---
+// The question bank already holds graded questions per subject, so practice
+// for those subjects pulls straight from the bank instead of generating via
+// an AI provider. This keeps practice working even when no provider is
+// configured.
+
+// Subjects that have stored questions, so the practice UI can offer them.
+export async function getPracticeSubjects(): Promise<string[]> {
+  const res = await api.get("/ai/subjects");
+  return res.data.subjects as string[];
+}
+
+// Pull a practice session of stored questions for a subject (optionally
+// scoped to a topic/chapter). Returns the bank questions, ready for the same
+// session flow as AI-generated ones.
+export async function getBankPracticeQuestions(
+  subject: string,
+  topic: string,
+  count: number
+) {
+  const res = await api.post("/ai/practice-questions", {
+    subject,
+    topic,
+    question_count: count,
+  });
+  return res.data.questions;
+}
+
 // --- On-question AI tutor (explain / ask) ---
 
 export interface AIQuestionContext {

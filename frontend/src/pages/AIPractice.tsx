@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Label } from "../components/ui/label";
-import { getAiGeneratedQuestions, isPremiumRequiredError, aiExplain } from "../services/aiService";
+import { isPremiumRequiredError, aiExplain, getPracticeSubjects, getBankPracticeQuestions } from "../services/aiService";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useTelegram } from "../hooks/useTelegram";
@@ -88,6 +88,27 @@ export function AIPracticePage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const navigate = useNavigate();
   const { showBackButton, hideBackButton } = useTelegram();
+
+  // --- Question bank ---
+  // Practice now draws from the stored question bank (subjects that already
+  // have questions) instead of always calling the LLM. The subject list is
+  // populated from the bank, so every offered subject has usable data.
+  const [bankSubjects, setBankSubjects] = React.useState<string[]>([]);
+  const [questionCount, setQuestionCount] = React.useState(10);
+
+  React.useEffect(() => {
+    let active = true;
+    getPracticeSubjects()
+      .then((subs) => {
+        if (active) setBankSubjects(subs);
+      })
+      .catch(() => {
+        /* no bank wired — leave the list empty */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // --- On-question AI tutor (explain / ask) ---
   // A mini-conversation scoped to the CURRENT question: it resets when the
@@ -196,15 +217,39 @@ export function AIPracticePage() {
   };
 
   const handleGenerateSession = async () => {
+    if (!settings.subject) return;
     setIsLoading(true);
-    // API call would happen here, fetching an array of questions
     try {
-      const ai_questions = await getAiGeneratedQuestions(settings);
+      // Practice is drawn from the stored question bank for the selected
+      // subject (optionally scoped to the topic/chapter the student typed).
+      // This keeps it working with no LLM provider configured.
+      const bank_questions = await getBankPracticeQuestions(
+        settings.subject,
+        settings.topic,
+        questionCount
+      );
 
-      setQuestions(ai_questions);
+      if (!bank_questions || bank_questions.length === 0) {
+        toast.error(
+          "No practice questions found for this subject. Try another topic.",
+          {
+            style: {
+              backgroundColor: "#f8d7da",
+              color: "#721c24",
+              border: "1px solid #f5c6cb",
+              padding: "10px",
+              borderRadius: "8px",
+            },
+          }
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      setQuestions(bank_questions);
       setCurrentQuestionIndex(0);
       setAnswers([]);
-      setTimeLeft(ai_questions.length * 60); // 1 minute per question
+      setTimeLeft(bank_questions.length * 60); // 1 minute per question
       setIsLoading(false);
       setPageState("PRACTICING");
     } catch (err) {
@@ -220,7 +265,7 @@ export function AIPracticePage() {
           },
         });
       } else {
-        toast.error("Failed to generate questions. Please try again.", {
+        toast.error("Failed to load practice questions. Please try again.", {
           style: {
             backgroundColor: "#f8d7da",
             color: "#721c24",
@@ -272,9 +317,9 @@ export function AIPracticePage() {
   const selectedAnswer = answers.find(
     (a) => a.questionIndex === currentQuestionIndex
   )?.selectedAnswer;
-  // Topic is optional free text: subject + difficulty are enough for the
-  // backend prompt, requiring a topic blocked free-text users for nothing.
-  const canGenerate = Boolean(settings.subject && settings.difficulty);
+  // Topic is optional free text; a subject is required (it must be one of the
+  // subjects that actually has stored questions, offered from bankSubjects).
+  const canGenerate = Boolean(settings.subject);
   const totalSessionTime = questions.length * 60; // Assuming 1 min per question
   const timeSpent = totalSessionTime - timeLeft;
   const handleNextQuestion = () => {
@@ -550,7 +595,8 @@ export function AIPracticePage() {
         <CardHeader>
           <CardTitle>Practice Settings</CardTitle>
           <CardDescription className="dark:text-gray-400">
-            Choose your subject, grade, and difficulty level.
+            Choose a subject and how many questions to practice. Questions come
+            from the saved question bank for that subject.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -563,17 +609,21 @@ export function AIPracticePage() {
               }
             >
               <SelectTrigger id="subject">
-                <SelectValue placeholder="Select..." />
+                <SelectValue placeholder={bankSubjects.length ? "Select..." : "Loading..."} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Math">Mathematics</SelectItem>
-                <SelectItem value="Physics">Physics</SelectItem>
+                {bankSubjects.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="grade">Topic (optional)</Label>
+            <Label htmlFor="topic">Topic (optional)</Label>
             <Input
+              value={settings.topic}
               onChange={(e) =>
                 setSettings((prev) => ({ ...prev, topic: e.target.value }))
               }
@@ -581,28 +631,32 @@ export function AIPracticePage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="difficulty">Difficulty</Label>
+            <Label htmlFor="count">Questions</Label>
             <Select
-              value={settings.difficulty}
+              value={String(questionCount)}
               onValueChange={(val) =>
-                setSettings((s) => ({
-                  ...s,
-                  difficulty: val as "easy" | "medium" | "hard" | "",
-                }))
+                setQuestionCount(parseInt(val, 10) || 10)
               }
             >
-              <SelectTrigger id="difficulty">
-                <SelectValue placeholder="Select..." />
+              <SelectTrigger id="count">
+                <SelectValue placeholder="Number of questions" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="easy">Easy</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="hard">Hard</SelectItem>
+                {[5, 10, 15, 20, 25].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
+        <CardFooter className="flex justify-between items-center">
+          {bankSubjects.length === 0 && !isLoading && (
+            <span className="text-xs text-muted-foreground">
+              No subjects available yet.
+            </span>
+          )}
           <Button
             onClick={handleGenerateSession}
             disabled={!canGenerate || isLoading}
@@ -612,7 +666,7 @@ export function AIPracticePage() {
             ) : (
               <Sparkles className="mr-2 h-4 w-4" />
             )}
-            {isLoading ? "Generating Session..." : "Start Practice"}
+            {isLoading ? "Loading Questions..." : "Start Practice"}
           </Button>
         </CardFooter>
       </Card>
