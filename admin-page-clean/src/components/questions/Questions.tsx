@@ -2,6 +2,7 @@ import * as React from "react";
 import {
   getQuestions,
   deleteQuestions,
+  deleteAllQuestions,
   MAX_BULK_DELETE_IDS,
   type BulkDeleteQuestionsResult,
 } from "@/services/questionServices"; // Full question rows (admin route)
@@ -66,6 +67,11 @@ export default function QuestionsPage() {
   const [bulkError, setBulkError] = React.useState<string | null>(null);
   const [bulkResult, setBulkResult] =
     React.useState<BulkDeleteQuestionsResult | null>(null);
+
+  // "Delete all" is a separate, more destructive action than deleting the
+  // current selection: it removes every stored question in one call.
+  const [deleteAllOpen, setDeleteAllOpen] = React.useState(false);
+  const [deleteAllBusy, setDeleteAllBusy] = React.useState(false);
 
   // Fetch data on component mount
   React.useEffect(() => {
@@ -167,6 +173,31 @@ export default function QuestionsPage() {
       document.body.style.pointerEvents = "";
     } finally {
       setBulkDeleting(false);
+    }
+  };
+
+  // Remove every stored question. The backend chunks the work, so this is safe
+  // for a large bank. On success the list empties (any ids that failed are
+  // reported and the remaining rows stay).
+  const handleDeleteAll = async () => {
+    setDeleteAllBusy(true);
+    setBulkError(null);
+    try {
+      const result = await deleteAllQuestions();
+      const removed = new Set(result.deleted);
+      setQuestions((prev) => prev.filter((q) => !q.id || !removed.has(q.id)));
+      // Clear any selection; failed ids are surfaced via the result alert.
+      setSelectedIds(new Set());
+      setBulkResult(result);
+      setDeleteAllOpen(false);
+      document.body.style.pointerEvents = "";
+    } catch (e) {
+      setBulkResult(null);
+      setBulkError(describeApiError(e, "Delete all"));
+      setDeleteAllOpen(false);
+      document.body.style.pointerEvents = "";
+    } finally {
+      setDeleteAllBusy(false);
     }
   };
 
@@ -308,6 +339,51 @@ export default function QuestionsPage() {
                   Max {MAX_BULK_DELETE_IDS} per request
                 </span>
               )}
+
+              {/* Delete all: removes every stored question, not just the selection */}
+              <AlertDialog
+                open={deleteAllOpen}
+                onOpenChange={(open) => {
+                  if (!deleteAllBusy) setDeleteAllOpen(open);
+                }}
+              >
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1 border-destructive/50"
+                  disabled={filteredQuestions.length === 0 || deleteAllBusy}
+                  onClick={() => {
+                    setBulkResult(null);
+                    setBulkError(null);
+                    setDeleteAllOpen(true);
+                  }}
+                >
+                  {deleteAllBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  Delete all
+                </Button>
+                <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete all questions?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This permanently removes every stored question
+                      ({filteredQuestions.length} shown{filters.subjects.length || filters.grades.length ? " after filters" : " total"}). This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={handleDeleteAll}
+                    >
+                      {deleteAllBusy ? "Deleting..." : "Delete all"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               {/* Subject Filter Dropdown */}
               <DropdownMenu>

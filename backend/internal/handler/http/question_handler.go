@@ -37,6 +37,7 @@ func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.H
 	auth.POST("/add", h.AddQuestion)
 	auth.POST("/multiple-add", h.AddMultipleQuestions)
 	auth.POST("/multiple-delete", h.DeleteMultipleQuestions)
+	auth.POST("/delete-all", h.DeleteAllQuestions)
 	auth.POST("/parse-document", h.ParseDocument)
 	auth.GET("/parse-document/:jobId", h.ParseDocumentStatus)
 	auth.PATCH("/:id", h.UpdateQuestion)
@@ -364,6 +365,47 @@ func (h *QuestionHandler) DeleteMultipleQuestions(c *gin.Context) {
 		log.Printf("DeleteMultipleQuestions(count=%d) failed: %v", len(req.IDs), err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deleted": result.Deleted, "failed": result.Failed})
+}
+
+// DeleteAllQuestions removes every stored question in one action. It lists all
+// ids and bulk-deletes them in chunks of maxBulkDeleteIDs so the per-request
+// cap is never exceeded no matter how large the bank is. It reuses the same
+// DeleteQuestions usecase, so per-id failures are reported, not fatal.
+func (h *QuestionHandler) DeleteAllQuestions(c *gin.Context) {
+	all, err := h.usecase.GetAllQuestions()
+	if err != nil {
+		log.Printf("DeleteAllQuestions: list failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ids := make([]string, 0, len(all))
+	for _, q := range all {
+		if q.ID != "" {
+			ids = append(ids, q.ID)
+		}
+	}
+	if len(ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{"deleted": []string{}, "failed": []usecase.BulkDeleteFailure{}})
+		return
+	}
+
+	var result usecase.BulkDeleteResult
+	for i := 0; i < len(ids); i += maxBulkDeleteIDs {
+		end := i + maxBulkDeleteIDs
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunk, err := h.usecase.DeleteQuestions(ids[i:end])
+		if err != nil {
+			log.Printf("DeleteAllQuestions(chunk %d-%d) failed: %v", i, end, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		result.Deleted = append(result.Deleted, chunk.Deleted...)
+		result.Failed = append(result.Failed, chunk.Failed...)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"deleted": result.Deleted, "failed": result.Failed})

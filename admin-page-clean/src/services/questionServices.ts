@@ -296,6 +296,18 @@ export async function deleteQuestions(
   return { deleted: data.deleted ?? [], failed: data.failed ?? [] };
 }
 
+/** POST /api/question/delete-all — removes every stored question in one
+ *  action. The backend chunks the bulk delete internally, so this works no
+ *  matter how large the bank is (the per-request cap does not apply here). */
+export async function deleteAllQuestions(): Promise<BulkDeleteQuestionsResult> {
+  const res = await api.post("/api/question/delete-all", {});
+  const data = res.data as {
+    deleted?: string[] | null;
+    failed?: BulkDeleteFailure[] | null;
+  };
+  return { deleted: data.deleted ?? [], failed: data.failed ?? [] };
+}
+
 /** GET /api/question/ — full question rows including answers/explanations
  *  (admin-only route). Unlike GET /api/contest/:id this never strips
  *  sensitive fields, so use it as the source for admin editing. */
