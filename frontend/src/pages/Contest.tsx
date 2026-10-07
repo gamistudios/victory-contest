@@ -553,27 +553,36 @@ const ContestComponent: React.FC = () => {
           {/* Previous Button */}
           <Button
             onClick={handlePreviousQuestion}
-            disabled={currentQuestionIndex === 0}
-            className="w-1/2 bg-gray-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={currentQuestionIndex === 0 || submitting}
+            className="flex-1 bg-gray-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Previous
           </Button>
 
-          {/* Next/Finish Button */}
+          {/* Next Button — only while there is a following question. */}
+          {currentQuestionIndex < questions.length - 1 && (
+            <Button
+              disabled={submitting}
+              onClick={handleNextQuestion}
+              className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </Button>
+          )}
+
+          {/* Submit is available on EVERY question, not just the last one: a
+              student who has answered only part of the contest can finish now
+              and get their partial result instead of being forced to walk
+              through all questions. Unanswered questions are recorded as
+              skips on submit (handleContestEnd), so the server grades a real
+              partial sheet. The confirm dialog in endContest guards against
+              an accidental early finish. */}
           <Button
             disabled={submitting}
-            onClick={
-              currentQuestionIndex < questions.length - 1
-                ? handleNextQuestion
-                : endContest
-            }
-            className="w-1/2 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={endContest}
+            className="flex-1 bg-emerald-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting
-              ? "Submitting..."
-              : currentQuestionIndex < questions.length - 1
-              ? "Next"
-              : "Finish"}
+            {submitting ? "Submitting..." : "Submit"}
           </Button>
         </div>
       </div>
