@@ -31,6 +31,21 @@ func validateQuestion(q domain.Question) error {
 // before spending an upload on it.
 func ValidateQuestion(q domain.Question) error { return validateQuestion(q) }
 
+// normalizeOptionImages returns a per-option image list exactly as long as
+// optionCount: entries beyond optionCount are dropped, missing slots are
+// padded with "". This keeps the list aligned with MultipleChoice so a
+// desync (stale extra image, or options added without images) can never
+// leave the student UI with an image for a non-existent option.
+func normalizeOptionImages(images []string, optionCount int) []string {
+	out := make([]string, optionCount)
+	for i := 0; i < optionCount; i++ {
+		if i < len(images) {
+			out[i] = images[i]
+		}
+	}
+	return out
+}
+
 type QuestionUsecase interface {
 	AddQuestion(question domain.Question) (string, error)
 	UpdateQuestion(id string, patch domain.QuestionPatch) error
@@ -65,6 +80,9 @@ func (u *questionUsecase) AddQuestion(question domain.Question) (string, error) 
 	if err := validateQuestion(question); err != nil {
 		return "", err
 	}
+	// Keep the per-option image list aligned to the option count so a
+	// hand-built request can't desync options and their images.
+	question.OptionImages = normalizeOptionImages(question.OptionImages, len(question.MultipleChoice))
 	question.ID = GenerateUniqueId()
 	return u.repo.AddQuestion(question)
 }
@@ -106,6 +124,11 @@ func (u *questionUsecase) UpdateQuestion(id string, patch domain.QuestionPatch) 
 	}
 	if patch.MultipleChoice != nil {
 		updated.MultipleChoice = *patch.MultipleChoice
+	}
+	if patch.OptionImages != nil {
+		// Option images align index-by-index with the options; normalize so a
+		// stale or over-long list can never desync from the option count.
+		updated.OptionImages = normalizeOptionImages(*patch.OptionImages, len(updated.MultipleChoice))
 	}
 	// Only patches that touch the answer/options need the range check —
 	// legacy rows without options stay editable (e.g. to fix the text) so

@@ -288,6 +288,10 @@ func publicContestPayload(contest *domain.ContestTypeWithQuestionObj, ended bool
 		if multipleChoice == nil {
 			multipleChoice = []string{}
 		}
+		optionImages := q.OptionImages
+		if optionImages == nil {
+			optionImages = []string{}
+		}
 		qs = append(qs, gin.H{
 			"id":              q.ID,
 			"question_text":   q.QuestionText,
@@ -296,6 +300,9 @@ func publicContestPayload(contest *domain.ContestTypeWithQuestionObj, ended bool
 			"grade":           q.Grade,
 			"chapter":         q.Chapter,
 			"multiple_choice": multipleChoice,
+			// option_images is safe pre-termination: it is just the URLs of
+			// the choice photos, none of which reveals the correct option.
+			"option_images": optionImages,
 		})
 	}
 	out["questions"] = qs

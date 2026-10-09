@@ -11,6 +11,11 @@ type Question struct {
 	Grade          string   `json:"grade"              dynamodbav:"grade"`
 	Chapter        string   `json:"chapter"            dynamodbav:"chapter"`
 	MultipleChoice []string `json:"multiple_choice"    dynamodbav:"multiple_choice"`
+	// OptionImages is aligned index-by-index with MultipleChoice: entry i is the
+	// image URL for option i, or "" when that option is text-only. It is purely
+	// additive and optional, so legacy rows (no attribute) unmarshal as nil and
+	// grading (1-based index into MultipleChoice) is unaffected.
+	OptionImages []string `json:"option_images"        dynamodbav:"option_images"`
 }
 
 // QuestionPatch carries the fields provided by PATCH /question/:id. A nil
@@ -25,7 +30,10 @@ type QuestionPatch struct {
 	Subject        *string   `json:"subject"`
 	Grade          *string   `json:"grade"`
 	Chapter        *string   `json:"chapter"`
-	MultipleChoice *[]string `json:"multiple_choice"`
+	MultipleChoice *[]string  `json:"multiple_choice"`
+	// OptionImages, when non-nil, fully replaces the stored per-option image
+	// URLs. Empty slice = clear all option images; nil = leave unchanged.
+	OptionImages *[]string `json:"option_images"`
 }
 
 type AiPracticeSetting struct {

@@ -2,6 +2,7 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -203,6 +204,16 @@ func (h *QuestionHandler) AddQuestion(c *gin.Context) {
 		question.ExplanationImg = imgURL
 	}
 
+	// Per-option images: option_image_1..N file parts, aligned to the option
+	// index. Each is optional; a missing part leaves that option text-only.
+	// The usecase normalizes the list to the option count on save.
+	optionImages, err := h.readOptionImageFiles(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	question.OptionImages = optionImages
+
 	id, err := h.usecase.AddQuestion(question)
 	if err != nil {
 		if errors.Is(err, usecase.ErrInvalidQuestion) {
@@ -214,6 +225,96 @@ func (h *QuestionHandler) AddQuestion(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Question added successfully"})
+}
+
+// readOptionImageFiles uploads any optional per-option image file parts
+// (option_image_1 .. option_image_N) found in the request to Cloudinary and
+// merges in any pre-existing Cloudinary URLs sent as option_image_url_1..N
+// text fields. The result is an index-aligned list: position i-1 holds the
+// URL for option i (freshly uploaded or carried-over), or "" when that option
+// had neither. A freshly uploaded file wins over a carried-over URL in the
+// same slot. The part list is discovered by scanning the multipart form, so
+// the caller never needs to know the option count up front — the usecase
+// normalizes the result to the final option count on merge.
+func (h *QuestionHandler) readOptionImageFiles(c *gin.Context) ([]string, error) {
+	if c.Request == nil || c.Request.MultipartForm == nil {
+		return nil, nil
+	}
+	// Discover the option slots that carry an image part or a carried-over
+	// URL, by scanning the multipart form's keys.
+	maxIndex := 0
+	for name := range c.Request.MultipartForm.File {
+		if !strings.HasPrefix(name, "option_image_") {
+			continue
+		}
+		if n, err := strconv.Atoi(strings.TrimPrefix(name, "option_image_")); err == nil && n > maxIndex {
+			maxIndex = n
+		}
+	}
+	for name, values := range c.Request.MultipartForm.Value {
+		if !strings.HasPrefix(name, "option_image_url_") || len(values) == 0 {
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimPrefix(name, "option_image_url_"))
+		if err != nil || n < 1 {
+			continue
+		}
+		if n > maxIndex {
+			maxIndex = n
+		}
+	}
+	if maxIndex == 0 {
+		return nil, nil
+	}
+
+	urls := make([]string, maxIndex)
+	// 1. Upload fresh option-image files.
+	for i := 1; i <= maxIndex; i++ {
+		field := "option_image_" + strconv.Itoa(i)
+		fileHeader, err := c.FormFile(field)
+		if err != nil {
+			if err == http.ErrMissingFile {
+				continue // this option has no new image
+			}
+			return nil, fmt.Errorf("failed to read option image part: %w", err)
+		}
+		if err := validateImageUpload(fileHeader); err != nil {
+			return nil, fmt.Errorf("option image %d: %w", i, err)
+		}
+		file, err := fileHeader.Open()
+		if err != nil {
+			return nil, fmt.Errorf("failed to open option image part: %w", err)
+		}
+		imgURL, upErr := h.imageRepo.UploadImage(file, "questions")
+		file.Close()
+		if upErr != nil {
+			return nil, fmt.Errorf("failed to upload option image %d: %w", i, upErr)
+		}
+		urls[i-1] = imgURL
+	}
+	// 2. Fill any slot without a fresh upload from a carried-over URL so an
+	//    edit that keeps an existing option photo does not silently clear it.
+	for i := 1; i <= maxIndex; i++ {
+		if urls[i-1] != "" {
+			continue
+		}
+		if v := c.PostForm("option_image_url_" + strconv.Itoa(i)); v != "" {
+			urls[i-1] = v
+		}
+	}
+	return urls, nil
+}
+
+// anyNonEmpty reports whether the URL list has at least one non-empty entry,
+// so an all-empty option-image set is treated as "not provided" (a no-op)
+// rather than a clear.
+func anyNonEmpty(urls []string) bool {
+	for _, u := range urls {
+		if u != "" {
+			return true
+		}
+	}
+	return false
 }
 func (h *QuestionHandler) AddMultipleQuestions(c *gin.Context) {
 	var questions domain.MultipleQuestionRequest
@@ -294,6 +395,22 @@ func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 			return
 		} else if url != "" {
 			patch.ExplanationImg = &url
+		}
+
+		// Per-option image parts: the panel only appends a file part for
+		// options that actually carry an image, so we scan the multipart form
+		// for option_image_N parts, upload them, and build an index-aligned
+		// URL list (empty slots = ""). The usecase then normalizes the list
+		// to the final option count, so a stale/over-long set can't desync.
+		// We mark the field "provided" only when some part carried an image;
+		// a fully-empty set on update is a no-op, not a clear.
+		optionImages, err := h.readOptionImageFiles(c)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if anyNonEmpty(optionImages) {
+			patch.OptionImages = &optionImages
 		}
 	} else {
 		// JSON: pointer fields make "provided" vs "omitted" explicit.
