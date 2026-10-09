@@ -167,6 +167,9 @@ export interface Question {
   multiple_choice: string[];
   difficulty?: "easy" | "medium" | "hard";
   question_image?: string;
+  /** Aligned with multiple_choice: entry i is the photo URL for option i, or
+   *  "" when that option is text-only. Omitted on legacy questions. */
+  option_images?: string[];
 }
 
 export interface ContestAnswer {

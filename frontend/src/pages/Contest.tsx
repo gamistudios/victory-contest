@@ -516,35 +516,51 @@ const ContestComponent: React.FC = () => {
 
         {/* Options */}
         <div className="space-y-3 mt-6">
-          {currentQuestion.multiple_choice.map((option, index) => (
-            <button
-              key={index}
-              onClick={() => handleAnswerSelect(index)}
-              className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-200 ${
-                selectedAnswer! - 1 === index
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                  : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
-              }`}
-            >
-              <div className="flex items-center">
-                <div
-                  className={`w-6 h-6 rounded-full border-2 mr-3 flex items-center justify-center flex-shrink-0 ${
-                    selectedAnswer === index + 1
-                      ? "border-blue-500 bg-blue-500"
-                      : "border-gray-300 dark:border-gray-600"
-                  }`}
-                >
-                  {selectedAnswer === index + 1 && (
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  )}
+          {currentQuestion.multiple_choice.map((option, index) => {
+            const optionImage =
+              currentQuestion.option_images?.[index] || undefined;
+            return (
+              <button
+                key={index}
+                onClick={() => handleAnswerSelect(index)}
+                className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-200 ${
+                  selectedAnswer! - 1 === index
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                    : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-6 h-6 rounded-full border-2 mr-0 flex items-center justify-center flex-shrink-0 ${
+                      selectedAnswer === index + 1
+                        ? "border-blue-500 bg-blue-500"
+                        : "border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    {selectedAnswer === index + 1 && (
+                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-3">
+                    <span className="font-medium">
+                      {String.fromCharCode(65 + index)}.
+                    </span>
+                    {optionImage && (
+                      <img
+                        src={optionImage}
+                        alt={`Option ${String.fromCharCode(65 + index)}`}
+                        className="h-16 w-16 object-contain rounded-md border border-gray-200 dark:border-gray-600 flex-shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    )}
+                    <span className="ml-1 break-words">{option}</span>
+                  </div>
                 </div>
-                <span className="font-medium">
-                  {String.fromCharCode(65 + index)}.
-                </span>
-                <span className="ml-2">{option}</span>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </div>
 

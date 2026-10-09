@@ -63,6 +63,9 @@ interface AIQuestion {
   subject: string;
   grade: string;
   chapter: string;
+  /** Aligned with multiple_choice: entry i is the photo URL for option i,
+   *  or "" when that option is text-only. */
+  option_images?: string[];
 }
 
 interface Answer {
@@ -409,6 +412,9 @@ export function AIPracticePage() {
                   }
                 }
 
+                const optionImage =
+                  currentQuestion.option_images?.[index] || undefined;
+
                 return (
                   <button
                     key={index}
@@ -430,7 +436,19 @@ export function AIPracticePage() {
                     <span className="font-medium">
                       {String.fromCharCode(65 + index)}.
                     </span>
-                    <span className="ml-2">{option}</span>
+                    <div className="ml-2 flex items-center gap-2 flex-1 min-w-0">
+                      <span>{option}</span>
+                      {optionImage && (
+                        <img
+                          src={optionImage}
+                          alt={`Option ${String.fromCharCode(65 + index)}`}
+                          className="h-14 w-14 object-contain rounded-md border border-gray-200 dark:border-gray-600 flex-shrink-0"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      )}
+                    </div>
                   </button>
                 );
               })}

@@ -28,6 +28,9 @@ interface Question {
   chapter: string;
   grade: string;
   difficulty?: string;
+  /** Aligned with multiple_choice: entry i is the photo URL for option i,
+   *  or "" when that option is text-only. */
+  option_images?: string[];
 }
 
 // EditorialQuestion interface
@@ -486,8 +489,18 @@ const ContestEditorial: React.FC = () => {
                                 ? "✗"
                                 : String.fromCharCode(65 + optionIndex)}
                             </div>
-                            <span className="text-sm text-gray-800 dark:text-white flex-1">
-                              {option}
+                            <span className="text-sm text-gray-800 dark:text-white flex-1 min-w-0 flex items-center gap-2">
+                              <span className="break-words">{option}</span>
+                              {question.option_images?.[optionIndex] && (
+                                <img
+                                  src={question.option_images[optionIndex]}
+                                  alt={`Option ${String.fromCharCode(65 + optionIndex)}`}
+                                  className="h-14 w-14 object-contain rounded-md border border-gray-200 dark:border-gray-600 flex-shrink-0"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              )}
                             </span>
                             {isCorrect && (
                               <div className="flex items-center">
