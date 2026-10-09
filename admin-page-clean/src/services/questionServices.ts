@@ -6,7 +6,11 @@ import api from "./api";
 // (cookie auth via the shared `api` axios instance).
 
 /** 1-based correct-option index — the canonical convention across the
- *  whole stack; never convert to 0-based here. */
+ *  whole stack; never convert to 0-based here.
+ *
+ *  option_images is aligned index-by-index with multiple_choice: entry i is
+ *  a File (uploaded as the option_image_(i+1) part) or a Cloudinary URL
+ *  string, or null/"" when option i is text-only. */
 export interface AddQuestionInput {
   question_text: string;
   multiple_choice: string[];
@@ -17,6 +21,7 @@ export interface AddQuestionInput {
   explanation?: string;
   question_image?: File;
   explanation_image?: File;
+  option_images?: Array<File | string | null>;
 }
 
 /** Presence-aware patch: omitted fields keep their stored values
@@ -33,6 +38,10 @@ export interface UpdateQuestionInput {
    *  a File forces the multipart branch where the backend uploads it. */
   question_image?: File | string;
   explanation_image?: File | string;
+  /** Aligned with multiple_choice: a File is uploaded as the
+   *  option_image_(i+1) part, a string is sent in the JSON branch, and
+   *  null/"" clears the image for that option. */
+  option_images?: Array<File | string | null>;
 }
 
 export interface MutateResult {
@@ -45,7 +54,7 @@ const FILE_FIELDS = ["question_image", "explanation_image"] as const;
 /** POST /api/question/add — multipart/form-data.
  *  Backend reads PostForm fields question_text, explanation, subject, grade,
  *  chapter, multiple_choice (repeated), answer (integer string) and FormFile
- *  parts question_image / explanation_image. */
+ *  parts question_image / explanation_image / option_image_1..N. */
 export async function addQuestion(
   input: AddQuestionInput
 ): Promise<MutateResult> {
@@ -66,6 +75,15 @@ export async function addQuestion(
     if (file instanceof File) {
       formData.append(field, file);
     }
+  }
+  // Per-option photo uploads: only parts with a new File are sent; the
+  // backend aligns them to the option index and keeps the rest text-only.
+  if (input.option_images) {
+    input.option_images.forEach((img, i) => {
+      if (img instanceof File) {
+        formData.append(`option_image_${i + 1}`, img);
+      }
+    });
   }
 
   const res = await api.post("/api/question/add", formData);
@@ -88,6 +106,14 @@ export async function addMultipleQuestions(
           }, "${field}"). Upload images one question at a time via add/edit.`
         );
       }
+    }
+    // Bulk add is JSON-only: option images must already be Cloudinary URLs,
+    // never raw File uploads.
+    if (q.option_images?.some((img) => (img as unknown) instanceof File)) {
+      throw new Error(
+        `Bulk add does not support File objects for option images (question ${i + 1}). ` +
+          "Attach option photos one question at a time via add/edit."
+      );
     }
   }
   const res = await api.post("/api/question/multiple-add", { questions });
@@ -188,7 +214,10 @@ export async function updateQuestion(
     throw new Error("Question ID is missing for update.");
   }
 
-  const hasFiles = FILE_FIELDS.some((field) => patch[field] instanceof File);
+  const hasOptionFiles =
+    patch.option_images?.some((img) => img instanceof File) ?? false;
+  const hasFiles =
+    FILE_FIELDS.some((field) => patch[field] instanceof File) || hasOptionFiles;
 
   if (hasFiles) {
     const formData = new FormData();
@@ -212,6 +241,18 @@ export async function updateQuestion(
         formData.append(field, value);
       }
     }
+    // Per-option photo uploads as multipart parts (option_image_(i+1)).
+    if (patch.option_images) {
+      patch.option_images.forEach((img, i) => {
+        if (img instanceof File) {
+          formData.append(`option_image_${i + 1}`, img);
+        } else if (typeof img === "string" && img !== "") {
+          // Carry the stored Cloudinary URL forward so a new photo on one
+          // option doesn't clear the existing photos on the others.
+          formData.append(`option_image_url_${i + 1}`, img);
+        }
+      });
+    }
     const res = await api.patch(`/api/question/${id}`, formData);
     return res.data;
   }
@@ -224,6 +265,13 @@ export async function updateQuestion(
       throw new Error(
         `Invalid "${field}" value for JSON update: expected a Cloudinary URL string or a File. ` +
           "File objects must be uploaded as multipart form data."
+      );
+    }
+  }
+  for (const [i, img] of (patch.option_images ?? []).entries()) {
+    if (img !== null && img !== "" && typeof img !== "string") {
+      throw new Error(
+        `Invalid option_images[${i}] value for JSON update: expected a Cloudinary URL string, an empty string to clear, or a File (which forces multipart).`
       );
     }
   }
@@ -241,6 +289,12 @@ export async function updateQuestion(
     body.question_image = patch.question_image;
   if (typeof patch.explanation_image === "string")
     body.explanation_image = patch.explanation_image;
+  // JSON update of option images: aligned URL list; null/"" clears that slot.
+  if (patch.option_images) {
+    body.option_images = patch.option_images.map((img) =>
+      img === null ? "" : (img as string)
+    );
+  }
 
   const res = await api.patch(`/api/question/${id}`, body, {
     headers: { "Content-Type": "application/json" },

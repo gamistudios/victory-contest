@@ -69,11 +69,19 @@ const questionSchema = z.object({
 
 type FormState = Omit<
   Question,
-  "id" | "answer" | "question_image" | "explanation_image"
+  | "id"
+  | "answer"
+  | "question_image"
+  | "explanation_image"
+  | "option_images"
 > & {
   answer: string;
   question_image?: File | string;
   explanation_image?: File | string;
+  // Aligned with multiple_choice: entry i is the File the admin picked for
+  // option i (or the stored Cloudinary URL string when editing), or null/
+  // undefined when that option stays text-only.
+  option_images?: Array<File | string | null>;
 };
 
 type Action =
@@ -85,6 +93,7 @@ type Action =
   | { type: "ADD_OPTION" }
   | { type: "REMOVE_OPTION"; index: number }
   | { type: "UPDATE_OPTION"; index: number; value: string }
+  | { type: "SET_OPTION_IMAGE"; index: number; value: File | null }
   | { type: "RESET_FORM"; payload: FormState };
 
 // 2. The reducer is now fully type-safe
@@ -93,16 +102,24 @@ const formReducer = (state: FormState, action: Action): FormState => {
     case "UPDATE_FIELD":
       return { ...state, [action.field]: action.value };
     case "ADD_OPTION":
-      return { ...state, multiple_choice: [...state.multiple_choice, ""] };
+      return {
+        ...state,
+        multiple_choice: [...state.multiple_choice, ""],
+        option_images: [...(state.option_images ?? []), null],
+      };
     case "REMOVE_OPTION": {
       const newOptions = state.multiple_choice.filter(
         (_, i) => i !== action.index
       );
       const isAnswerRemoved =
         state.answer === state.multiple_choice[action.index];
+      const newImages = (state.option_images ?? []).filter(
+        (_, i) => i !== action.index
+      );
       return {
         ...state,
         multiple_choice: newOptions,
+        option_images: newImages,
         answer: isAnswerRemoved ? "" : state.answer,
       };
     }
@@ -111,12 +128,49 @@ const formReducer = (state: FormState, action: Action): FormState => {
       updatedOptions[action.index] = action.value;
       return { ...state, multiple_choice: updatedOptions };
     }
+    case "SET_OPTION_IMAGE": {
+      const images = [...(state.option_images ?? [])];
+      while (images.length < state.multiple_choice.length) {
+        images.push(null);
+      }
+      images[action.index] = action.value;
+      return { ...state, option_images: images };
+    }
     case "RESET_FORM":
       return action.payload;
     default:
       return state;
   }
 };
+
+// Renders one option's photo: a File becomes an object-URL preview (released
+// on unmount / change to avoid leaks); a stored Cloudinary URL is shown as-is.
+function OptionImagePreview({
+  image,
+  optionNumber,
+}: {
+  image: File | string | null | undefined;
+  optionNumber: number;
+}) {
+  const [objectUrl, setObjectUrl] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (image instanceof File) {
+      const url = URL.createObjectURL(image);
+      setObjectUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setObjectUrl(null);
+  }, [image]);
+  const src = objectUrl ?? (typeof image === "string" ? image : null);
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt={`Option ${optionNumber} preview`}
+      className="h-12 w-12 object-cover rounded-md border"
+    />
+  );
+}
 
 export function AddQuestionManual(): JSX.Element {
   const [searchParams] = useSearchParams();
@@ -140,6 +194,14 @@ export function AddQuestionManual(): JSX.Element {
     explanation: questionToEdit?.explanation ?? "",
     question_image: undefined,
     explanation_image: undefined,
+    // When editing, carry the stored option-image URLs forward so an
+    // untouched option keeps its photo; empty slots are "" so the backend
+    // treats them as "no image".
+    option_images: questionToEdit
+      ? questionToEdit.multiple_choice.map((_, i) =>
+          questionToEdit.option_images?.[i] ?? ""
+        )
+      : undefined,
   };
 
   const [state, dispatch] = React.useReducer(formReducer, initialState);
@@ -155,6 +217,21 @@ export function AddQuestionManual(): JSX.Element {
       field,
       value: e.target.files?.[0] ?? null,
     });
+  };
+
+  const handleOptionImageChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    dispatch({
+      type: "SET_OPTION_IMAGE",
+      index,
+      value: e.target.files?.[0] ?? null,
+    });
+  };
+
+  const clearOptionImage = (index: number) => {
+    dispatch({ type: "SET_OPTION_IMAGE", index, value: null });
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -188,6 +265,11 @@ export function AddQuestionManual(): JSX.Element {
         if (validationResult.data.explanation_image instanceof File) {
           patch.explanation_image = validationResult.data.explanation_image;
         }
+        // Option photos: stored URLs pass through untouched; a File uploads
+        // the replacement via the multipart branch in the service.
+        if (state.option_images) {
+          patch.option_images = state.option_images;
+        }
 
         const promise = updateQuestion(questionToEdit.id, patch);
         toast.promise(promise, {
@@ -200,8 +282,14 @@ export function AddQuestionManual(): JSX.Element {
         });
       } else {
         // Adding a new question: the service builds the exact multipart
-        // payload the backend /api/question/add handler binds.
-        const promise = addQuestion(validationResult.data);
+        // payload the backend /api/question/add handler binds. The schema
+        // validates the text fields; option photos live on the form state.
+        const input = {
+          ...validationResult.data,
+          answer: parseInt(validationResult.data.answer, 10),
+          option_images: state.option_images,
+        };
+        const promise = addQuestion(input);
         toast.promise(promise, {
           loading: "Adding question...",
           success: () => {
@@ -293,43 +381,81 @@ export function AddQuestionManual(): JSX.Element {
                 }
                 className="space-y-4"
               >
-                {state.multiple_choice.map((option, index) => (
-                  <div key={index} className="flex items-center gap-2 sm:gap-4 min-w-0">
-                    <RadioGroupItem
-                      value={(index + 1).toString()}
-                      id={`option-${index}`}
-                      className="shrink-0"
-                    />
-                    <Label htmlFor={`option-${index}`} className="sr-only">
-                      Select option {index + 1}
-                    </Label>
-                    <Input
-                      value={option}
-                      placeholder={`Option ${index + 1}`}
-                      onChange={(e) =>
-                        dispatch({
-                          type: "UPDATE_OPTION",
-                          index,
-                          value: e.target.value,
-                        })
-                      }
-                      className="flex-grow min-w-0"
-                    />
-                    {state.multiple_choice.length > 2 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0"
-                        onClick={() =>
-                          dispatch({ type: "REMOVE_OPTION", index })
-                        }
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                {state.multiple_choice.map((option, index) => {
+                  const optionImage = state.option_images?.[index] ?? null;
+                  return (
+                    <div key={index} className="min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-4">
+                        <RadioGroupItem
+                          value={(index + 1).toString()}
+                          id={`option-${index}`}
+                          className="shrink-0"
+                        />
+                        <Label htmlFor={`option-${index}`} className="sr-only">
+                          Select option {index + 1}
+                        </Label>
+                        <Input
+                          value={option}
+                          placeholder={`Option ${index + 1} text`}
+                          onChange={(e) =>
+                            dispatch({
+                              type: "UPDATE_OPTION",
+                              index,
+                              value: e.target.value,
+                            })
+                          }
+                          className="flex-grow min-w-0"
+                        />
+                        {state.multiple_choice.length > 2 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0"
+                            onClick={() =>
+                              dispatch({ type: "REMOVE_OPTION", index })
+                            }
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                      {/* Per-option photo: an option can carry a picture
+                          instead of (or alongside) its text label. */}
+                      <div className="mt-2 ml-6 flex items-center gap-3 flex-wrap">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) =>
+                            handleOptionImageChange(e, index)
+                          }
+                          className="w-full sm:w-auto sm:max-w-xs text-xs file:max-w-[35%] file:truncate"
+                        />
+                        {optionImage ? (
+                          <div className="flex items-center gap-2">
+                            <OptionImagePreview
+                              image={optionImage}
+                              optionNumber={index + 1}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => clearOptionImage(index)}
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" /> Remove
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Optional photo for this option
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </RadioGroup>
             </CardContent>
           </Card>

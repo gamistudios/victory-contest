@@ -65,6 +65,9 @@ export interface Question {
   subject: string;
   question_image?: string;
   explanation_image?: string;
+  /** Aligned with multiple_choice: entry i is a Cloudinary URL for the photo
+   *  of option i, or "" when that option is text-only. */
+  option_images?: string[];
 }
 
 export interface Submission {
