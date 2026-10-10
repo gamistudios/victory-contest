@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Drawer } from "vaul";
-import { Menu } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NavLinks, UserProfile } from "./Sidebar";
 import Logo from "./Logo";
@@ -31,7 +31,7 @@ export default function MobileNav() {
             bar, so the drawer's logo, close button and profile card spill onto
             the page instead of overlaying it. */}
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-50 bg-black/40" />
+          <Drawer.Overlay className="fixed inset-0 z-50 bg-scrim/40" />
           <Drawer.Content className="fixed inset-y-0 left-0 right-auto z-50 flex h-full w-72 max-w-[85vw] flex-col rounded-none border-r bg-background">
             <div className="flex items-center justify-between border-b px-4 py-3">
               <Logo />
@@ -42,7 +42,7 @@ export default function MobileNav() {
                 aria-label="Close navigation"
                 onClick={() => setOpen(false)}
               >
-                ✕
+                <X className="h-5 w-5" aria-hidden="true" />
               </Button>
             </div>
             <div className="custom-scrollbar flex-1 overflow-y-auto px-2 py-4">

@@ -1,4 +1,5 @@
 // src/components/layout/Header.tsx
+import { ThemeToggle } from "./ThemeToggle";
 import { useState, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -164,7 +165,7 @@ function NotificationBell() {
             <Bell className="h-5 w-5" />
           )}
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-semibold text-white">
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-fix-500 text-xs font-semibold text-white">
               {unreadCount}
             </span>
           )}
@@ -324,6 +325,7 @@ export default function Header({ mobileNav }: { mobileNav?: ReactNode }) {
 
         <div className="flex items-center gap-2">
           <GlobalSearch />
+          <ThemeToggle />
           <NotificationBell />
           <UserProfileNav />
         </div>

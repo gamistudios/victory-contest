@@ -320,7 +320,7 @@ export default function AiManagement() {
   return (
     <div className="space-y-4 p-4 sm:p-6">
       <div className="flex items-center gap-3">
-        <BrainCircuit className="h-6 w-6 text-[#00AB55]" />
+        <BrainCircuit className="h-6 w-6 text-brand-ink" />
         <h1 className="text-xl font-bold">AI Management</h1>
         <Button
           variant="outline"
@@ -728,7 +728,7 @@ export default function AiManagement() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 text-white hover:bg-red-700"
+              className="bg-red-fix-600 text-white hover:bg-red-fix-700"
               onClick={confirmDelete}
             >
               Delete

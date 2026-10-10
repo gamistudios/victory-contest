@@ -41,7 +41,7 @@ const BottomNavigation: React.FC = () => {
   return (
     <nav
       aria-label="Main navigation"
-      className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border-t border-gray-200 dark:border-gray-700 px-2 py-2 z-50"
+      className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-lg border-t border-gray-200 px-2 py-2 z-50"
     >
       <div className="flex justify-around items-center">
         {navItems.map((item) => {
@@ -58,15 +58,15 @@ const BottomNavigation: React.FC = () => {
               <div
                 className={`relative flex flex-col items-center py-1 justify-center  rounded-xl transition-all duration-200 min-w-[70px] ${
                   isActive
-                    ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
-                    : "text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                    ? "text-blue-600 bg-blue-50"
+                    : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
                 }`}
               >
                 <Icon
                   className={`${
                     isActive
-                      ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
-                      : "text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                      ? "text-blue-600 bg-blue-50"
+                      : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
                   }`}
                 />
               </div>
@@ -74,7 +74,7 @@ const BottomNavigation: React.FC = () => {
               <span
                 className={`text-xs font-medium transition-all duration-200 ${
                   isActive
-                    ? "font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                    ? "font-semibold text-blue-600 bg-blue-50"
                     : ""
                 }`}
               >
@@ -83,7 +83,7 @@ const BottomNavigation: React.FC = () => {
 
               {/* Active indicator */}
               {isActive && (
-                <div className="absolute -top-1 w-1 h-1 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
+                <div className="absolute -top-1 w-1 h-1 bg-blue-fix-600 rounded-full"></div>
               )}
             </Link>
           );

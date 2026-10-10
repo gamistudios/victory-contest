@@ -9,7 +9,7 @@ export function PaymentManagementPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6">
       <div className="flex items-center gap-3">
-        <CreditCard className="h-6 w-6 text-[#00AB55]" />
+        <CreditCard className="h-6 w-6 text-brand-ink" />
         <h1 className="text-xl font-bold">Payment Management</h1>
       </div>
 

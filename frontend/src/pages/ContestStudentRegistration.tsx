@@ -41,8 +41,8 @@ const Registration: React.FC = () => {
         duration: 3000,
         position: "top-center",
         style: {
-          backgroundColor: "#f8d7da",
-          color: "#721c24",
+          backgroundColor: "hsl(var(--red-100))",
+          color: "hsl(var(--red-800))",
         },
       });
       navigate("/");
@@ -65,8 +65,8 @@ const Registration: React.FC = () => {
           duration: 3000,
           position: "top-center",
           style: {
-            backgroundColor: "#f8d7da",
-            color: "#721c24",
+            backgroundColor: "hsl(var(--red-100))",
+            color: "hsl(var(--red-800))",
           },
         });
       }
@@ -131,8 +131,8 @@ const Registration: React.FC = () => {
         duration: 3000,
         position: "top-right",
         style: {
-          backgroundColor: "#fff3cd",
-          color: "#856404",
+          backgroundColor: "hsl(var(--amber-100))",
+          color: "hsl(var(--amber-800))",
         },
       });
       return;
@@ -153,8 +153,8 @@ const Registration: React.FC = () => {
         icon: <CheckCircle className="w-5 h-5" />,
         duration: 3000,
         style: {
-          backgroundColor: "#d4edda",
-          color: "#155724",
+          backgroundColor: "hsl(var(--green-100))",
+          color: "hsl(var(--green-800))",
         },
       });
       navigate("/");
@@ -164,8 +164,8 @@ const Registration: React.FC = () => {
         icon: <AlertCircle className="w-5 h-5" />,
         duration: 3000,
         style: {
-          backgroundColor: "#f8d7da",
-          color: "#721c24",
+          backgroundColor: "hsl(var(--red-100))",
+          color: "hsl(var(--red-800))",
         },
       });
     } finally {
@@ -190,10 +190,10 @@ const Registration: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mb-4"></div>
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">
           Registering for Contest...
         </h2>
-        <p className="text-gray-600 dark:text-gray-400 text-center">
+        <p className="text-gray-600 text-center">
           Please wait while we process your registration
         </p>
       </div>
@@ -203,7 +203,7 @@ const Registration: React.FC = () => {
   return (
     <div className="p-4 max-w-2xl mx-auto">
       {/* Contest Info Card */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-xl mb-6">
+      <div className="bg-gradient-to-r from-blue-fix-600 to-purple-fix-600 text-white p-6 rounded-xl mb-6">
         <h2 className="text-xl font-bold mb-2 capitalize">
           {contestInfo?.title}
         </h2>
@@ -230,26 +230,26 @@ const Registration: React.FC = () => {
       {/* Progress Indicator */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="text-sm text-gray-600">
             Step {step} of 3
           </span>
-          <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="text-sm text-gray-600">
             {Math.round((step / 3) * 100)}% Complete
           </span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+        <div className="w-full bg-gray-200 rounded-full h-2">
           <div
-            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            className="bg-blue-fix-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${(step / 3) * 100}%` }}
           ></div>
         </div>
       </div>
 
       {/* Step Content */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+      <div className="bg-card rounded-xl shadow-sm p-6">
         {step === 1 && (
           <div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
               What's your grade level?
             </h3>
             <div className="space-y-3">
@@ -260,8 +260,8 @@ const Registration: React.FC = () => {
                     onClick={() => setFormData((prev) => ({ ...prev, grade }))}
                     className={`w-full p-4 rounded-lg border-2 transition-all duration-200 text-left ${
                       formData.grade === grade
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                        : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300"
                     }`}
                   >
                     <div className="flex items-center">
@@ -277,10 +277,10 @@ const Registration: React.FC = () => {
 
         {step === 2 && (
           <div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Select your subjects of interest
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-600 mb-4">
               Choose one or more subjects you'd like to focus on
             </p>
             <div className="grid grid-cols-2 gap-3">
@@ -290,15 +290,15 @@ const Registration: React.FC = () => {
                   onClick={() => handleSubjectToggle(subject)}
                   className={`p-3 rounded-lg border-2 transition-all duration-200 text-center ${
                     formData.subjects.includes(subject)
-                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                      : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300"
                   }`}
                 >
                   <div className="font-medium text-sm">{subject}</div>
                 </button>
               ))}
             </div>
-            <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+            <div className="mt-4 text-sm text-gray-600">
               Selected: {formData.subjects.length} subjects
             </div>
           </div>
@@ -306,13 +306,13 @@ const Registration: React.FC = () => {
 
         {step === 3 && (
           <div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Almost done! Just a few more details
             </h3>
 
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
                   Contest Experience Level
                 </label>
                 <div className="space-y-3">
@@ -327,8 +327,8 @@ const Registration: React.FC = () => {
                       }
                       className={`w-full p-4 rounded-lg border-2 transition-all duration-200 text-left ${
                         formData.experience === level.value
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                          : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300"
                       }`}
                     >
                       <div className="font-medium">{level.label}</div>
@@ -340,7 +340,7 @@ const Registration: React.FC = () => {
                 </div>
               </div>
 
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+              <div className="border-t border-gray-200 pt-6">
                 <div className="flex items-start">
                   <input
                     type="checkbox"
@@ -356,19 +356,19 @@ const Registration: React.FC = () => {
                   />
                   <label
                     htmlFor="terms"
-                    className="ml-3 text-sm text-gray-700 dark:text-gray-300"
+                    className="ml-3 text-sm text-gray-700"
                   >
                     I agree to the{" "}
                     <a
                       href="#"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                      className="text-blue-600 hover:underline"
                     >
                       contest rules
                     </a>{" "}
                     and{" "}
                     <a
                       href="#"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                      className="text-blue-600 hover:underline"
                     >
                       privacy policy
                     </a>
@@ -377,11 +377,11 @@ const Registration: React.FC = () => {
               </div>
 
               {/* Registration Summary */}
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-800 dark:text-white mb-2">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-800 mb-2">
                   Registration Summary
                 </h4>
-                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                <div className="text-sm text-gray-600 space-y-1">
                   <div>Grade: {formData.grade}</div>
                   <div>Subjects: {formData.subjects.join(", ")}</div>
                   <div>
@@ -406,8 +406,8 @@ const Registration: React.FC = () => {
           disabled={step === 1}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             step === 1
-              ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-              : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
           }`}
         >
           Previous
@@ -418,8 +418,8 @@ const Registration: React.FC = () => {
           disabled={!isStepValid() || registering}
           className={`px-6 py-2 rounded-lg font-medium transition-colors ${
             isStepValid() && !registering
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+              ? "bg-blue-fix-600 text-white hover:bg-blue-fix-700"
+              : "bg-gray-200 text-gray-400 cursor-not-allowed"
           }`}
         >
           {step !== 3

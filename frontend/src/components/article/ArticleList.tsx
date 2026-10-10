@@ -57,7 +57,7 @@ export function ArticleList() {
         setArticles(parsed as Article[]);
       } catch {
         toast.error("Failed to fetch articles. Please try again later.", {
-          style: { backgroundColor: "red", color: "white" },
+          style: { backgroundColor: "hsl(var(--destructive))", color: "hsl(var(--destructive-foreground))" },
         });
       } finally {
         setLoading(false);
@@ -189,7 +189,7 @@ export function ArticleList() {
             ))
           ) : (
             <div className="text-center py-12">
-              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
               <h3 className="text-base font-medium text-gray-900 mb-2">
                 No articles found
               </h3>
@@ -326,7 +326,7 @@ const ArticleSkeleton = () => {
         {/* Content Skeleton */}
         <div className="flex-1 min-w-0">
           {/* Read Time */}
-          <div className="flex absolute right-3 top-3 items-center text-gray-300 text-xs">
+          <div className="flex absolute right-3 top-3 items-center text-gray-500 text-xs">
             <div className="w-10 h-3 rounded bg-gray-200" />
           </div>
 

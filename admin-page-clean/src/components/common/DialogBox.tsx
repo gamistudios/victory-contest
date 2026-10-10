@@ -190,7 +190,7 @@ export const DialogBox: React.FC<DialogBoxProps> = ({
           </Button>
           <Button
             onClick={handleSubmit}
-            className="bg-green-600 hover:bg-green-700"
+            className="bg-green-fix-600 hover:bg-green-fix-700"
           >
             {action === "announce" && "Announce"}
             {action === "clone" && "Clone"}

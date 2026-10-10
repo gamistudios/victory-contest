@@ -3,7 +3,7 @@ export default function ErrorComponent({ message }: { message?: string }) {
     <div className="flex h-full w-full items-center justify-center">
       <div className="flex flex-col gap-2">
         <p>{message}</p>
-        <button className="bg-red-500 text-white rounded-lg px-5 font-sans">
+        <button className="bg-red-fix-500 text-white rounded-lg px-5 font-sans">
           Refresh
         </button>
       </div>

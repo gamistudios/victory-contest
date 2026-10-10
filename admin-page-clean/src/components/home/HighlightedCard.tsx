@@ -15,7 +15,7 @@ export default function HighlightedCard() {
   return (
     <Card
       variant="outlined"
-      sx={{ height: "100%", borderRadius: 3, backgroundColor: "#f5f6fa" }}
+      sx={{ height: "100%", borderRadius: 3, backgroundColor: "hsl(var(--muted))" }}
       elevation={0}
     >
       <CardContent>
@@ -43,7 +43,7 @@ export default function HighlightedCard() {
           variant="contained"
           size="small"
           sx={{
-            bgcolor: "#00AB55",
+            bgcolor: "hsl(var(--brand))",
             fontFamily: "'Public Sans',sans-serif",
             textTransform: "none",
           }}

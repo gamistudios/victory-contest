@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { initPwaInstall, initPwaUpdate } from "./lib/pwa";
+import { AppThemeProvider } from "./components/ThemeProviders";
 import "./index.css";
 initPwaInstall();
 initPwaUpdate();
@@ -14,7 +15,9 @@ const root = ReactDOM.createRoot(document.getElementById("root")!);
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <AppThemeProvider>
+        <App />
+      </AppThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );

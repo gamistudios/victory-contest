@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Grid3X3, List } from "lucide-react";
+import { Search, Filter, Grid3X3, List, FileText, ArrowDown, ArrowUp } from "lucide-react";
 import { ArticleSummary } from "@/types/article";
 import ArticleCard from "./ArticleCard";
 
@@ -164,7 +164,11 @@ const ArticlesList: React.FC<ArticlesListProps> = ({
                     setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))
                   }
                 >
-                  {sortOrder === "desc" ? "↓" : "↑"}
+                  {sortOrder === "desc" ? (
+                    <ArrowDown className="h-4 w-4" aria-label="Newest first" />
+                  ) : (
+                    <ArrowUp className="h-4 w-4" aria-label="Oldest first" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -224,7 +228,7 @@ const ArticlesList: React.FC<ArticlesListProps> = ({
         <Card>
           <CardContent className="p-6 sm:p-12 text-center">
             <div className="space-y-4">
-              <div className="text-6xl">📝</div>
+              <FileText className="mx-auto h-14 w-14 text-gray-500" aria-hidden="true" />
               <h3 className="text-xl font-semibold text-gray-900">
                 {hasActiveFilters
                   ? "No articles found"

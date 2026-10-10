@@ -1,3 +1,4 @@
+import { AlertTriangle } from "lucide-react";
 import React, { useState, useEffect } from 'react';
 import { Contest } from '@/types/models';
 import { Button } from '@/components/ui/button';
@@ -192,7 +193,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
                 </Select>
                 {formData.subject && !Subjects.includes(formData.subject) && (
                   <p className="text-xs text-red-500">
-                    ⚠️ This subject is not in the standard list. Consider updating to a valid option.
+                    <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" /> This subject is not in the standard list. Consider updating to a valid option.
                   </p>
                 )}
               </div>
@@ -219,7 +220,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
                 </Select>
                 {formData.grade && !grades.includes(formData.grade) && (
                   <p className="text-xs text-red-500">
-                    ⚠️ This grade is not in the standard list. Consider updating to a valid option.
+                    <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" /> This grade is not in the standard list. Consider updating to a valid option.
                   </p>
                 )}
               </div>
@@ -266,7 +267,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
 
           {timeError && (
             <div className="text-red-500 text-sm bg-red-50 p-2 rounded">
-              ⚠️ {timeError}
+              <AlertTriangle className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden="true" /> {timeError}
             </div>
           )}
 

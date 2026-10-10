@@ -31,7 +31,7 @@ const ArticleSkeleton = () => {
         {/* Content Skeleton */}
         <div className="flex-1 min-w-0">
           {/* Read Time */}
-          <div className="flex absolute right-3 top-3 items-center text-gray-300 text-xs">
+          <div className="flex absolute right-3 top-3 items-center text-gray-500 text-xs">
             <div className="w-10 h-3 rounded bg-gray-200" />
           </div>
 

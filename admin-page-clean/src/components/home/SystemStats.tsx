@@ -41,7 +41,7 @@ const CustomTooltip = ({
 }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg shadow-md p-2 text-sm max-w-[80vw]">
+      <div className="bg-card border border-gray-200 rounded-lg shadow-md p-2 text-sm max-w-[80vw]">
         <p className="font-semibold text-gray-800">
           {payload[0]?.payload?.day}
         </p>
@@ -63,12 +63,12 @@ function MetricTile({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 p-2 sm:p-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
+    <div className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2 sm:p-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600">
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-sm sm:text-base font-bold text-gray-900 dark:text-white truncate">
+        <p className="text-sm sm:text-base font-bold text-gray-900 truncate">
           {value}
         </p>
         <p className="text-[11px] text-muted-foreground">{label}</p>

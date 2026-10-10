@@ -52,24 +52,24 @@ export default function CustomizedDataGrid({
   return (
     <Card className="w-full min-w-0 rounded-2xl shadow-lg group relative overflow-hidden transition-shadow duration-500 ease-out sm:rounded-3xl hover:shadow-2xl">
       {/* Glassmorphism Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-xl border border-white/30 rounded-2xl sm:rounded-3xl" />
+      <div className="absolute inset-0 bg-gradient-to-br from-card/90 to-card/70 backdrop-blur-xl border border-white/30 rounded-2xl sm:rounded-3xl" />
 
       {/* Animated Border */}
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 sm:rounded-3xl" />
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-blue-fix-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 sm:rounded-3xl" />
 
       {/* Content */}
       <div className="relative z-10">
         {/* Header */}
         <div className="p-4 pb-3 sm:p-6 sm:pb-4">
           <div className="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shrink-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-br from-blue-fix-500 to-purple-fix-600 shadow-lg shrink-0">
               <Table className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-slate-800 truncate">
+              <h2 className="text-base sm:text-lg font-bold text-gray-800 truncate">
                 Recent Activity
               </h2>
-              <p className="text-xs sm:text-sm text-slate-500">
+              <p className="text-xs sm:text-sm text-gray-500">
                 Latest contest and user activities
               </p>
             </div>
@@ -94,7 +94,7 @@ export default function CustomizedDataGrid({
 
         {/* Enhanced DataGrid */}
         <CardContent className="pt-0 px-2 pb-2 sm:px-6 sm:pb-6">
-          <div className="w-full min-w-0 rounded-xl sm:rounded-2xl overflow-hidden border border-slate-200 bg-white/50 backdrop-blur-sm">
+          <div className="w-full min-w-0 rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200 bg-card/50 backdrop-blur-sm">
             <DataGrid
               autoHeight
               density={isPhone ? "compact" : "standard"}
@@ -122,18 +122,18 @@ export default function CustomizedDataGrid({
                 borderRadius: "1rem",
                 border: "none",
                 "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid #e2e8f0",
+                  borderBottom: "1px solid hsl(var(--border))",
                   padding: isPhone ? "0.25rem 0.375rem" : "0.5rem 1rem",
                   fontSize: isPhone ? "0.75rem" : "0.875rem",
                   fontWeight: "500",
                 },
                 "& .MuiDataGrid-columnHeader": {
-                  backgroundColor: "rgba(59, 130, 246, 0.05)",
-                  borderBottom: "2px solid #e2e8f0",
+                  backgroundColor: "hsl(var(--info) / 0.05)",
+                  borderBottom: "2px solid hsl(var(--border))",
                   padding: isPhone ? "0.25rem 0.375rem" : "0.5rem 1rem",
                   fontSize: isPhone ? "0.75rem" : "0.875rem",
                   fontWeight: "600",
-                  color: "#1e293b",
+                  color: "hsl(var(--foreground))",
                 },
                 "& .MuiDataGrid-columnHeaderTitle": {
                   fontWeight: "600",
@@ -142,7 +142,7 @@ export default function CustomizedDataGrid({
                 "& .MuiDataGrid-row": {
                   transition: "background-color 0.2s ease",
                   "&:hover": {
-                    backgroundColor: "rgba(59, 130, 246, 0.05)",
+                    backgroundColor: "hsl(var(--info) / 0.05)",
                   },
                 },
                 "& .MuiDataGrid-cell:focus": {
@@ -152,20 +152,20 @@ export default function CustomizedDataGrid({
                   outline: "none",
                 },
                 "& .MuiDataGrid-checkboxInput": {
-                  color: "#3b82f6",
+                  color: "hsl(var(--chart-1))",
                 },
                 "& .MuiDataGrid-pagination": {
-                  borderTop: "1px solid #e2e8f0",
+                  borderTop: "1px solid hsl(var(--border))",
                   padding: isPhone ? "0.25rem 0.5rem" : "0.5rem 1rem",
                   flexWrap: "wrap",
                   gap: "0.25rem",
                 },
                 "& .MuiDataGrid-footerContainer": {
-                  backgroundColor: "rgba(59, 130, 246, 0.02)",
+                  backgroundColor: "hsl(var(--info) / 0.02)",
                   flexWrap: "wrap",
                 },
                 "& .MuiTablePagination-root": {
-                  color: "#64748b",
+                  color: "hsl(var(--chart-axis))",
                   flexWrap: "wrap",
                 },
                 // "rows per page" picker costs ~9rem of footer width: drop it on phones
@@ -179,19 +179,19 @@ export default function CustomizedDataGrid({
                   whiteSpace: "nowrap",
                 },
                 "& .MuiTablePagination-select": {
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid hsl(var(--border))",
                   borderRadius: "0.5rem",
                   padding: "0.25rem 0.5rem",
                   fontSize: isPhone ? "0.6875rem" : "0.875rem",
                 },
                 "& .MuiTablePagination-actions": {
                   "& .MuiIconButton-root": {
-                    border: "1px solid #e2e8f0",
+                    border: "1px solid hsl(var(--border))",
                     borderRadius: "0.5rem",
                     margin: "0 2px",
                     "&:hover": {
-                      backgroundColor: "rgba(59, 130, 246, 0.1)",
-                      borderColor: "#3b82f6",
+                      backgroundColor: "hsl(var(--info) / 0.1)",
+                      borderColor: "hsl(var(--chart-1))",
                     },
                   },
                 },
@@ -231,7 +231,7 @@ export default function CustomizedDataGrid({
                       : `${from}-${to} of ${count}`,
                   style: {
                     fontFamily: "'Inter', sans-serif",
-                    color: "#64748b",
+                    color: "hsl(var(--chart-axis))",
                   },
                 },
               }}
@@ -241,7 +241,7 @@ export default function CustomizedDataGrid({
       </div>
 
       {/* Hover Effect Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl sm:rounded-3xl" />
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-fix-500/5 to-purple-fix-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl sm:rounded-3xl" />
     </Card>
   );
 }

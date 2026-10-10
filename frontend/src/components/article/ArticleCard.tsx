@@ -22,7 +22,7 @@ export function ArticleCard({ article, onClick }: ArticleCardProps) {
 
   return (
     <article
-      className="relative first-letter:bg-white border border-gray-200 rounded-lg p-4 mb-3 active:bg-gray-50 transition-colors"
+      className="relative first-letter:bg-card border border-gray-200 rounded-lg p-4 mb-3 active:bg-gray-50 transition-colors"
       onClick={onClick}
     >
       {isNew && <NewBadge className="absolute top-[-10px] left-[-10px]" />}

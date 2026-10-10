@@ -21,7 +21,7 @@ function UpdatedPaymentTimeline({ requests }: { requests: PaymentRequest[] }) {
     );
   }
   return (
-    <ol className="relative border-s border-gray-200 dark:border-gray-700">
+    <ol className="relative border-s border-gray-200">
       {requests.map((request) => (
         <PaymentTimelineItem key={request.id} request={request} />
       ))}
@@ -66,7 +66,7 @@ export function UserPaymentHistoryPage() {
   };
 
   return (
-    <div className="bg-gray-50 dark:bg-black p-2 sm:p-4 md:p-8">
+    <div className="bg-gray-50 p-2 sm:p-4 md:p-8">
       <Card className="max-w-4xl mx-auto shadow-none sm:shadow-md border-0 sm:border">
         <CardHeader>
           <CardTitle className="text-xl sm:text-2xl">Payment History</CardTitle>

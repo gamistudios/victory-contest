@@ -39,7 +39,7 @@ export default function ErrorState({
       <div
         role="alert"
         className={cn(
-          "flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 shadow-sm dark:bg-destructive/10",
+          "flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 shadow-sm",
           className
         )}
       >
@@ -61,7 +61,7 @@ export default function ErrorState({
           <Button
             size="sm"
             onClick={onRetry}
-            className="bg-violet-500 text-white shadow-sm hover:bg-violet-600"
+            className="bg-violet-fix-500 text-white shadow-sm hover:bg-violet-fix-600"
           >
             <RefreshCw aria-hidden="true" />
             {retryText}
@@ -97,7 +97,7 @@ export default function ErrorState({
         <Button
           size="lg"
           onClick={onRetry}
-          className="mt-8 bg-violet-500 text-base text-white hover:bg-violet-600"
+          className="mt-8 bg-violet-fix-500 text-base text-white hover:bg-violet-fix-600"
         >
           <RefreshCw aria-hidden="true" />
           {retryText}

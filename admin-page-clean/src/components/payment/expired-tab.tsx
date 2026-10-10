@@ -37,7 +37,7 @@ export function ExpiredPaymentsTab() {
         "Your payment window has expired. Please submit a new payment request to continue."
       );
       if (failed === 0) {
-        toast("✅ Bulk Notification Complete", {
+        toast.success("Bulk notification complete", {
           description: `Notified all ${sent} users.`,
         });
       } else {

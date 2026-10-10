@@ -422,10 +422,10 @@ export default function FeedbackManagement() {
 
       {/* Error Banner */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-2 h-2 bg-red-500 rounded-full shrink-0"></div>
-            <p className="text-sm font-medium text-red-800 dark:text-red-200 min-w-0 flex-1 break-words">{error}</p>
+            <div className="w-2 h-2 bg-red-fix-500 rounded-full shrink-0"></div>
+            <p className="text-sm font-medium text-red-800 min-w-0 flex-1 break-words">{error}</p>
             <Button
               variant="ghost"
               size="sm"
@@ -440,7 +440,7 @@ export default function FeedbackManagement() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-        <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+        <Card className="bg-gradient-to-r from-blue-fix-500 to-blue-fix-600 text-white">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Total Questions</CardTitle>
@@ -449,11 +449,11 @@ export default function FeedbackManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{questions.length}</div>
-            <p className="text-blue-100 text-sm">Active feedback questions</p>
+            <p className="text-blue-fix-100 text-sm">Active feedback questions</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
+        <Card className="bg-gradient-to-r from-green-fix-500 to-green-fix-600 text-white">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Poll Options</CardTitle>
@@ -462,11 +462,11 @@ export default function FeedbackManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{pollOptions.length}</div>
-            <p className="text-green-100 text-sm">Score range options</p>
+            <p className="text-green-fix-100 text-sm">Score range options</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+        <Card className="bg-gradient-to-r from-purple-fix-500 to-purple-fix-600 text-white">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Responses</CardTitle>
@@ -475,7 +475,7 @@ export default function FeedbackManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{responses.length}</div>
-            <p className="text-purple-100 text-sm">Student feedback received</p>
+            <p className="text-purple-fix-100 text-sm">Student feedback received</p>
           </CardContent>
         </Card>
       </div>
@@ -825,7 +825,7 @@ export default function FeedbackManagement() {
              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
             <Button
               onClick={() => navigate('../high-scorers')}
-              className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+              className="w-full sm:w-auto bg-gradient-to-r from-purple-fix-600 to-pink-fix-600 hover:from-purple-fix-700 hover:to-pink-fix-700 text-white"
             >
               <Star className="h-4 w-4 mr-2" />
               High Scorers Contact List
@@ -834,7 +834,7 @@ export default function FeedbackManagement() {
                  <Button
                    variant="destructive"
                    onClick={() => setShowDeleteAllDialog(true)}
-                   className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
+                   className="w-full sm:w-auto bg-red-fix-600 hover:bg-red-fix-700 text-white"
                  >
                    <Trash2 className="h-4 w-4 mr-2" />
                    Delete All Responses
@@ -883,10 +883,10 @@ export default function FeedbackManagement() {
 
           <div className="space-y-4">
             {selectedScoreRangeFilter !== 'all' && (
-              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full shrink-0"></div>
-                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200 min-w-0 break-words">
+                  <div className="w-2 h-2 bg-blue-fix-500 rounded-full shrink-0"></div>
+                  <p className="text-sm font-medium text-blue-800 min-w-0 break-words">
                     Filtered by: {selectedScoreRangeFilter}
                   </p>
                   <Button

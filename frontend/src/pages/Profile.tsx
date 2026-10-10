@@ -1,21 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTelegram } from "../hooks/useTelegram";
-import {
-  Trophy,
-  Zap,
-  Star,
-  Flame,
-  Brain,
-  Crown,
-  TrendingUp,
-  Calendar,
-  Lock,
-  GraduationCap,
-  Globe,
-  Building2,
-  User,
-  Loader2,
-} from "lucide-react";
+import { Trophy, Zap, Star, Flame, Brain, Crown, TrendingUp, Calendar, Lock, GraduationCap, Globe, Building2, User, Loader2, AlertTriangle } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { Achievement, AuthStudent } from "../types";
@@ -47,45 +32,45 @@ interface AchievementStyle {
 const achievementStyles: Record<string, AchievementStyle> = {
   first: {
     icon: Trophy,
-    color: "from-yellow-400 to-yellow-600",
-    textColor: "text-yellow-800 dark:text-yellow-200",
-    bgColor: "bg-yellow-50 dark:bg-yellow-900/20",
-    borderColor: "border-yellow-200 dark:border-yellow-800",
+    color: "from-yellow-400 to-yellow-fix-600",
+    textColor: "text-yellow-800",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-200",
   },
   speed: {
     icon: Zap,
-    color: "from-purple-400 to-purple-600",
-    textColor: "text-purple-800 dark:text-purple-200",
-    bgColor: "bg-purple-50 dark:bg-purple-900/20",
-    borderColor: "border-purple-200 dark:border-purple-800",
+    color: "from-purple-400 to-purple-fix-600",
+    textColor: "text-purple-800",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-200",
   },
   perfection: {
     icon: Star,
-    color: "from-blue-400 to-blue-600",
-    textColor: "text-blue-800 dark:text-blue-200",
-    bgColor: "bg-blue-50 dark:bg-blue-900/20",
-    borderColor: "border-blue-200 dark:border-blue-800",
+    color: "from-blue-400 to-blue-fix-600",
+    textColor: "text-blue-800",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-200",
   },
   streak: {
     icon: Flame,
-    color: "from-red-400 to-red-600",
-    textColor: "text-red-800 dark:text-red-200",
-    bgColor: "bg-red-50 dark:bg-red-900/20",
-    borderColor: "border-red-200 dark:border-red-800",
+    color: "from-red-400 to-red-fix-600",
+    textColor: "text-red-800",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-200",
   },
   subject: {
     icon: Brain,
-    color: "from-green-400 to-green-600",
-    textColor: "text-green-800 dark:text-green-200",
-    bgColor: "bg-green-50 dark:bg-green-900/20",
-    borderColor: "border-green-200 dark:border-green-800",
+    color: "from-green-400 to-green-fix-600",
+    textColor: "text-green-800",
+    bgColor: "bg-green-50",
+    borderColor: "border-green-200",
   },
   rank: {
     icon: Crown,
-    color: "from-amber-400 to-amber-600",
-    textColor: "text-amber-800 dark:text-amber-200",
-    bgColor: "bg-amber-50 dark:bg-amber-900/20",
-    borderColor: "border-amber-200 dark:border-amber-800",
+    color: "from-amber-400 to-amber-fix-600",
+    textColor: "text-amber-800",
+    bgColor: "bg-amber-50",
+    borderColor: "border-amber-200",
   },
 };
 
@@ -98,10 +83,10 @@ const formatEarnedDate = (earnedDate?: string): string | null => {
 
 const getRarityBadge = (rarity: "common" | "rare" | "epic" | "legendary") => {
   const colors = {
-    common: "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200",
-    rare: "bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200",
-    epic: "bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-200",
-    legendary: "bg-gradient-to-r from-yellow-400 to-orange-500 text-white",
+    common: "bg-gray-100 text-gray-800",
+    rare: "bg-blue-100 text-blue-800",
+    epic: "bg-purple-100 text-purple-800",
+    legendary: "bg-gradient-to-r from-yellow-400 to-orange-fix-500 text-white",
   };
 
   return (
@@ -181,7 +166,7 @@ const Profile = () => {
             "We couldn't fetch your profile data. Please check your internet connection and try again.",
           duration: 5000,
           position: "top-center",
-          icon: "⚠️",
+          icon: <AlertTriangle className="h-5 w-5" aria-hidden="true" />,
           action: {
             label: "Retry",
             onClick: () => fetchStats(),
@@ -242,8 +227,8 @@ const Profile = () => {
       if (editedProfile.id === "") {
         toast.error("User id is null", {
           style: {
-            backgroundColor: "red",
-            color: "white",
+            backgroundColor: "hsl(var(--destructive))",
+            color: "hsl(var(--destructive-foreground))",
           },
         });
         return;
@@ -258,8 +243,8 @@ const Profile = () => {
       }
       toast.success("Changes saved!", {
         style: {
-          backgroundColor: "green",
-          color: "white",
+          backgroundColor: "hsl(var(--success))",
+          color: "hsl(var(--success-foreground))",
         },
         position: "top-center",
       });
@@ -267,8 +252,8 @@ const Profile = () => {
     } catch {
       toast.error("Unable to save changes", {
         style: {
-          backgroundColor: "red",
-          color: "white",
+          backgroundColor: "hsl(var(--destructive))",
+          color: "hsl(var(--destructive-foreground))",
         },
         position: "top-center",
       });
@@ -291,17 +276,17 @@ const Profile = () => {
   }
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-6">
+      <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <div className="flex items-center justify-between mb-6 relative">
           <div className="flex items-center space-x-4">
             {tgUser?.photo_url ? (
               <img
                 src={tgUser.photo_url}
                 alt={tgUser.first_name}
-                className="w-20 h-20 rounded-full object-cover border-4 border-blue-100 dark:border-blue-900 shadow-lg"
+                className="w-20 h-20 rounded-full object-cover border-4 border-blue-100 shadow-lg"
               />
             ) : (
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center border-4 border-blue-100 dark:border-blue-900 shadow-lg">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-fix-500 to-purple-fix-600 rounded-full flex items-center justify-center border-4 border-blue-100 shadow-lg">
                 <span className="text-white text-2xl font-bold">
                   {tgUser?.first_name?.charAt(0) || "U"}
                   {user?.name}
@@ -319,20 +304,20 @@ const Profile = () => {
                       name: e.target.value,
                     }))
                   }
-                  className="min-w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg px-3 py-1 mb-2"
+                  className="min-w-full bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
                 />
               ) : (
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                <h2 className="text-xl font-bold text-gray-800">
                   {tgUser?.first_name || "Student"}
                   {tgUser?.last_name && ` ${tgUser.last_name}`}
                 </h2>
               )}
               <div className="flex items-center space-x-2 mb-2">
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600">
                   @{tgUser?.username || "student"}
                 </p>
                 {tgUser?.is_premium && (
-                  <span className="px-2 py-0.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-medium rounded-full">
+                  <span className="px-2 py-0.5 bg-gradient-to-r from-yellow-400 to-orange-fix-500 text-white text-xs font-medium rounded-full">
                     Premium
                   </span>
                 )}
@@ -347,7 +332,7 @@ const Profile = () => {
           <div className="flex items-center space-x-2">
             {!isEditing && (
               <Button
-                className="absolute top-0 right-0 flex border-1 border-gray-600 items-center px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400  hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                className="absolute top-0 right-0 flex border-1 border-gray-600 items-center px-4 py-2 bg-blue-50 text-blue-600  hover:bg-blue-100 transition-colors"
                 onClick={() => setIsEditing(true)}
               >
                 Edit
@@ -357,7 +342,7 @@ const Profile = () => {
         </div>
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Grade Level
             </label>
             {isEditing ? (
@@ -384,18 +369,18 @@ const Profile = () => {
                 </SelectContent>
               </Select>
             ) : (
-              <div className="text-gray-800 dark:text-white">{user?.grade}</div>
+              <div className="text-gray-800">{user?.grade}</div>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Current Rank
             </label>
             <div className="flex items-center">
-              <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+              <span className="text-lg font-bold text-blue-600">
                 #{userStats?.rank || "N/A"}
               </span>
-              <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
+              <span className="text-sm text-gray-600 ml-2">
                 Global
               </span>
               <TrendingUp className="w-4 h-4 text-green-500 ml-2" />
@@ -406,12 +391,12 @@ const Profile = () => {
         <CollapseText>
           <div className="grid grid-cols-2 gap-4 transition-all duration-1000 ease-in-out data-[state=closed]:h-0 data-[state=closed]:opacity-0 data-[state=open]:opacity-100 overflow-hidden">
             <div>
-              <div className="flex dark:text-gray-300 items-center  text-sm font-medium text-gray-700 gap-2 mb-1">
+              <div className="flex items-center  text-sm font-medium text-gray-700 gap-2 mb-1">
                 <GraduationCap />
-                <h4 className=" dark:text-gray-300 ">School</h4>
+                <h4 className=" ">School</h4>
               </div>
               {!isEditing ? (
-                <div className="text-sm font-bold text-gray-800 dark:text-white">
+                <div className="text-sm font-bold text-gray-800">
                   {user?.school || "Not provided"}
                 </div>
               ) : (
@@ -424,18 +409,18 @@ const Profile = () => {
                       school: e.target.value,
                     }))
                   }
-                  className="w-24 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg px-3 py-1 mb-2"
+                  className="w-24 bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
                 />
               )}
             </div>
             <div>
-              <div className="flex gap-2 items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <div className="flex gap-2 items-center text-sm font-medium text-gray-700 mb-1">
                 <Building2 className="w-5 h-5 " />
                 <h4 className="">City</h4>
               </div>
 
               {!isEditing ? (
-                <div className="text-sm font-bold text-gray-800 dark:text-white">
+                <div className="text-sm font-bold text-gray-800">
                   {user?.city || "Not provided"}
                 </div>
               ) : (
@@ -448,18 +433,18 @@ const Profile = () => {
                       city: e.target.value,
                     }))
                   }
-                  className="w-24 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg px-3 py-1 mb-2"
+                  className="w-24 bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
                 />
               )}
             </div>
             <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
                 <Globe className="w-5 h-5 " />
                 <h4 className="">Region</h4>
               </div>
 
               {!isEditing ? (
-                <div className="text-sm font-bold text-gray-600 dark:text-green-400">
+                <div className="text-sm font-bold text-gray-600">
                   {user?.region || "Not provided"}
                 </div>
               ) : (
@@ -472,18 +457,18 @@ const Profile = () => {
                       region: e.target.value,
                     }))
                   }
-                  className="w-24 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg px-3 py-1 mb-2"
+                  className="w-24 bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
                 />
               )}
             </div>
             <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
                 <User className="w-5 h-5 " />
                 <h4 className="">Age</h4>
               </div>
 
               {!isEditing ? (
-                <div className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                <div className="text-sm font-bold text-blue-600">
                   {user?.age || "Not provided"} years old
                 </div>
               ) : (
@@ -496,7 +481,7 @@ const Profile = () => {
                       age: e.target.value,
                     }))
                   }
-                  className="w-24 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg px-3 py-1 mb-2"
+                  className="w-24 bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
                 />
               )}
             </div>
@@ -507,7 +492,7 @@ const Profile = () => {
           <div className="flex gap-4 space-x-0 mt-4">
             <Button
               onClick={() => setIsEditing(false)}
-              className="bg-white text-black border-1 border-gray-300 hover:bg-white"
+              className="bg-card text-foreground border-1 border-gray-300 hover:bg-card"
             >
               Cancel
             </Button>
@@ -524,7 +509,7 @@ const Profile = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {userStats && (
           <>
-            <div className="flex flex-col items-center justify-center dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+            <div className="flex flex-col items-center justify-center p-4 rounded-xl shadow-sm border border-gray-100 text-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 aria-hidden="true"
@@ -544,37 +529,37 @@ const Profile = () => {
                   <path d="M152 88a32 32 0 1 0-32-32a32 32 0 0 0 32 32m0-48a16 16 0 1 1-16 16a16 16 0 0 1 16-16m67.31 100.68c-.61.28-7.49 3.28-19.67 3.28c-13.85 0-34.55-3.88-60.69-20a169.3 169.3 0 0 1-15.41 32.34a104.3 104.3 0 0 1 31.31 15.81C173.92 186.65 184 207.35 184 232a8 8 0 0 1-16 0c0-41.7-34.69-56.71-54.14-61.85c-.55.7-1.12 1.41-1.69 2.1c-19.64 23.8-44.25 36.18-71.63 36.18a92 92 0 0 1-9.34-.43a8 8 0 0 1 1.6-16c25.92 2.59 48.47-7.49 67-30c12.49-15.14 21-33.61 25.25-47c-38.92-22.66-63.78-3.37-64.05-3.16a8 8 0 1 1-10-12.48c1.5-1.2 37.22-29 89.51 6.57c45.47 30.91 71.93 20.31 72.18 20.19a8 8 0 1 1 6.63 14.56Z"></path>
                 </g>
               </svg>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
+              <div className="text-2xl font-bold text-gray-800">
                 {userStats.totalContests}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600">
                 Contests
               </div>
             </div>
-            <div className="bg-white flex flex-col items-center justify-center dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+            <div className="bg-card flex flex-col items-center justify-center p-4 rounded-xl shadow-sm border border-gray-100 text-center">
               <CheckMarkIcon className="w-10 h-10 text-green-500 mb-2" />
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
+              <div className="text-2xl font-bold text-gray-800">
                 {userStats.correctAnswers}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600">
                 Correct
               </div>
             </div>
-            <div className="bg-white flex flex-col items-center justify-center dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+            <div className="bg-card flex flex-col items-center justify-center p-4 rounded-xl shadow-sm border border-gray-100 text-center">
               <TargetIcon className="w-10 h-10 text-blue-500 mb-2" />
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
+              <div className="text-2xl font-bold text-gray-800">
                 {userStats.accuracy}%
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600">
                 Accuracy
               </div>
             </div>
-            <div className="bg-white flex flex-col items-center justify-center dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+            <div className="bg-card flex flex-col items-center justify-center p-4 rounded-xl shadow-sm border border-gray-100 text-center">
               <TimeIcon className="w-10 h-10 text-purple-500 mb-2" />
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
+              <div className="text-2xl font-bold text-gray-800">
                 {userStats.averageTime}s
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600">
                 Avg. Time
               </div>
             </div>
@@ -582,13 +567,13 @@ const Profile = () => {
         )}
       </div>
       <div className="space-y-6">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+            <h3 className="text-lg font-semibold text-gray-800 flex items-center">
               <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
               Earned Achievements ({earnedAchievements.length})
             </h3>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="text-sm text-gray-600">
               {Math.round(
                 (earnedAchievements.length / achievements.length) * 100
               )}
@@ -628,25 +613,25 @@ const Profile = () => {
                             | "legendary"
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      <p className="text-sm text-gray-600 mb-2">
                         {achievement.description}
                       </p>
                       {formatEarnedDate(achievement.earnedDate) && (
-                        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center text-xs text-gray-500">
                           <Calendar className="w-3 h-3 mr-1" />
                           Earned {formatEarnedDate(achievement.earnedDate)}
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-card/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 </div>
               );
             })}
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
             <Lock className="w-5 h-5 mr-2 text-gray-500" />
             Locked Achievements ({unlockedAchievements.length})
           </h3>
@@ -657,15 +642,15 @@ const Profile = () => {
               return (
                 <div
                   key={achievement.name}
-                  className="relative p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 opacity-75 hover:opacity-90 transition-all"
+                  className="relative p-4 rounded-xl border-2 border-gray-200 bg-gray-50 opacity-75 hover:opacity-90 transition-all"
                 >
                   <div className="flex items-start space-x-3">
-                    <div className="w-12 h-12 rounded-xl bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                      <IconComponent className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    <div className="w-12 h-12 rounded-xl bg-gray-300 flex items-center justify-center">
+                      <IconComponent className="w-6 h-6 text-gray-500" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-bold text-gray-600 dark:text-gray-400">
+                        <h4 className="font-bold text-gray-600">
                           {achievement.name}
                         </h4>
                         {getRarityBadge(
@@ -676,18 +661,18 @@ const Profile = () => {
                             | "legendary"
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-500 mb-2">
+                      <p className="text-sm text-gray-500 mb-2">
                         {achievement.description}
                       </p>
                       {achievement.progress && (
                         <div className="mt-2">
-                          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                          <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                             <span>Progress</span>
                             <span>{achievement.progress ?? 0}%</span>
                           </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
-                              className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                              className="bg-gradient-to-r from-blue-fix-500 to-purple-fix-600 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${0}%` }}
                             ></div>
                           </div>

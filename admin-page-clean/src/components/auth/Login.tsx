@@ -91,7 +91,7 @@ export default function Login() {
                   setFormData({ ...formData, password: e.target.value })
                 }
                 placeholder="password"
-                className="block w-full border-2 rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
+                className="block w-full border-2 rounded-md bg-card px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
               />
             </div>
           </div>
@@ -106,7 +106,7 @@ export default function Login() {
             <button
               disabled={status === "pending"}
               type="submit"
-              className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              className="flex w-full justify-center rounded-md bg-indigo-fix-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-xs hover:bg-indigo-fix-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
               {status === "pending" ? "Signing in.." : "Sign in"}
             </button>

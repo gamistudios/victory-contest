@@ -3,15 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Home,
-  Calendar,
-  Clock,
-  ArrowRight,
-  BookOpen,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Home, Calendar, Clock, ArrowRight, BookOpen, FileText } from "lucide-react";
 import { ArticleSummary } from "@/types/article";
 
 interface ArticleNavigationProps {
@@ -128,7 +120,7 @@ const ArticleNavigation: React.FC<ArticleNavigationProps> = ({
                           />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                            <span className="text-2xl">📝</span>
+                            <FileText className="h-6 w-6 text-blue-700" aria-hidden="true" />
                           </div>
                         )}
                       </div>

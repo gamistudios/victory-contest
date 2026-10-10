@@ -402,10 +402,10 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
             <CardContent>
               <div className="space-y-4">
                 {[
-                  { label: "Excellent (90-100%)", count: statistics.score_distribution.excellent, color: "bg-green-500" },
-                  { label: "Good (70-89%)", count: statistics.score_distribution.good, color: "bg-blue-500" },
-                  { label: "Average (50-69%)", count: statistics.score_distribution.average, color: "bg-yellow-500" },
-                  { label: "Poor (0-49%)", count: statistics.score_distribution.poor, color: "bg-red-500" }
+                  { label: "Excellent (90-100%)", count: statistics.score_distribution.excellent, color: "bg-green-fix-500" },
+                  { label: "Good (70-89%)", count: statistics.score_distribution.good, color: "bg-blue-fix-500" },
+                  { label: "Average (50-69%)", count: statistics.score_distribution.average, color: "bg-yellow-fix-500" },
+                  { label: "Poor (0-49%)", count: statistics.score_distribution.poor, color: "bg-red-fix-500" }
                 ].map((item, index) => (
                   <div key={index} className="flex items-center justify-between">
                     <span className="text-sm font-medium">{item.label}</span>

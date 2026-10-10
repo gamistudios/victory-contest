@@ -1,18 +1,6 @@
 
 import * as React from "react";
-import {
-  CheckCircle,
-  MessageSquare,
-  Star,
-  Sparkles,
-  Phone,
-  Languages,
-  Target,
-  Send,
-  Heart,
-  Trophy,
-  Zap,
-} from "lucide-react";
+import { CheckCircle, MessageSquare, Star, Sparkles, Phone, Languages, Target, Send, Heart, Trophy, Zap, Info } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import {
@@ -169,19 +157,19 @@ function RatingScale({
             onClick={() => onChange(v)}
             className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
               selected
-                ? "bg-yellow-50 text-yellow-500 dark:bg-yellow-900/20"
-                : "text-gray-300 hover:text-yellow-400 dark:text-gray-600"
+                ? "bg-yellow-50 text-yellow-500"
+                : "text-gray-500 hover:text-yellow-400"
             }`}
           >
             <Star className="w-6 h-6" fill={selected ? "currentColor" : "none"} />
-            <span className={`text-xs font-medium ${selected ? "" : "text-gray-500 dark:text-gray-400"}`}>
+            <span className={`text-xs font-medium ${selected ? "" : "text-gray-500"}`}>
               {v}
             </span>
           </button>
         );
       })}
       {value && (
-        <span className="ml-2 text-sm text-gray-600 dark:text-gray-300">
+        <span className="ml-2 text-sm text-gray-600">
           {RATING_LABELS[value]}
         </span>
       )}
@@ -684,10 +672,10 @@ export function FeedbackPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-card to-purple-50">
         <div className="flex flex-col justify-center items-center min-h-screen p-4">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-lg text-gray-600 dark:text-gray-400">
+          <p className="mt-4 text-lg text-gray-600">
             Loading feedback form...
           </p>
         </div>
@@ -698,7 +686,7 @@ export function FeedbackPage() {
   // Show read-only view if student has already submitted feedback
   if (isSubmitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-card to-blue-50">
         <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
           {/* Floating elements for celebration */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -719,22 +707,22 @@ export function FeedbackPage() {
             </div>
           </div>
 
-          <Card className="w-full max-w-lg border-0 shadow-2xl bg-white/90 backdrop-blur-sm dark:bg-gray-800/90">
+          <Card className="w-full max-w-lg border-0 shadow-2xl bg-card/90 backdrop-blur-sm">
             <CardHeader className="text-center space-y-6 pb-2">
               {/* Success animation */}
               <div className="relative mx-auto">
-                <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto shadow-lg">
+                <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-green-fix-600 rounded-full flex items-center justify-center mx-auto shadow-lg">
                   <CheckCircle className="w-12 h-12 text-white animate-pulse" />
                 </div>
-                <div className="absolute -inset-4 bg-green-100 dark:bg-green-900/30 rounded-full animate-ping opacity-30"></div>
+                <div className="absolute -inset-4 bg-green-100 rounded-full animate-ping opacity-30"></div>
               </div>
 
               {/* Success message */}
               <div className="space-y-3">
-                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-green-fix-600 to-blue-fix-600 bg-clip-text text-transparent">
                   Fantastic! 🎉
                 </CardTitle>
-                <CardDescription className="text-lg text-gray-600 dark:text-gray-300">
+                <CardDescription className="text-lg text-gray-600">
                   {feedback.pollResponse && feedback.pollResponse !== "skip"
                     ? "Your feedback has been received and your score range selection is now permanent!"
                     : "Your feedback has been received. Thank you for your input!"}
@@ -743,14 +731,14 @@ export function FeedbackPage() {
 
               {/* Impact message */}
               <div className="space-y-2">
-                <p className="text-gray-700 dark:text-gray-300">
+                <p className="text-gray-700">
                   {feedback.pollResponse && feedback.pollResponse !== "skip"
                     ? "Thank you for sharing your valuable insights. Your score range selection has been recorded and cannot be changed, as this ensures fair assessment for all students."
                     : "Thank you for sharing your valuable insights. We appreciate your time and thoughtful feedback."}
                 </p>
                 {feedback.pollResponse && feedback.pollResponse !== "skip" && (
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3">
-                    <p className="text-green-700 dark:text-green-300 text-sm font-medium">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-green-700 text-sm font-medium">
                       ✅ Your score range selection is now permanent and cannot
                       be modified
                     </p>
@@ -797,7 +785,7 @@ export function FeedbackPage() {
                   setShowContactForm(!!defaultOption?.requiresContact);
                   setIsSubmitted(false);
                 }}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-3 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105"
+                className="w-full bg-gradient-to-r from-blue-fix-500 to-purple-fix-600 hover:from-blue-fix-600 hover:to-purple-fix-700 text-white font-semibold py-3 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105"
               >
                 <MessageSquare className="w-4 h-4 mr-2" />
                 Share More Feedback
@@ -817,7 +805,7 @@ export function FeedbackPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-card to-purple-50">
       <div className="flex justify-center items-start min-h-screen p-4 sm:p-6 lg:p-8 pt-8">
         <div className="w-full max-w-2xl">
           {/* Beautiful Header Section */}
@@ -826,11 +814,11 @@ export function FeedbackPage() {
               {/* Icon and title */}
               <div className="flex justify-center">
                 <div className="relative">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-fix-500 to-purple-fix-600 rounded-2xl flex items-center justify-center shadow-lg">
                     <MessageSquare className="w-8 h-8 text-white" />
                   </div>
                   <div className="absolute -top-1 -right-1">
-                    <div className="w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                    <div className="w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-fix-500 rounded-full flex items-center justify-center">
                       <Sparkles className="w-3 h-3 text-white" />
                     </div>
                   </div>
@@ -838,10 +826,10 @@ export function FeedbackPage() {
               </div>
 
               <div className="space-y-3">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-fix-600 via-purple-fix-600 to-blue-fix-800 bg-clip-text text-transparent">
                   Share Your Feedback
                 </h1>
-                <p className="text-lg text-gray-600 dark:text-gray-300 max-w-lg mx-auto">
+                <p className="text-lg text-gray-600 max-w-lg mx-auto">
                   Your insights matter! Help us create an even better experience
                   for everyone.
                 </p>
@@ -850,13 +838,13 @@ export function FeedbackPage() {
 
             {/* Progress Indicator */}
             <div className="space-y-3">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex justify-between text-sm text-gray-600">
                 <span>Progress</span>
                 <span>{Math.round(progress)}% Complete</span>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                 <div
-                  className="h-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500 ease-out shadow-sm"
+                  className="h-3 bg-gradient-to-r from-blue-fix-500 to-purple-fix-600 rounded-full transition-all duration-500 ease-out shadow-sm"
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
@@ -886,8 +874,8 @@ export function FeedbackPage() {
                       key={question.id}
                       className={`transition-all duration-300 hover:shadow-lg border-2 ${
                         isAnswered
-                          ? "border-green-200 bg-green-50/50 dark:border-green-700 dark:bg-green-900/20"
-                          : "border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-blue-600"
+                          ? "border-green-200 bg-green-50/50"
+                          : "border-gray-200 hover:border-blue-300"
                       }`}
                     >
                       <CardHeader className="space-y-3">
@@ -896,8 +884,8 @@ export function FeedbackPage() {
                             <div
                               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                                 isAnswered
-                                  ? "bg-green-500 text-white"
-                                  : "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
+                                  ? "bg-green-fix-500 text-white"
+                                  : "bg-blue-100 text-blue-600"
                               }`}
                             >
                               {isAnswered ? (
@@ -920,7 +908,7 @@ export function FeedbackPage() {
                             </Badge>
                           )}
                         </div>
-                        <CardDescription className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                        <CardDescription className="text-base text-gray-700 leading-relaxed">
                           {question.question}
                         </CardDescription>
                       </CardHeader>
@@ -944,7 +932,7 @@ export function FeedbackPage() {
                             {question.options.map((option, optionIndex) => (
                               <div
                                 key={optionIndex}
-                                className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
+                                className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
                               >
                                 <RadioGroupItem
                                   value={option}
@@ -966,13 +954,13 @@ export function FeedbackPage() {
                   );
                 })
             ) : (
-              <Card className="border-dashed border-2 border-gray-300 dark:border-gray-600">
+              <Card className="border-dashed border-2 border-gray-300">
                 <CardContent className="pt-8 pb-8 text-center">
                   <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 dark:text-gray-400 text-lg">
+                  <p className="text-gray-500 text-lg">
                     No active feedback questions available at the moment.
                   </p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+                  <p className="text-sm text-gray-400 mt-2">
                     Check back later for new questions!
                   </p>
                 </CardContent>
@@ -983,14 +971,14 @@ export function FeedbackPage() {
             {pollOptions.length > 0 && shouldShowScoreRange(studentProfile) && (
               <>
                 {/* Warning Notice for Score Range Selection */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <div className="flex items-start space-x-3">
-                    <div className="w-5 h-5 text-blue-600 mt-0.5">ℹ️</div>
+                    <Info className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" aria-hidden="true" />
                     <div>
-                      <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-1">
+                      <h3 className="font-semibold text-blue-800 mb-1">
                         Score Range Selection (Required)
                       </h3>
-                      <p className="text-blue-700 dark:text-blue-300 text-sm">
+                      <p className="text-blue-700 text-sm">
                         <strong>
                           As a Grade 12 student or remedial student,
                         </strong>
@@ -1012,14 +1000,14 @@ export function FeedbackPage() {
                     (hasExistingFeedback &&
                       existingFeedback?.pollResponse &&
                       existingFeedback.pollResponse !== "skip")) && (
-                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4 mb-4">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
                       <div className="flex items-start space-x-3">
-                        <div className="w-5 h-5 text-green-600 mt-0.5">✅</div>
+                        <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" aria-hidden="true" />
                         <div>
-                          <h3 className="font-semibold text-green-800 dark:text-green-200 mb-1">
+                          <h3 className="font-semibold text-green-800 mb-1">
                             Your Permanent Score Range
                           </h3>
-                          <p className="text-green-700 dark:text-green-300 text-sm">
+                          <p className="text-green-700 text-sm">
                             Your previously selected score range{" "}
                             <strong>"{feedback.pollResponse}"</strong> has been
                             automatically loaded. This selection is permanent
@@ -1034,8 +1022,8 @@ export function FeedbackPage() {
                 <Card
                   className={`transition-all duration-300 hover:shadow-lg border-2 ${
                     feedback.pollResponse
-                      ? "border-blue-200 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-900/20"
-                      : "border-gray-200 hover:border-blue-300 dark:border-gray-700 dark:hover:border-blue-600"
+                      ? "border-blue-200 bg-blue-50/50"
+                      : "border-gray-200 hover:border-blue-300"
                   }`}
                 >
                   <CardHeader className="space-y-3">
@@ -1044,8 +1032,8 @@ export function FeedbackPage() {
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center ${
                             feedback.pollResponse
-                              ? "bg-blue-500 text-white"
-                              : "bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-300"
+                              ? "bg-blue-fix-500 text-white"
+                              : "bg-purple-100 text-purple-600"
                           }`}
                         >
                           <Target className="w-4 h-4" />
@@ -1069,7 +1057,7 @@ export function FeedbackPage() {
                         </Badge>
                       )}
                     </div>
-                    <CardDescription className="text-base text-gray-700 dark:text-gray-300">
+                    <CardDescription className="text-base text-gray-700">
                       {studentProfile?.defaultScoreRange ||
                       (hasExistingFeedback &&
                         existingFeedback?.pollResponse &&
@@ -1114,9 +1102,9 @@ export function FeedbackPage() {
                               className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all group ${
                                 isLocked
                                   ? option.label === lockLabel
-                                    ? "border-green-200 bg-green-50 dark:border-green-700 dark:bg-green-900/20 cursor-not-allowed"
-                                    : "border-gray-200 bg-gray-50 dark:border-gray-600 dark:bg-gray-800 cursor-not-allowed opacity-60"
-                                  : "border-transparent hover:border-blue-200 hover:bg-blue-50/50 dark:hover:border-blue-700 dark:hover:bg-blue-900/20"
+                                    ? "border-green-200 bg-green-50 cursor-not-allowed"
+                                    : "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
+                                  : "border-transparent hover:border-blue-200 hover:bg-blue-50/50"
                               }`}
                             >
                               <RadioGroupItem
@@ -1171,17 +1159,17 @@ export function FeedbackPage() {
             {/* Show message for students who don't need score range selection */}
             {pollOptions.length > 0 &&
               !shouldShowScoreRange(studentProfile) && (
-                <Card className="border-2 border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-800/50">
+                <Card className="border-2 border-gray-200 bg-gray-50/50">
                   <CardHeader className="space-y-3">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center">
+                      <div className="w-8 h-8 bg-gray-fix-500 rounded-full flex items-center justify-center">
                         <Target className="w-4 h-4 text-white" />
                       </div>
-                      <CardTitle className="text-lg text-gray-600 dark:text-gray-400">
+                      <CardTitle className="text-lg text-gray-600">
                         Score Range Selection Not Required
                       </CardTitle>
                     </div>
-                    <CardDescription className="text-base text-gray-600 dark:text-gray-400">
+                    <CardDescription className="text-base text-gray-600">
                       Score range selection is only required for Grade 12
                       entrance exam takers and remedial students. You can
                       proceed with your feedback without selecting a score
@@ -1193,17 +1181,17 @@ export function FeedbackPage() {
 
             {/* Contact Information Form */}
             {showContactForm && selectedPollOption?.requiresContact && (
-              <Card className="border-2 border-orange-200 bg-orange-50/50 dark:border-orange-700 dark:bg-orange-900/20 animate-in slide-in-from-top-4 duration-500">
+              <Card className="border-2 border-orange-200 bg-orange-50/50 animate-in slide-in-from-top-4 duration-500">
                 <CardHeader className="space-y-3">
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                    <div className="w-8 h-8 bg-orange-fix-500 rounded-full flex items-center justify-center">
                       <Phone className="w-4 h-4 text-white" />
                     </div>
-                    <CardTitle className="text-lg text-orange-800 dark:text-orange-200">
+                    <CardTitle className="text-lg text-orange-800">
                       Contact Information Required
                     </CardTitle>
                   </div>
-                  <CardDescription className="text-base text-orange-700 dark:text-orange-300">
+                  <CardDescription className="text-base text-orange-700">
                     Great score range ({selectedPollOption.minScore}-
                     {selectedPollOption.maxScore})! We'd love to connect with
                     you. Please share your contact details.
@@ -1286,15 +1274,15 @@ export function FeedbackPage() {
             )}
 
             {/* Comments */}
-            <Card className="border-2 border-gray-200 hover:border-purple-300 dark:border-gray-700 dark:hover:border-purple-600 transition-all duration-300">
+            <Card className="border-2 border-gray-200 hover:border-purple-300 transition-all duration-300">
               <CardHeader className="space-y-3">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-300 rounded-full flex items-center justify-center">
+                  <div className="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center">
                     <MessageSquare className="w-4 h-4" />
                   </div>
                   <CardTitle className="text-lg">Share Your Thoughts</CardTitle>
                 </div>
-                <CardDescription className="text-base text-gray-700 dark:text-gray-300">
+                <CardDescription className="text-base text-gray-700">
                   Help us improve! Share any additional feedback, suggestions,
                   or experiences.
                 </CardDescription>
@@ -1327,8 +1315,8 @@ export function FeedbackPage() {
             {/* Submission Button */}
             <div className="flex flex-col space-y-4 pt-4">
               {!isFormValid() && (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
-                  <div className="flex items-center space-x-2 text-yellow-800 dark:text-yellow-200">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2 text-yellow-800">
                     <Target className="w-4 h-4" />
                     <span className="text-sm font-medium">
                       Please complete all required fields to submit your
@@ -1344,13 +1332,13 @@ export function FeedbackPage() {
                 disabled={!isFormValid() || isSubmitting}
                 className={`w-full py-4 text-lg font-semibold rounded-xl shadow-lg transition-all duration-300 ${
                   isFormValid() && !isSubmitting
-                    ? "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 hover:shadow-xl"
-                    : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed"
+                    ? "bg-gradient-to-r from-blue-fix-500 to-purple-fix-600 hover:from-blue-fix-600 hover:to-purple-fix-700 transform hover:scale-105 hover:shadow-xl"
+                    : "bg-gray-300 cursor-not-allowed"
                 }`}
               >
                 {isSubmitting ? (
                   <div className="flex items-center space-x-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-5 h-5 border-2 border-card border-t-transparent rounded-full animate-spin"></div>
                     <span>Submitting Your Feedback...</span>
                   </div>
                 ) : (

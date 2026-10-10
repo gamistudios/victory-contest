@@ -107,12 +107,12 @@ export default function RegistrationForm() {
       toast.success("Successfully registered!", {
         icon: <CheckCircle />,
         style: {
-          backgroundColor: "green",
-          color: "white",
+          backgroundColor: "hsl(var(--success))",
+          color: "hsl(var(--success-foreground))",
           borderRadius: "8px",
           fontSize: "14px",
           fontWeight: "500",
-          boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
+          boxShadow: "0 2px 10px hsl(var(--shadow-color) / 0.1)",
         },
       });
       setTimeout(() => {
@@ -126,8 +126,8 @@ export default function RegistrationForm() {
       toast(message, {
         icon: <XCircle />,
         style: {
-          backgroundColor: "#f8d7da",
-          color: success ? "white" : "#721c24",
+          backgroundColor: "hsl(var(--red-100))",
+          color: success ? "hsl(var(--green-800))" : "hsl(var(--red-800))",
         },
       });
     } finally {
@@ -142,7 +142,7 @@ export default function RegistrationForm() {
           <CardTitle className="text-2xl font-bold tracking-tight">
             Student Registration
           </CardTitle>
-          <CardDescription className="dark:text-gray-400">
+          <CardDescription className="">
             Fill out the form to register a new student. All fields marked with
             * are required.
           </CardDescription>
@@ -176,7 +176,7 @@ export default function RegistrationForm() {
                       <FormControl>
                         <Input placeholder="+251" {...field} />
                       </FormControl>
-                      <FormDescription className="dark:text-gray-400">
+                      <FormDescription className="">
                         Notice: The Number must be 12 digit and starts with +251
                         or 09|07
                       </FormDescription>

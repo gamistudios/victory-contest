@@ -92,7 +92,7 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
           style={{
             fontSize: "clamp(1rem, 2.5vw, 1.125rem)",
             lineHeight: "1.75",
-            color: "#374151",
+            color: "hsl(var(--gray-700))",
           }}
         />
       </div>
@@ -103,7 +103,7 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
           .article-content {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
-            color: #374151;
+            color: hsl(var(--gray-700));
             overflow-wrap: break-word;
             word-break: break-word;
           }
@@ -111,7 +111,7 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
             margin-top: 1.5rem;
             margin-bottom: 0.75rem;
             font-weight: 600;
-            color: #111827;
+            color: hsl(var(--gray-900));
           }
           .article-content h1 { font-size: 1.75rem; }
           .article-content h2 { font-size: 1.5rem; }
@@ -139,45 +139,45 @@ const ArticlePreview: React.FC<ArticlePreviewProps> = ({
             margin-bottom: 0.25rem;
           }
           .article-content blockquote {
-            border-left: 4px solid #e5e7eb;
+            border-left: 4px solid hsl(var(--border));
             padding-left: 1rem;
             margin: 1rem 0;
             font-style: italic;
-            color: #6b7280;
+            color: hsl(var(--muted-foreground));
           }
           .article-content img {
             max-width: 100%;
             height: auto;
             border-radius: 8px;
             margin: 1rem 0;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px hsl(var(--shadow-color) / 0.1);
           }
           .article-content iframe {
             max-width: 100%;
             border-radius: 8px;
             margin: 1rem 0;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px hsl(var(--shadow-color) / 0.1);
           }
           .article-content .youtube-wrapper,
           .article-content div[class*='youtube'] {
             max-width: 100%;
           }
           .article-content a {
-            color: #2563eb;
+            color: hsl(var(--blue-600));
             text-decoration: underline;
           }
           .article-content a:hover {
-            color: #1d4ed8;
+            color: hsl(var(--blue-700));
           }
           .article-content code {
-            background-color: #f3f4f6;
+            background-color: hsl(var(--muted));
             padding: 0.125rem 0.25rem;
             border-radius: 0.25rem;
             font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
             font-size: 0.875rem;
           }
           .article-content pre {
-            background-color: #f3f4f6;
+            background-color: hsl(var(--muted));
             padding: 1rem;
             border-radius: 0.5rem;
             overflow-x: auto;

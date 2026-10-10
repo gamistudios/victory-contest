@@ -234,7 +234,7 @@ export function BankAccountsSection() {
                       variant={bank.is_active ? "default" : "secondary"}
                       className={
                         bank.is_active
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                          ? "bg-green-100 text-green-700"
                           : "text-muted-foreground"
                       }
                     >
@@ -391,7 +391,7 @@ export function BankAccountsSection() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={confirmDelete}
-                className="bg-red-600 hover:bg-red-700"
+                className="bg-red-fix-600 hover:bg-red-fix-700"
               >
                 {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
               </AlertDialogAction>

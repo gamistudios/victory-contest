@@ -162,9 +162,9 @@ export function AIPracticePage() {
         setAiPremiumLocked(true);
         toast.error("AI explanations need a premium account — pay to unlock", {
           style: {
-            backgroundColor: "#fff3cd",
-            color: "#664d03",
-            border: "1px solid #ffe69c",
+            backgroundColor: "hsl(var(--amber-100))",
+            color: "hsl(var(--amber-800))",
+            border: "1px solid hsl(var(--amber-300))",
             padding: "10px",
             borderRadius: "8px",
           },
@@ -175,9 +175,9 @@ export function AIPracticePage() {
         setAiMessages((prev) => prev.filter((m) => m.content !== `__pending:${pendingId}__`));
         toast.error("Couldn't reach the AI tutor. Please try again.", {
           style: {
-            backgroundColor: "#f8d7da",
-            color: "#721c24",
-            border: "1px solid #f5c6cb",
+            backgroundColor: "hsl(var(--red-100))",
+            color: "hsl(var(--red-800))",
+            border: "1px solid hsl(var(--red-200))",
             padding: "10px",
             borderRadius: "8px",
           },
@@ -237,9 +237,9 @@ export function AIPracticePage() {
           "No practice questions found for this subject. Try another topic.",
           {
             style: {
-              backgroundColor: "#f8d7da",
-              color: "#721c24",
-              border: "1px solid #f5c6cb",
+              backgroundColor: "hsl(var(--red-100))",
+              color: "hsl(var(--red-800))",
+              border: "1px solid hsl(var(--red-200))",
               padding: "10px",
               borderRadius: "8px",
             },
@@ -260,9 +260,9 @@ export function AIPracticePage() {
         // Backend 403: the admin switched /api/ai to premium-only.
         toast.error("AI practice needs a premium account — pay to unlock", {
           style: {
-            backgroundColor: "#fff3cd",
-            color: "#664d03",
-            border: "1px solid #ffe69c",
+            backgroundColor: "hsl(var(--amber-100))",
+            color: "hsl(var(--amber-800))",
+            border: "1px solid hsl(var(--amber-300))",
             padding: "10px",
             borderRadius: "8px",
           },
@@ -270,9 +270,9 @@ export function AIPracticePage() {
       } else {
         toast.error("Failed to load practice questions. Please try again.", {
           style: {
-            backgroundColor: "#f8d7da",
-            color: "#721c24",
-            border: "1px solid #f5c6cb",
+            backgroundColor: "hsl(var(--red-100))",
+            color: "hsl(var(--red-800))",
+            border: "1px solid hsl(var(--red-200))",
             padding: "10px",
             borderRadius: "8px",
           },
@@ -361,14 +361,14 @@ export function AIPracticePage() {
                 Question {currentQuestionIndex + 1} of {questions.length}
               </p>
             </div>
-            <div className="flex items-center text-black dark:border-none dark:text-white dark:bg-gray-800 bg-card px-3 py-2 rounded-lg border">
+            <div className="flex items-center text-foreground bg-card px-3 py-2 rounded-lg border">
               <Clock className="w-4 h-4 mr-2" />
               <span className="font-mono text-sm">{formatTime(timeLeft)}</span>
             </div>
           </div>
           <div className="w-full bg-muted rounded-full h-2">
             <div
-              className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+              className="bg-purple-fix-500 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
@@ -378,16 +378,16 @@ export function AIPracticePage() {
         <Card>
           <CardHeader>
             <div className="flex items-center space-x-2">
-              <span className="px-2 py-1 bg-primary/10 text-black dark:text-white text-xs font-medium rounded">
+              <span className="px-2 py-1 bg-primary/10 text-foreground text-xs font-medium rounded">
                 {currentQuestion.subject}
               </span>
-              <span className="px-2 py-1 bg-white dark:bg-gray-700 text-muted-black dark:text-white text-xs font-medium rounded">
+              <span className="px-2 py-1 bg-card text-muted-black text-xs font-medium rounded">
                 {currentQuestion.grade}
               </span>
             </div>
           </CardHeader>
           <CardContent>
-            <h3 className="text-base font-semibold text-black dark:text-white mb-6">
+            <h3 className="text-base font-semibold text-foreground mb-6">
               {currentQuestion.question_text}
             </h3>
             <div className="space-y-3">
@@ -403,10 +403,10 @@ export function AIPracticePage() {
                 if (hasAnswered) {
                   if (isCorrectAnswer) {
                     optionClass =
-                      "border-green-500 border-2 bg-green-500/10 text-green-700 dark:text-green-400";
+                      "border-green-500 border-2 bg-green-fix-500/10 text-green-700";
                   } else if (isSelected) {
                     optionClass =
-                      "border-red-500 border-2 bg-red-500/10 text-red-700 dark:text-red-400";
+                      "border-red-500 border-2 bg-red-fix-500/10 text-red-700";
                   } else {
                     optionClass = "opacity-60"; // Fade out other options
                   }
@@ -442,7 +442,7 @@ export function AIPracticePage() {
                         <img
                           src={optionImage}
                           alt={`Option ${String.fromCharCode(65 + index)}`}
-                          className="h-14 w-14 object-contain rounded-md border border-gray-200 dark:border-gray-600 flex-shrink-0"
+                          className="h-14 w-14 object-contain rounded-md border border-gray-200 flex-shrink-0"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";
                           }}
@@ -459,11 +459,11 @@ export function AIPracticePage() {
           {selectedAnswer !== undefined && selectedAnswer !== null && (
             <CardFooter className="flex-col items-start gap-4 mt-4 p-4 bg-muted/50 rounded-b-lg">
               <div>
-                <h4 className="flex items-center text-base font-bold text-gray-800 dark:text-white mb-2">
+                <h4 className="flex items-center text-base font-bold text-gray-800 mb-2">
                   <Brain className="w-5 h-5 text-purple-500 mr-2" />
                   Explanation
                 </h4>
-                <p className="text-sm dark:text-white">
+                <p className="text-sm">
                   {currentQuestion.explanation}
                 </p>
               </div>
@@ -471,28 +471,28 @@ export function AIPracticePage() {
               {/* --- On-question AI tutor: guided explanation + free ask --- */}
               <div className="w-full">
                 <div className="flex items-center gap-2 mb-2">
-                  <h4 className="flex items-center text-base font-bold text-gray-800 dark:text-white">
+                  <h4 className="flex items-center text-base font-bold text-gray-800">
                     <Sparkles className="w-5 h-5 text-purple-500 mr-2" />
                     AI Tutor
                   </h4>
-                  <span className="text-xs text-muted-foreground dark:text-gray-400">
+                  <span className="text-xs text-muted-foreground">
                     Guided help — it will not give away the answer.
                   </span>
                 </div>
 
                 {aiPremiumLocked ? (
-                  <div className="w-full rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/40 p-3 space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  <div className="w-full rounded-lg border border-yellow-300 bg-yellow-50 p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-yellow-800">
                       <Lock className="h-4 w-4" />
                       AI Tutor is a premium feature
                     </div>
-                    <p className="text-xs text-yellow-800/80 dark:text-yellow-200/80">
+                    <p className="text-xs text-yellow-800/80">
                       Unlock guided explanations and follow-up questions by
                       upgrading to a premium account.
                     </p>
                     <Button
                       size="sm"
-                      className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                      className="bg-yellow-fix-500 hover:bg-yellow-fix-600 text-white"
                       onClick={() => navigate("/payment")}
                     >
                       Get Premium
@@ -508,7 +508,7 @@ export function AIPracticePage() {
                           return (
                             <div key={i}>
                               {m.role === "user" ? (
-                                <div className="text-xs text-gray-700 dark:text-gray-300">
+                                <div className="text-xs text-gray-700">
                                   <span className="font-semibold">You: </span>
                                   {m.content}
                                 </div>
@@ -518,7 +518,7 @@ export function AIPracticePage() {
                                   Thinking…
                                 </div>
                               ) : (
-                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
+                                <div className="rounded-lg bg-card border border-gray-100 p-3">
                                   <MarkdownMessage content={m.content} />
                                 </div>
                               )}
@@ -533,7 +533,7 @@ export function AIPracticePage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200"
+                        className="bg-purple-50 text-purple-700 border-purple-200"
                         disabled={aiLoading}
                         onClick={() => handleAiExplain("")}
                       >
@@ -602,17 +602,17 @@ export function AIPracticePage() {
     <div className="w-full max-w-3xl space-y-8 p-3">
       <header className="text-center">
         <h1 className="text-3xl font-bold tracking-tight flex items-center justify-center">
-          <BrainCircuit className="mr-3 h-8 w-8 text-black dark:text-white" />
+          <BrainCircuit className="mr-3 h-8 w-8 text-foreground" />
           AI Practice Session
         </h1>
-        <p className="mt-2 text-muted-foreground dark:text-gray-400">
+        <p className="mt-2 text-muted-foreground">
           Select your criteria to start a practice session.
         </p>
       </header>
       <Card>
         <CardHeader>
           <CardTitle>Practice Settings</CardTitle>
-          <CardDescription className="dark:text-gray-400">
+          <CardDescription className="">
             Choose a subject and how many questions to practice. Questions come
             from the saved question bank for that subject.
           </CardDescription>

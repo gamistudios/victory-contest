@@ -45,13 +45,13 @@ export default function LeaderboardModal({
     if (isActiveContest) {
       toast.warning("You cannot view the editorial for an active contest.", {
         style: {
-          background: "#fef3c7",
-          color: "#92400e",
-          border: "1px solid #f59e0b",
+          background: "hsl(var(--amber-100))",
+          color: "hsl(var(--amber-800))",
+          border: "1px solid hsl(var(--chart-3))",
           borderRadius: "8px",
           fontSize: "14px",
           fontWeight: "500",
-          boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
+          boxShadow: "0 2px 10px hsl(var(--shadow-color) / 0.1)",
           transition: "all 0.3s ease-in-out",
         },
         duration: 3000,
@@ -77,25 +77,25 @@ export default function LeaderboardModal({
         return <Award className="w-5 h-5 text-amber-600" />;
       default:
         return (
-          <div className="w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded-full text-xs font-bold text-gray-600 dark:text-gray-400">
+          <div className="w-5 h-5 flex items-center justify-center bg-gray-200 rounded-full text-xs font-bold text-gray-600">
             {rank}
           </div>
         );
     }
   };
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-lg w-full flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-scrim/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-2xl shadow-xl max-w-lg w-full flex flex-col max-h-[90vh]">
         {/* --- MODAL HEADER --- */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold tracking-tight text-gray-900 dark:text-gray-50">
+              <h3 className="text-sm font-bold tracking-tight text-gray-900">
                 {selectedContest.title.length > 16
                   ? selectedContest.title.slice(0, 16) + "..."
                   : selectedContest.title}
               </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Final Standings
               </p>
             </div>
@@ -111,7 +111,7 @@ export default function LeaderboardModal({
               ) : (
                 <button
                   onClick={handleEditorialClick}
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700/70 px-3 py-2 rounded-lg transition-colors"
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg transition-colors"
                 >
                   <BookOpenIcon className="h-5 w-5" />
                   Editorial
@@ -120,7 +120,7 @@ export default function LeaderboardModal({
 
               <button
                 onClick={() => setShowModal(false)}
-                className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors"
                 aria-label="Close"
               >
                 <XMarkIcon className="h-6 w-6" />
@@ -145,8 +145,8 @@ export default function LeaderboardModal({
                     key={entry.user_id}
                     className={`flex items-center justify-between p-3 rounded-xl transition-colors ${
                       isCurrentUser
-                        ? "bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20"
-                        : "bg-gray-50 dark:bg-white/5"
+                        ? "bg-blue-50 border border-blue-200"
+                        : "bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center space-x-4">
@@ -156,32 +156,32 @@ export default function LeaderboardModal({
                           <p
                             className={`font-semibold ${
                               isCurrentUser
-                                ? "text-blue-800 dark:text-blue-300"
-                                : "text-gray-900 dark:text-gray-50"
+                                ? "text-blue-800"
+                                : "text-gray-900"
                             }`}
                           >
                             {entry.user_name}
                           </p>
                           {isCurrentUser && (
-                            <span className="ml-2 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                            <span className="ml-2 text-xs font-medium bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                               You
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500">
                           {entry.correct_answers}/{entry.total_questions}{" "}
                           correct
                         </p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 ml-4">
-                      <p className="font-bold text-lg text-gray-900 dark:text-gray-50">
+                      <p className="font-bold text-lg text-gray-900">
                         {safePercent(entry.score, entry.total_questions).toFixed(
                           2
                         )}
                         %
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500">
                         Rank #{index + 1}
                       </p>
                     </div>
@@ -208,10 +208,10 @@ export default function LeaderboardModal({
                   />
                 </svg>
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="mt-4 text-lg font-semibold text-gray-900">
                 No Participants Yet
               </h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-sm text-gray-500">
                 Check back later to see the final standings.
               </p>
             </div>

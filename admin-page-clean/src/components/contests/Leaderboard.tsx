@@ -19,7 +19,7 @@ import { Button } from "../ui/button";
 function LeaderboardItem({ user, rank }: { user: Rank; rank: number }) {
   const rankColors: { [key: number]: string } = {
     1: "text-amber-400",
-    2: "text-slate-400",
+    2: "text-gray-400",
     3: "text-amber-600",
   };
 
@@ -51,7 +51,7 @@ export function Leaderboard() {
   return (
     <Card
       className="top-4 lg:sticky"
-      style={{ boxShadow: "0 0 1px #9c9898" }}
+      style={{ boxShadow: "0 0 1px hsl(var(--border))" }}
     >
       <CardHeader>
         <div className="flex items-center justify-between">

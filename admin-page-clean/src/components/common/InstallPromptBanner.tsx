@@ -32,8 +32,8 @@ export default function InstallPromptBanner() {
 
   return (
     <div className="pointer-events-auto fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-md items-center gap-3 rounded-lg border bg-background p-3 shadow-lg sm:inset-x-auto sm:right-6 sm:bottom-6">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#00AB55]/10">
-        <Download className="h-5 w-5 text-[#00AB55]" />
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/10">
+        <Download className="h-5 w-5 text-brand-ink" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">Install VC Admin</p>

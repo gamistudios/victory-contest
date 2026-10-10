@@ -35,7 +35,7 @@ const CustomTooltip = ({
 }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-2 sm:p-3 max-w-[80vw]">
+      <div className="bg-card rounded-xl shadow-lg border border-gray-200 p-2 sm:p-3 max-w-[80vw]">
         <p className="text-xs text-gray-500 mb-1">{label}</p>
         {payload.map((entry, index) => {
           const name = String(entry.name ?? "");
@@ -180,16 +180,16 @@ export default function SessionsChart({ userStats }: SessionsChartProps) {
             <AreaChart data={chartData} margin={{ left: 0, right: 4 }}>
               <defs>
                 <linearGradient id="female" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="male" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="other" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#1e40af" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#1e40af" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(var(--chart-5))" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-5))" stopOpacity={0} />
                 </linearGradient>
               </defs>
 
@@ -201,34 +201,34 @@ export default function SessionsChart({ userStats }: SessionsChartProps) {
                 interval={isPhone ? 9 : 4}
                 minTickGap={isPhone ? 24 : 12}
                 tickMargin={6}
-                stroke="#94a3b8"
+                stroke="hsl(var(--chart-axis))"
               />
               <YAxis
                 tick={{ fontSize: isPhone ? 9 : 10 }}
                 width={isPhone ? 34 : 44}
                 tickMargin={4}
-                stroke="#94a3b8"
+                stroke="hsl(var(--chart-axis))"
               />
               <Tooltip content={<CustomTooltip />} />
 
               <Area
                 type="monotone"
                 dataKey="female"
-                stroke="#60a5fa"
+                stroke="hsl(var(--chart-1))"
                 fill="url(#female)"
                 stackId="1"
               />
               <Area
                 type="monotone"
                 dataKey="male"
-                stroke="#3b82f6"
+                stroke="hsl(var(--chart-1))"
                 fill="url(#male)"
                 stackId="1"
               />
               <Area
                 type="monotone"
                 dataKey="other"
-                stroke="#1e40af"
+                stroke="hsl(var(--chart-5))"
                 fill="url(#other)"
                 stackId="1"
               />

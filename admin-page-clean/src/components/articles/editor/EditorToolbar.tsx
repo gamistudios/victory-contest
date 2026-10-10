@@ -7,26 +7,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-import {
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-  List,
-  ListOrdered,
-  Quote, // 1. Import Quote icon
-  ChevronDown,
-  Link,
-  Unlink,
-  Image,
-  PlayCircle,
-  Undo,
-  Redo,
-} from "lucide-react";
+import { Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, // 1. Import Quote icon
+  ChevronDown, Link, Unlink, Image, PlayCircle, Undo, Redo, ArrowRight, Check, Star, Rocket, Heart } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Editor } from "@tiptap/react";
 import ColorPicker from "./ColorPicker";
 import LinkInsertionModal from "./LinkInsertionModal";
@@ -55,15 +38,19 @@ const fontFamilies = [
   },
 ];
 
-const listStyles = [
+const listStyles: {
+  label: string;
+  value: string;
+  Icon?: LucideIcon;
+}[] = [
   { label: "Default Bullets", value: "list-disc" },
   { label: "Circle Bullets", value: "list-circle" },
   { label: "Square Bullets", value: "list-square" },
-  { label: "Arrows →", value: "list-arrow" },
-  { label: "Checks ✓", value: "list-check" },
-  { label: "Stars ★", value: "list-star" },
-  { label: "Rocket 🚀", value: "list-rocket" },
-  { label: "Heart ❤", value: "list-heart" },
+  { label: "Arrows", value: "list-arrow", Icon: ArrowRight },
+  { label: "Checks", value: "list-check", Icon: Check },
+  { label: "Stars", value: "list-star", Icon: Star },
+  { label: "Rocket", value: "list-rocket", Icon: Rocket },
+  { label: "Heart", value: "list-heart", Icon: Heart },
 ];
 
 const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
@@ -299,6 +286,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
                 key={s.value}
                 onClick={() => applyListStyle(s.value)}
               >
+                {s.Icon && <s.Icon className="mr-2 h-4 w-4" aria-hidden="true" />}
                 {s.label}
               </DropdownMenuItem>
             ))}

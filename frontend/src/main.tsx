@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { ThemeProvider } from './context/ThemeContext';
 import { installDevTelegramMock } from './lib/devTelegramMock';
 
 // Outside Telegram there is no WebApp user, so dev builds fake one and the app
@@ -12,6 +13,8 @@ if (import.meta.env.DEV && import.meta.env.VITE_MOCK_TELEGRAM !== "false") {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
   </StrictMode>
 );

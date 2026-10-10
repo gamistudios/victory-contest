@@ -35,7 +35,7 @@ export default function Dashboard() {
     return null;
   }
   return (
-    <div className="flex h-dvh overflow-hidden bg-[#faf9f7]">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <div className="hidden h-full lg:block">
         <Sidebar />
       </div>

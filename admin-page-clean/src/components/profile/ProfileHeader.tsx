@@ -52,17 +52,17 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
       </div>
 
       {/* Profile Card */}
-      <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
+      <div className="bg-card shadow-sm border border-gray-200 rounded-lg overflow-hidden">
         {/* Profile Header */}
-        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 sm:px-8 py-6 sm:py-12">
+        <div className="bg-gradient-to-r from-emerald-fix-600 to-emerald-fix-700 px-4 sm:px-8 py-6 sm:py-12">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-0 sm:space-x-6">
-            <Avatar className="w-16 h-16 sm:w-24 sm:h-24 border-4 border-white shadow-lg shrink-0">
+            <Avatar className="w-16 h-16 sm:w-24 sm:h-24 border-4 border-card shadow-lg shrink-0">
               <AvatarImage
                 src={user.imgurl}
                 alt={user.name}
                 className="object-cover"
               />
-              <AvatarFallback className="text-xl sm:text-2xl font-bold bg-white text-emerald-600">
+              <AvatarFallback className="text-xl sm:text-2xl font-bold bg-card text-emerald-600">
                 {getInitials(user.name)}
               </AvatarFallback>
             </Avatar>
@@ -70,7 +70,7 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
               <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 break-words">
                 {user.name}
               </h2>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-emerald-100">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-emerald-fix-100">
                 <div className="flex items-center space-x-2">
                   <UserIcon className="w-4 h-4" />
                   <span>Student</span>

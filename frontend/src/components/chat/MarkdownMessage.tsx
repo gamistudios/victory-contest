@@ -8,33 +8,33 @@ import remarkGfm from "remark-gfm";
 const markdownComponents = {
   // Headings
   h1: (props: React.HTMLAttributes<HTMLElement>) => (
-    <h1 className="text-xl font-bold text-gray-900 dark:text-white mt-4 mb-2 first:mt-0" {...props} />
+    <h1 className="text-xl font-bold text-gray-900 mt-4 mb-2 first:mt-0" {...props} />
   ),
   h2: (props: React.HTMLAttributes<HTMLElement>) => (
-    <h2 className="text-lg font-bold text-gray-900 dark:text-white mt-4 mb-2 first:mt-0" {...props} />
+    <h2 className="text-lg font-bold text-gray-900 mt-4 mb-2 first:mt-0" {...props} />
   ),
   h3: (props: React.HTMLAttributes<HTMLElement>) => (
-    <h3 className="text-base font-bold text-gray-900 dark:text-white mt-3 mb-1 first:mt-0" {...props} />
+    <h3 className="text-base font-bold text-gray-900 mt-3 mb-1 first:mt-0" {...props} />
   ),
   h4: (props: React.HTMLAttributes<HTMLElement>) => (
-    <h4 className="text-sm font-bold text-gray-800 dark:text-white mt-2 mb-1" {...props} />
+    <h4 className="text-sm font-bold text-gray-800 mt-2 mb-1" {...props} />
   ),
   // Body
   p: (props: React.HTMLAttributes<HTMLElement>) => (
-    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed my-2" {...props} />
+    <p className="text-sm text-gray-700 leading-relaxed my-2" {...props} />
   ),
   strong: (props: React.HTMLAttributes<HTMLElement>) => (
-    <strong className="font-semibold text-gray-900 dark:text-white" {...props} />
+    <strong className="font-semibold text-gray-900" {...props} />
   ),
   em: (props: React.HTMLAttributes<HTMLElement>) => (
     <em className="italic" {...props} />
   ),
   // Lists
   ul: (props: React.HTMLAttributes<HTMLElement>) => (
-    <ul className="list-disc pl-6 my-2 space-y-1 text-sm text-gray-700 dark:text-gray-300" {...props} />
+    <ul className="list-disc pl-6 my-2 space-y-1 text-sm text-gray-700" {...props} />
   ),
   ol: (props: React.HTMLAttributes<HTMLElement>) => (
-    <ol className="list-decimal pl-6 my-2 space-y-1 text-sm text-gray-700 dark:text-gray-300" {...props} />
+    <ol className="list-decimal pl-6 my-2 space-y-1 text-sm text-gray-700" {...props} />
   ),
   li: (props: React.HTMLAttributes<HTMLElement>) => (
     <li className="leading-relaxed" {...props} />
@@ -47,14 +47,14 @@ const markdownComponents = {
     if (isBlock) {
       return (
         <code
-          className="block w-full bg-gray-900 text-gray-100 text-xs rounded-lg p-3 overflow-x-auto my-2 font-mono"
+          className="block w-full bg-gray-fix-900 text-gray-fix-100 text-xs rounded-lg p-3 overflow-x-auto my-2 font-mono"
           {...props}
         />
       );
     }
     return (
       <code
-        className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-1 py-0.5 rounded text-xs font-mono"
+        className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs font-mono"
         {...props}
       />
     );
@@ -67,24 +67,24 @@ const markdownComponents = {
     <table className="w-full border-collapse my-2 text-xs" {...props} />
   ),
   thead: (props: React.HTMLAttributes<HTMLElement>) => (
-    <thead className="bg-gray-50 dark:bg-gray-800" {...props} />
+    <thead className="bg-gray-50" {...props} />
   ),
   th: (props: React.HTMLAttributes<HTMLElement>) => (
     <th
-      className="border border-gray-200 dark:border-gray-700 px-2 py-1 text-left font-semibold"
+      className="border border-gray-200 px-2 py-1 text-left font-semibold"
       {...props}
     />
   ),
   td: (props: React.HTMLAttributes<HTMLElement>) => (
     <td
-      className="border border-gray-200 dark:border-gray-700 px-2 py-1 align-top"
+      className="border border-gray-200 px-2 py-1 align-top"
       {...props}
     />
   ),
   // Misc
   a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
     <a
-      className="text-blue-600 dark:text-blue-400 underline"
+      className="text-blue-600 underline"
       target="_blank"
       rel="noreferrer noopener"
       {...props}
@@ -92,12 +92,12 @@ const markdownComponents = {
   ),
   blockquote: (props: React.HTMLAttributes<HTMLElement>) => (
     <blockquote
-      className="border-l-4 border-blue-400 pl-3 py-1 my-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 rounded-r"
+      className="border-l-4 border-blue-400 pl-3 py-1 my-2 text-sm text-blue-700 bg-blue-50 rounded-r"
       {...props}
     />
   ),
   hr: (props: React.HTMLAttributes<HTMLElement>) => (
-    <hr className="border-gray-200 dark:border-gray-700 my-3" {...props} />
+    <hr className="border-gray-200 my-3" {...props} />
   ),
 };
 

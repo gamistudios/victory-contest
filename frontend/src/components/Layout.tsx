@@ -6,15 +6,17 @@ import TopNavigation from "./TopNavigation";
 import { Toaster } from "sonner";
 import { NotificationProvider } from "../context/NotificationContext";
 import PaymentAlert from "./PaymentAlert";
+import { useTheme } from "../context/ThemeContext";
 
 const Layout: React.FC = () => {
   const { webApp, enableClosingConfirmation } = useTelegram();
   const location = useLocation();
+  const { resolvedTheme } = useTheme();
   const [hasAlert, setHasAlert] = useState(false);
 
   useEffect(() => {
     if (webApp) {
-      // App is light-mode only; Telegram theme params are intentionally ignored.
+      // Theme (light/dark) is owned by ThemeProvider; it also syncs Telegram chrome colours.
       enableClosingConfirmation();
     }
   }, [webApp, enableClosingConfirmation]);
@@ -26,7 +28,7 @@ const Layout: React.FC = () => {
   }
   return (
     <div
-      // Removed `dark:bg-gray-900` from className to prevent dark background
+      // Removed `` from className to prevent dark background
       className="min-h-screen flex flex-col bg-gray-50"
       // style={getThemeStyles()}
     >
@@ -43,7 +45,15 @@ const Layout: React.FC = () => {
         }`}
       >
         <Outlet />
-        <Toaster />
+        <Toaster
+          theme={resolvedTheme}
+          toastOptions={{
+            classNames: {
+              toast: "!bg-card !text-card-foreground !border-border",
+              description: "!text-muted-foreground",
+            },
+          }}
+        />
       </main>
       {location.pathname !== "/register" && <BottomNavigation />}
     </div>

@@ -63,18 +63,18 @@ export default function Sidebar() {
   /* Base scrollbar track and width */
   [&::-webkit-scrollbar]:w-1
   [&::-webkit-scrollbar-track]:bg-gray-100
-  dark:[&::-webkit-scrollbar-track]:bg-neutral-700
+
   
   /* The draggable scrollbar thumb */
   [&::-webkit-scrollbar-thumb]:bg-gray-400
-  dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500
+
 
   /* NEW: Add these classes to make the thumb look shorter */
   [&::-webkit-scrollbar-thumb]:rounded-full
   [&::-webkit-scrollbar-thumb]:border-2
   [&::-webkit-scrollbar-thumb]:border-solid
   [&::-webkit-scrollbar-thumb]:border-gray-100
-  dark:[&::-webkit-scrollbar-thumb]:border-neutral-700"
+"
       >
         <NavLinks isCollapsed={isCollapsed} />
       </div>
@@ -117,9 +117,9 @@ export function NavLinks({ isCollapsed, onNavigate }: NavLinksProps) {
                     <Link
                       to={item.path}
                       onClick={onNavigate}
-                      className={`flex rounded-md py-4 mb-2 cursor-pointer items-center px-4 text-sm outline-none transition-all duration-100 ease-in-out hover:border-l-4 hover:border-[#00AB55] hover:text-[#00AB55] ${
+                      className={`flex rounded-md py-4 mb-2 cursor-pointer items-center px-4 text-sm outline-none transition-all duration-100 ease-in-out hover:border-l-4 hover:border-brand hover:text-brand-ink ${
                         isActive
-                          ? "border-l-4 bg-[#00AB5514] border-l-[#00AB55] text-[#00AB55] font-bold"
+                          ? "border-l-4 bg-brand/10 border-l-brand text-brand-ink font-bold"
                           : "border-l-0 text-gray-600 font-medium"
                       }`}
                     >

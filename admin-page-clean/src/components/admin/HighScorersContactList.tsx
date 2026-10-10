@@ -1,3 +1,4 @@
+import { Trophy, Trash2 } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -176,19 +177,20 @@ export default function HighScorersContactList() {
         sx={{
           fontWeight: 700,
           mb: 3,
-          color: "#1a237e",
+          color: "hsl(var(--info))",
           fontSize: { xs: "1.25rem", sm: "2.125rem" },
         }}
       >
-        🏆 High Scorers Contact List (500-600 Range)
+        <Trophy className="mr-2 inline h-6 w-6 align-text-bottom" aria-hidden="true" />
+        High Scorers Contact List (500-600 Range)
       </Typography>
 
       <div className="flex flex-wrap gap-3 mb-3">
         <div className="w-full sm:w-1/2 md:w-1/4">
           <Card
             sx={{
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: "white",
+              background: "linear-gradient(135deg, hsl(var(--indigo-fix-500)) 0%, hsl(var(--purple-fix-700)) 100%)",
+              color: "hsl(0 0% 100%)",
             }}
           >
             <CardContent>
@@ -214,8 +216,8 @@ export default function HighScorersContactList() {
         <div className="w-full sm:w-1/2 md:w-1/4">
           <Card
             sx={{
-              background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-              color: "white",
+              background: "linear-gradient(135deg, hsl(var(--fuchsia-fix-400)) 0%, hsl(var(--rose-fix-500)) 100%)",
+              color: "hsl(0 0% 100%)",
             }}
           >
             <CardContent>
@@ -243,7 +245,7 @@ export default function HighScorersContactList() {
         <TableContainer sx={{ overflowX: "auto" }}>
           <Table sx={{ minWidth: 720 }}>
             <TableHead>
-              <TableRow sx={{ backgroundColor: "#f8f9fa" }}>
+              <TableRow sx={{ backgroundColor: "hsl(var(--muted))" }}>
                 <TableCell sx={{ fontWeight: 600, minWidth: 160 }}>
                   Student Name
                 </TableCell>
@@ -260,7 +262,7 @@ export default function HighScorersContactList() {
                 .map((scorer) => (
                   <TableRow
                     key={scorer.id}
-                    sx={{ "&:hover": { backgroundColor: "#f5f5f5" } }}
+                    sx={{ "&:hover": { backgroundColor: "hsl(var(--muted))" } }}
                   >
                     <TableCell>
                       <Box
@@ -270,8 +272,8 @@ export default function HighScorersContactList() {
                           sx={{
                             bgcolor:
                               getScoreColor(scorer.score) === "success"
-                                ? "#4caf50"
-                                : "#2196f3",
+                                ? "hsl(var(--success))"
+                                : "hsl(var(--info))",
                           }}
                         >
                           {scorer.name?.charAt(0)?.toUpperCase() ?? "?"}
@@ -342,7 +344,7 @@ export default function HighScorersContactList() {
                         sx={{
                           p: 1.5,
                           "&:hover": {
-                            backgroundColor: "rgba(244, 67, 54, 0.1)",
+                            backgroundColor: "hsl(var(--destructive) / 0.1)",
                           },
                         }}
                       >
@@ -382,7 +384,8 @@ export default function HighScorersContactList() {
         fullWidth
       >
         <DialogTitle sx={{ color: "error.main" }}>
-          🗑️ Delete Contact Information
+          <Trash2 className="mr-2 inline h-5 w-5 align-text-bottom" aria-hidden="true" />
+          Delete Contact Information
         </DialogTitle>
         <DialogContent>
           <Typography variant="body1" sx={{ mb: 2 }}>

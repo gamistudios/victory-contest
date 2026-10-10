@@ -37,7 +37,7 @@ const ExpandableDescription = ({ text }: { text: string }) => {
     <div className="mb-4">
       <p
         ref={textRef}
-        className={`text-sm text-gray-600 dark:text-gray-400 leading-relaxed ${
+        className={`text-sm text-gray-600 leading-relaxed ${
           !isExpanded ? "line-clamp-1" : ""
         }`}
       >
@@ -46,7 +46,7 @@ const ExpandableDescription = ({ text }: { text: string }) => {
       {isOverflowing && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="text-blue-600 dark:text-blue-400 text-xs font-semibold mt-1 hover:underline focus:outline-none"
+          className="text-blue-600 text-xs font-semibold mt-1 hover:underline focus:outline-none"
         >
           {isExpanded ? "Show Less" : "Show More"}
         </button>
@@ -128,23 +128,23 @@ export default function ContestCard({ contest }: { contest: Contest }) {
   return (
     <div
       key={contest.id}
-      className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden  first-letter:bg-white active:bg-gray-50 transition-color"
+      className="bg-card rounded-2xl shadow-sm border border-gray-100 overflow-hidden  first-letter:bg-card active:bg-gray-50 transition-color"
     >
       <div className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <div className="flex items-center justify-between space-x-2 mb-2">
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+              <h3 className="text-lg font-bold text-gray-800">
                 {contest.title}
               </h3>
               {contest.type === "free" ? (
-                <div className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/50 dark:text-green-200">
-                  <CheckCircle className="mr-1.5 h-4 w-4 fill-current text-green-600 dark:text-green-400" />
+                <div className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
+                  <CheckCircle className="mr-1.5 h-4 w-4 fill-current text-green-600" />
                   Free
                 </div>
               ) : (
-                <div className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200">
-                  <Star className="mr-1.5 h-4 w-4 fill-current text-yellow-600 dark:text-yellow-400" />
+                <div className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-800">
+                  <Star className="mr-1.5 h-4 w-4 fill-current text-yellow-600" />
                   Premium
                 </div>
               )}
@@ -153,19 +153,19 @@ export default function ContestCard({ contest }: { contest: Contest }) {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 mb-4 border border-blue-100 dark:border-blue-800">
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 mb-4 border border-blue-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Timer className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+              <Timer className="w-5 h-5 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">
                 {getTimerLabel(status)}
               </span>
             </div>
             <div className="text-right">
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+              <div className="text-lg font-bold text-blue-600">
                 {timeLeft}
               </div>
-              <div className="text-xs text-blue-500 dark:text-blue-400">
+              <div className="text-xs text-blue-500">
                 {(() => {
                   try {
                     if (!contest.start_time) return "No date";
@@ -223,14 +223,14 @@ export default function ContestCard({ contest }: { contest: Contest }) {
                 onClick={handleContestClick}
                 className={`w-full flex items-center justify-center px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] ${
                   canJoin
-                    ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
+                    ? "bg-gradient-to-r from-blue-fix-600 to-purple-fix-600 text-white hover:from-blue-fix-700 hover:to-purple-fix-700"
                     : isPendingStart
-                    ? "bg-green-500 text-white cursor-not-allowed"
+                    ? "bg-green-fix-500 text-white cursor-not-allowed"
                     : canRegister
-                    ? "bg-blue-500 text-white"
+                    ? "bg-blue-fix-500 text-white"
                     : isEnded
                     ? "bg-gray-400 text-white cursor-not-allowed"
-                    : "bg-blue-500 text-white" // Fallback for loading state
+                    : "bg-blue-fix-500 text-white" // Fallback for loading state
                 }`}
                 aria-disabled={
                   isPendingStart || isEnded || checkingRegistration
@@ -249,7 +249,7 @@ export default function ContestCard({ contest }: { contest: Contest }) {
               >
                 {checkingRegistration ? (
                   <>
-                    <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></span>
+                    <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-card mr-2"></span>
                     Checking...
                   </>
                 ) : canJoin ? (
@@ -283,7 +283,7 @@ export default function ContestCard({ contest }: { contest: Contest }) {
                 <Link
                   to="#"
                   onClick={handleCurrentStandingsClick}
-                  className="mt-4 flex items-center justify-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  className="mt-4 flex items-center justify-center text-sm font-medium text-blue-600 hover:underline"
                 >
                   <BarChart3 className="w-4 h-4 mr-2" />
                   View Current Standings
@@ -332,8 +332,8 @@ export function PremiumUpgradeButton({
       className={[
         "group flex items-center justify-center gap-2 rounded-2xl px-4 py-2",
         "text-sm font-semibold shadow-sm transition-all",
-        "bg-gradient-to-r from-amber-500 to-amber-600 text-white",
-        "hover:from-amber-600 hover:to-amber-700",
+        "bg-gradient-to-r from-amber-fix-500 to-amber-fix-600 text-white",
+        "hover:from-amber-fix-600 hover:to-amber-fix-700",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-500",
         "disabled:opacity-70 disabled:cursor-not-allowed",
         locked ? "relative" : "",

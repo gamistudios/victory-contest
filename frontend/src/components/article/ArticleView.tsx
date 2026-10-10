@@ -130,7 +130,7 @@ export function ArticleView() {
       setCommentError(null);
     } catch {
       toast.error("Failed to post comment. Please try again later.", {
-        style: { backgroundColor: "red", color: "white" },
+        style: { backgroundColor: "hsl(var(--destructive))", color: "hsl(var(--destructive-foreground))" },
       });
     }
   };
@@ -213,7 +213,7 @@ export function ArticleView() {
       });
     } catch {
       toast.error("Failed to update like status. Please try again later.", {
-        style: { backgroundColor: "red", color: "white" },
+        style: { backgroundColor: "hsl(var(--destructive))", color: "hsl(var(--destructive-foreground))" },
       });
     }
   };
@@ -243,7 +243,7 @@ export function ArticleView() {
         await PrepareAndShareMessageShare(payload);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Unknown error", {
-          style: { backgroundColor: "red", color: "white" },
+          style: { backgroundColor: "hsl(var(--destructive))", color: "hsl(var(--destructive-foreground))" },
         });
       }
     }
@@ -319,7 +319,7 @@ export function ArticleView() {
         } catch {
           if (!isMountedRef.current) return;
           toast.error("Failed to fetch article. Please try again later.", {
-            style: { backgroundColor: "red", color: "white" },
+            style: { backgroundColor: "hsl(var(--destructive))", color: "hsl(var(--destructive-foreground))" },
           });
         } finally {
           if (isMountedRef.current) setLoading(false);
@@ -352,7 +352,7 @@ export function ArticleView() {
   }
 
   return (
-    <div className="article relative bg-white font-nunito-sans">
+    <div className="article relative bg-card font-nunito-sans">
       {/* Article Content */}
       <article className="px-4 py-6">
         {/* Status and Meta */}
@@ -366,7 +366,7 @@ export function ArticleView() {
                   onClick={handleArticleShare}
                   className="p-2 text-gray-400 hover:text-gray-600"
                 >
-                  <ShareIconSvg className="w-6 h-6 text-black" />
+                  <ShareIconSvg className="w-6 h-6 text-foreground" />
                 </button>
                 <button
                   className={`p-2 hover:text-blue-600 focus:outline-none ${
@@ -380,7 +380,7 @@ export function ArticleView() {
                     <BookMarkIcon className="w-6 h-6 text-yellow-500" />
                   ) : (
                     <Bookmark
-                      className={`w-5 h-5 text-black ${
+                      className={`w-5 h-5 text-foreground ${
                         bookmarked ? "fill-blue-600" : ""
                       }`}
                     />
@@ -483,7 +483,7 @@ export function ArticleView() {
               prose-strong:text-gray-900 prose-strong:font-semibold
               prose-ul:mb-4 prose-ol:mb-4
               prose-li:text-gray-700 prose-li:mb-1
-              prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:text-sm prose-pre:rounded-lg
+              prose-pre:bg-gray-fix-900 prose-pre:text-gray-fix-100 prose-pre:text-sm prose-pre:rounded-lg
               code:bg-gray-100 code:text-gray-800 code:px-1 code:py-0.5 code:rounded code:text-sm
               prose-img:rounded-lg prose-img:shadow-sm
               "
@@ -501,8 +501,8 @@ export function ArticleView() {
         onClick={scrollToTop}
         aria-label="Scroll to top"
         className={`
-          fixed bottom-20 right-6 p-3 bg-blue-600 text-white rounded-full shadow-lg
-          hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75
+          fixed bottom-20 right-6 p-3 bg-blue-fix-600 text-white rounded-full shadow-lg
+          hover:bg-blue-fix-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75
           transition-all duration-300 ease-in-out
           ${
             showScrollButton
@@ -514,7 +514,7 @@ export function ArticleView() {
         <ArrowUp className="w-6 h-6" />
       </button>
       {/* Like and Comment ACTIONS */}
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 flex items-center rounded-full text-white px-4 py-1 bg-blue-600 gap-2">
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 flex items-center rounded-full text-white px-4 py-1 bg-blue-fix-600 gap-2">
         <button
           className={`flex items-center gap-2 p-2 focus:outline-none`}
           onClick={handleLike}
@@ -540,10 +540,10 @@ export function ArticleView() {
 
           <span>{formatNumber(Number(article?.likeCount ?? 0)) ?? "Like"}</span>
         </button>
-        <Separator orientation="vertical" className="h-6 w-px bg-white" />
+        <Separator orientation="vertical" className="h-6 w-px bg-card" />
         <Drawer>
           <DrawerTrigger asChild>
-            <div className="flex items-center gap-2 p-2 dark:hover:bg-gray-800 cursor-pointer">
+            <div className="flex items-center gap-2 p-2 cursor-pointer">
               <ChatIcon className="w-5 h-5" />
               <span className="font-medium">
                 {comments !== null
@@ -600,7 +600,7 @@ export function ArticleView() {
                           ).toLocaleDateString()}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                      <p className="text-sm text-gray-700 mt-1">
                         {comment.text}
                       </p>
                     </div>
@@ -610,7 +610,7 @@ export function ArticleView() {
             </div>
 
             {/* Comment Input */}
-            <div className="p-4 border-t bg-gray-50 dark:bg-gray-900">
+            <div className="p-4 border-t bg-gray-50">
               <div className="flex items-center gap-3">
                 <Avatar>
                   <AvatarImage
@@ -628,7 +628,7 @@ export function ArticleView() {
                 />
                 <div
                   onClick={handleAddComment}
-                  className={`px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-full hover:bg-blue-500 transition ${
+                  className={`px-5 py-2 text-sm font-medium bg-blue-fix-600 text-white rounded-full hover:bg-blue-fix-500 transition ${
                     newComment.trim().length > 4
                       ? ""
                       : "opacity-50 cursor-not-allowed"
@@ -650,20 +650,20 @@ const CommentSkeleton = () => {
   return (
     <div className="flex items-start gap-3 animate-pulse">
       {/* Avatar */}
-      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
+      <div className="w-10 h-10 rounded-full bg-gray-200" />
 
       {/* Content */}
       <div className="flex-1">
         {/* Username + Date */}
         <div className="flex items-center justify-between">
-          <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
-          <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="h-4 w-24 bg-gray-200 rounded" />
+          <div className="h-3 w-12 bg-gray-200 rounded" />
         </div>
 
         {/* Comment text */}
         <div className="mt-2 space-y-2">
-          <div className="h-3 w-3/4 bg-gray-200 dark:bg-gray-700 rounded" />
-          <div className="h-3 w-1/2 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="h-3 w-3/4 bg-gray-200 rounded" />
+          <div className="h-3 w-1/2 bg-gray-200 rounded" />
         </div>
       </div>
     </div>

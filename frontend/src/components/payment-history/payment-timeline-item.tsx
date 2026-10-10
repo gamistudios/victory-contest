@@ -39,12 +39,12 @@ export function PaymentTimelineItem({ request }: { request: PaymentRequest }) {
 
   return (
     <li className="mb-8 ms-6">
-      <span className="absolute -start-3 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+      <span className="absolute -start-3 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100">
         {icon}
       </span>
-      <div className="flex flex-col p-3 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+      <div className="flex flex-col p-3 bg-card border border-gray-200 rounded-lg shadow-sm">
         <div className="flex justify-between items-center mb-2">
-          <span className="font-semibold text-gray-900 dark:text-white">
+          <span className="font-semibold text-gray-900">
             <span className="text-gray-500 text-sm">Sent to</span> :{" "}
             {request.bankName}
           </span>
@@ -68,7 +68,7 @@ export function PaymentTimelineItem({ request }: { request: PaymentRequest }) {
         <div className="flex justify-between items-center">
           <Badge
             variant={variant}
-            className={` ${variant === "default" ? "bg-green-700" : ""}`}
+            className={` ${variant === "default" ? "bg-green-fix-700" : ""}`}
           >
             {request.status}
           </Badge>
@@ -87,19 +87,19 @@ export function PaymentTimelineItem({ request }: { request: PaymentRequest }) {
       </div>
 
       {request.rejectionReason && (
-        <div className="p-3 mt-2 text-xs text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400">
+        <div className="p-3 mt-2 text-xs text-red-800 rounded-lg bg-red-50">
           <span className="font-medium">Reason:</span> {request.rejectionReason}
         </div>
       )}
 
-      <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 ml-1">
+      <div className="mt-1 text-xs text-gray-400 ml-1">
         ID: {request.id}
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-gray-900 dark:text-white">
+            <DialogTitle className="text-gray-900">
               Bill Receipt
             </DialogTitle>
           </DialogHeader>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTelegram } from "../hooks/useTelegram";
+import { ThemeToggle } from "./ThemeToggle";
 import { Bell, Settings, Lock } from "lucide-react";
 import NotificationCenter from "./NotificationCenter";
 import { useNotification } from "../context/NotificationContext";
@@ -89,13 +90,13 @@ const TopNavigation: React.FC = () => {
         <img
           src={tgUser.photo_url}
           alt={tgUser.first_name}
-          className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-lg ring-2 ring-blue-100 dark:ring-blue-900"
+          className="w-10 h-10 rounded-full object-cover border-2 border-card shadow-lg ring-2 ring-blue-100"
         />
       );
     }
 
     return (
-      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center border-2 border-white shadow-lg ring-2 ring-blue-100 dark:ring-blue-900">
+      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-fix-500 to-purple-fix-600 flex items-center justify-center border-2 border-card shadow-lg ring-2 ring-blue-100">
         <span className="text-white text-sm font-bold">
           {tgUser?.first_name?.charAt(0) || "U"}
         </span>
@@ -115,9 +116,9 @@ const TopNavigation: React.FC = () => {
     if (aiLocked) {
       toast.error("Buy Premium to unlock AI Practice", {
         style: {
-          backgroundColor: "#fff3cd",
-          color: "#664d03",
-          border: "1px solid #ffe69c",
+          backgroundColor: "hsl(var(--amber-100))",
+          color: "hsl(var(--amber-800))",
+          border: "1px solid hsl(var(--amber-300))",
           padding: "10px",
           borderRadius: "8px",
         },
@@ -136,20 +137,20 @@ const TopNavigation: React.FC = () => {
 
   return (
     <>
-      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border-b border-gray-200 dark:border-gray-700 px-4 py-3 z-40">
+      <div className="bg-card/95 backdrop-blur-lg border-b border-border px-4 py-3 z-40">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             {getProfileImage()}
             <div>
-              <h1 className="text-lg font-bold text-gray-800 dark:text-white">
+              <h1 className="text-lg font-bold text-gray-800">
                 {getPageTitle()}
               </h1>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p className="text-xs text-gray-600">
                 {location.pathname.startsWith("/article")
                   ? "Read the latest articles"
                   : `Welcome back, ${tgUser?.first_name || "Student"}`}
                 {tgUser?.is_premium && (
-                  <span className="ml-2 px-2 py-0.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-medium rounded-full">
+                  <span className="ml-2 px-2 py-0.5 bg-gradient-to-r from-yellow-fix-600 to-orange-fix-700 text-white text-xs font-medium rounded-full">
                     Premium
                   </span>
                 )}
@@ -157,15 +158,18 @@ const TopNavigation: React.FC = () => {
             </div>
           </div>
 
-          {location.pathname !== "/register" && (
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
+            <ThemeToggle className="h-11 w-11" />
+            {location.pathname !== "/register" && (
+            <>
               <button
                 onClick={handleNotificationClick}
-                className="relative p-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 hover:scale-105"
+                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+                className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <Bell size={18} />
+                <Bell size={18} aria-hidden="true" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-fix-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
@@ -173,8 +177,11 @@ const TopNavigation: React.FC = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   {/* This is your exact button, used as the trigger */}
-                  <button className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 hover:scale-105">
-                    <Settings size={18} />
+                  <button
+                    aria-label="Open menu"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Settings size={18} aria-hidden="true" />
                   </button>
                 </DropdownMenuTrigger>
 
@@ -192,7 +199,7 @@ const TopNavigation: React.FC = () => {
                       {aiLocked ? (
                         <Lock className="mr-2 h-5 w-5 text-yellow-500" />
                       ) : (
-                        <BotIcon className="mr-2 h-6 w-6 dark:text-white" />
+                        <BotIcon className="mr-2 h-6 w-6" />
                       )}
                       <span>
                         AI Practice{aiLocked ? " (Premium)" : ""}
@@ -203,7 +210,7 @@ const TopNavigation: React.FC = () => {
                         onSelect={handleUpgradeClick}
                         className="cursor-pointer"
                       >
-                        <UpgradeIcon className="mr-2 h-6 w-6 dark:text-white text-yellow-500" />
+                        <UpgradeIcon className="mr-2 h-6 w-6 text-yellow-500" />
                         <span>Upgrade</span>
                       </DropdownMenuItem>
                     )}
@@ -212,21 +219,22 @@ const TopNavigation: React.FC = () => {
                       onSelect={handlePaymentsClick}
                       className="cursor-pointer"
                     >
-                      <PaymentHistoryIcon className="mr-2 h-6 w-6 dark:text-white text-black" />
+                      <PaymentHistoryIcon className="mr-2 h-6 w-6 text-foreground" />
                       <span>Payments</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onSelect={handleFeedbackClick}
                       className="cursor-pointer"
                     >
-                      <FeedbackIcon className="mr-2 h-6 w-6 dark:text-white" />
+                      <FeedbackIcon className="mr-2 h-6 w-6" />
                       <span>Give Feedback</span>
                     </DropdownMenuItem>
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-          )}
+            </>
+            )}
+          </div>
         </div>
       </div>
 

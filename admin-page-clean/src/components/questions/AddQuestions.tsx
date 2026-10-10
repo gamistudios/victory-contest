@@ -34,7 +34,7 @@ export default function AddQuestions() {
           aria-label="basic tabs example"
           sx={{
             "& .MuiTabs-indicator": {
-              backgroundColor: "#00AB55",
+              backgroundColor: "hsl(var(--brand))",
             },
             borderBottom: "none",
           }}
@@ -51,7 +51,7 @@ export default function AddQuestions() {
               padding: 0,
               mr: 4,
               "&.Mui-selected": {
-                color: "black",
+                color: "hsl(var(--foreground))",
               },
             }}
             label="Add Question Manually"
@@ -64,7 +64,7 @@ export default function AddQuestions() {
                 fontWeight: 600,
               },
               "&.Mui-selected": {
-                color: "black",
+                color: "hsl(var(--foreground))",
               },
             }}
             label="Upload Question"

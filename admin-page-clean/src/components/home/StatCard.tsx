@@ -99,10 +99,10 @@ export default function StatCard({
                       offset="0%"
                       stopColor={
                         trend === "up"
-                          ? "#16a34a"
+                          ? "hsl(var(--success))"
                           : trend === "down"
-                          ? "#dc2626"
-                          : "#6b7280"
+                          ? "hsl(var(--destructive))"
+                          : "hsl(var(--muted-foreground))"
                       }
                       stopOpacity={0.3}
                     />
@@ -110,10 +110,10 @@ export default function StatCard({
                       offset="100%"
                       stopColor={
                         trend === "up"
-                          ? "#16a34a"
+                          ? "hsl(var(--success))"
                           : trend === "down"
-                          ? "#dc2626"
-                          : "#6b7280"
+                          ? "hsl(var(--destructive))"
+                          : "hsl(var(--muted-foreground))"
                       }
                       stopOpacity={0}
                     />
@@ -126,10 +126,10 @@ export default function StatCard({
                   dataKey="value"
                   stroke={
                     trend === "up"
-                      ? "#16a34a"
+                      ? "hsl(var(--success))"
                       : trend === "down"
-                      ? "#dc2626"
-                      : "#6b7280"
+                      ? "hsl(var(--destructive))"
+                      : "hsl(var(--muted-foreground))"
                   }
                   fill={`url(#grad-${title}-${trend})`}
                   strokeWidth={2}

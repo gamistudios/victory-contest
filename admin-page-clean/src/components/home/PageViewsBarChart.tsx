@@ -39,7 +39,7 @@ const CustomTooltip = ({
 }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg shadow-md p-2 text-sm max-w-[80vw]">
+      <div className="bg-card border border-gray-200 rounded-lg shadow-md p-2 text-sm max-w-[80vw]">
         <p className="font-semibold text-gray-800">{payload[0]?.payload?.day}</p>
         <p className="text-blue-500">Views: {payload[0]?.value}</p>
       </div>

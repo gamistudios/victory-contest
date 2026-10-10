@@ -1,18 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  BookOpen,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Lightbulb,
-  ChevronDown,
-  ChevronUp,
-  Eye,
-  Brain,
-  Trophy,
-  Timer,
-} from "lucide-react";
+import { BookOpen, CheckCircle, XCircle, Clock, Lightbulb, ChevronDown, ChevronUp, Eye, Brain, Trophy, Timer, Check, X } from "lucide-react";
 import { getEditorial } from "../services/contestApi";
 import { isAxiosError } from "axios";
 import { useTelegram } from "../hooks/useTelegram";
@@ -99,8 +87,8 @@ const ContestEditorial: React.FC = () => {
           toast.error(message, {
             style: {
               maxWidth: "400px",
-              backgroundColor: "#f8d7da",
-              color: "#721c24",
+              backgroundColor: "hsl(var(--red-100))",
+              color: "hsl(var(--red-800))",
             },
             duration: 10000,
             position: "top-center",
@@ -108,8 +96,8 @@ const ContestEditorial: React.FC = () => {
               label: "Retry",
               onClick: () => fetchEditorials(),
               actionButtonStyle: {
-                backgroundColor: "#f5c6cb",
-                color: "#721c24",
+                backgroundColor: "hsl(var(--red-200))",
+                color: "hsl(var(--red-800))",
               },
             },
           });
@@ -173,29 +161,29 @@ const ContestEditorial: React.FC = () => {
       return {
         icon: Clock,
         color: "text-amber-500",
-        bg: "bg-amber-50 dark:bg-amber-900/20",
-        border: "border-amber-200 dark:border-amber-800",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
         text: "Skipped",
-        gradient: "from-amber-400 to-orange-500",
+        gradient: "from-amber-400 to-orange-fix-500",
       };
     }
     if (question.is_correct && question.user_answer != -1) {
       return {
         icon: CheckCircle,
         color: "text-emerald-500",
-        bg: "bg-emerald-50 dark:bg-emerald-900/20",
-        border: "border-emerald-200 dark:border-emerald-800",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
         text: "Correct",
-        gradient: "from-emerald-400 to-green-500",
+        gradient: "from-emerald-400 to-green-fix-500",
       };
     }
     return {
       icon: XCircle,
       color: "text-rose-500",
-      bg: "bg-rose-50 dark:bg-rose-900/20",
-      border: "border-rose-200 dark:border-rose-800",
+      bg: "bg-rose-50",
+      border: "border-rose-200",
       text: "Incorrect",
-      gradient: "from-rose-400 to-red-500",
+      gradient: "from-rose-400 to-red-fix-500",
     };
   };
 
@@ -224,14 +212,14 @@ const ContestEditorial: React.FC = () => {
     return (
       <div className="flex flex-col justify-center items-center h-screen space-y-4">
         <div className="relative">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 dark:border-blue-800"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200"></div>
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute top-0"></div>
         </div>
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+          <h3 className="text-lg font-semibold text-gray-800">
             Loading
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600">
             Preparing...
           </p>
         </div>
@@ -241,21 +229,21 @@ const ContestEditorial: React.FC = () => {
 
   if (questions.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-8 space-y-4">
-          <div className="w-14 h-14 mx-auto rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-            <BookOpen className="w-7 h-7 text-blue-600 dark:text-blue-300" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center bg-card rounded-xl border border-gray-200 shadow-sm p-8 space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-full bg-blue-100 flex items-center justify-center">
+            <BookOpen className="w-7 h-7 text-blue-600" />
           </div>
-          <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+          <h3 className="text-lg font-bold text-gray-800">
             Editorial unavailable
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-300">
+          <p className="text-sm text-gray-600">
             {infoMessage ||
               "No editorial content is available for this contest yet."}
           </p>
           <button
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-blue-fix-500 hover:bg-blue-fix-600 text-white rounded-lg text-sm font-medium"
           >
             Go back
           </button>
@@ -268,31 +256,31 @@ const ContestEditorial: React.FC = () => {
   const filteredQuestions = getFilteredQuestions();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <div className="p-3 max-w-full mx-auto space-y-4">
         {/* Header */}
         <div className="relative">
-          <div className="bg-white/80 dark:bg-gray-800/80 rounded-xl p-4 border border-white/20 dark:border-gray-700/50">
+          <div className="bg-card/80 rounded-xl p-4 border border-white/20">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-2">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+                <div className="p-2 bg-gradient-to-br from-blue-fix-500 to-purple-fix-600 rounded-lg">
                   <BookOpen className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold text-gray-800 dark:text-white">
+                  <h1 className="text-lg font-bold text-gray-800">
                     {contestTitle}
                   </h1>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 flex items-center mt-1">
+                  <p className="text-xs text-gray-600 flex items-center mt-1">
                     <BookOpen className="w-3 h-3 mr-1 text-yellow-500" />
                     Editorial
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="text-xs text-gray-500">
                   Score
                 </div>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                <div className="text-lg font-bold text-blue-600">
                   {stats.accuracy}%
                 </div>
               </div>
@@ -300,53 +288,53 @@ const ContestEditorial: React.FC = () => {
 
             {/* Performance Summary */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
                 <div className="flex items-center justify-between">
                   <Timer className="w-5 h-5 text-blue-500" />
                   <div className="text-right">
-                    <div className="text-lg font-bold text-gray-800 dark:text-white">
+                    <div className="text-lg font-bold text-gray-800">
                       {stats.total}
                     </div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <div className="text-xs text-gray-600">
                       Total
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-lg border border-emerald-100 dark:border-emerald-800">
+              <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
                 <div className="flex items-center justify-between">
                   <CheckCircle className="w-5 h-5 text-emerald-500" />
                   <div className="text-right">
-                    <div className="text-lg font-bold text-gray-800 dark:text-white">
+                    <div className="text-lg font-bold text-gray-800">
                       {stats.correct}
                     </div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <div className="text-xs text-gray-600">
                       Correct
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="bg-rose-50 dark:bg-rose-900/20 p-3 rounded-lg border border-rose-100 dark:border-rose-800">
+              <div className="bg-rose-50 p-3 rounded-lg border border-rose-100">
                 <div className="flex items-center justify-between">
                   <XCircle className="w-5 h-5 text-rose-500" />
                   <div className="text-right">
-                    <div className="text-lg font-bold text-gray-800 dark:text-white">
+                    <div className="text-lg font-bold text-gray-800">
                       {stats.incorrect}
                     </div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <div className="text-xs text-gray-600">
                       Incorrect
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-100 dark:border-amber-800">
+              <div className="bg-amber-50 p-3 rounded-lg border border-amber-100">
                 <div className="flex items-center justify-between">
                   <Clock className="w-5 h-5 text-amber-500" />
                   <div className="text-right">
-                    <div className="text-lg font-bold text-gray-800 dark:text-white">
+                    <div className="text-lg font-bold text-gray-800">
                       {stats.skipped}
                     </div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <div className="text-xs text-gray-600">
                       Skipped
                     </div>
                   </div>
@@ -376,8 +364,8 @@ const ContestEditorial: React.FC = () => {
                   onClick={() => setFilter(filterType)}
                   className={`flex items-center px-3 py-1.5 rounded-lg font-medium text-sm capitalize ${
                     isActive
-                      ? "bg-blue-600 text-white"
-                      : "bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+                      ? "bg-blue-fix-600 text-white"
+                      : "bg-card/80 text-gray-700 border border-gray-200"
                   }`}
                 >
                   <span className="mr-1">{filterType}</span>
@@ -385,7 +373,7 @@ const ContestEditorial: React.FC = () => {
                     className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
                       isActive
                         ? "bg-white/20 text-white"
-                        : "bg-gray-100 dark:bg-gray-700"
+                        : "bg-gray-100"
                     }`}
                   >
                     {count}
@@ -397,9 +385,9 @@ const ContestEditorial: React.FC = () => {
         </div>
 
         {!participated && (
-          <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 p-3">
-            <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-300 mt-0.5 shrink-0" />
-            <p className="text-sm text-blue-800 dark:text-blue-200">
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+            <BookOpen className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+            <p className="text-sm text-blue-800">
               {infoMessage ||
                 "You did not participate in this contest, so your answers appear as skipped; the correct answers are highlighted for learning."}
             </p>
@@ -416,7 +404,7 @@ const ContestEditorial: React.FC = () => {
             return (
               <div
                 key={question.id}
-                className="bg-white/90 dark:bg-gray-800/90 rounded-lg border border-white/20 dark:border-gray-700/50"
+                className="bg-card/90 rounded-lg border border-white/20"
               >
                 {/* Question Header */}
                 <div className="p-4">
@@ -426,12 +414,12 @@ const ContestEditorial: React.FC = () => {
                         className={`relative w-12 h-12 rounded-lg bg-gradient-to-br ${status.gradient} flex items-center justify-center`}
                       >
                         <StatusIcon className="w-6 h-6 text-white" />
-                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-gray-800 dark:bg-white text-white dark:text-gray-800 rounded-full flex items-center justify-center text-xs font-bold">
+                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-gray-fix-800 text-white rounded-full flex items-center justify-center text-xs font-bold">
                           {index + 1}
                         </div>
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                        <h3 className="text-lg font-bold text-gray-800">
                           #{index + 1}
                         </h3>
                         <div className="flex flex-wrap items-center space-x-2 mt-1">
@@ -445,8 +433,8 @@ const ContestEditorial: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-md p-3 mb-3">
-                    <p className="text-base text-gray-800 dark:text-white">
+                  <div className="bg-gray-50 rounded-md p-3 mb-3">
+                    <p className="text-base text-gray-800">
                       {question.question_text}
                     </p>
                   </div>
@@ -467,35 +455,35 @@ const ContestEditorial: React.FC = () => {
                           key={optionIndex}
                           className={`p-3 rounded-md border ${
                             isCorrect
-                              ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30"
+                              ? "border-emerald-400 bg-emerald-50"
                               : isUserAnswer && !isCorrect
-                              ? "border-rose-400 bg-rose-50 dark:bg-rose-900/30"
-                              : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50"
+                              ? "border-rose-400 bg-rose-50"
+                              : "border-gray-200 bg-gray-50"
                           }`}
                         >
                           <div className="flex items-center">
                             <div
                               className={`w-8 h-8 rounded-full border mr-2 flex items-center justify-center text-sm font-bold ${
                                 isCorrect
-                                  ? "border-emerald-500 bg-emerald-500 text-white"
+                                  ? "border-emerald-500 bg-emerald-fix-500 text-white"
                                   : isUserAnswer && !isCorrect
-                                  ? "border-rose-500 bg-rose-500 text-white"
-                                  : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                                  ? "border-rose-500 bg-rose-fix-500 text-white"
+                                  : "border-gray-300 bg-card"
                               }`}
                             >
                               {isCorrect
-                                ? "✓"
+                                ? <Check className="h-4 w-4" aria-label="Correct answer" />
                                 : isUserAnswer && !isCorrect
-                                ? "✗"
+                                ? <X className="h-4 w-4" aria-label="Your incorrect answer" />
                                 : String.fromCharCode(65 + optionIndex)}
                             </div>
-                            <span className="text-sm text-gray-800 dark:text-white flex-1 min-w-0 flex items-center gap-2">
+                            <span className="text-sm text-gray-800 flex-1 min-w-0 flex items-center gap-2">
                               <span className="break-words">{option}</span>
                               {question.option_images?.[optionIndex] && (
                                 <img
                                   src={question.option_images[optionIndex]}
                                   alt={`Option ${String.fromCharCode(65 + optionIndex)}`}
-                                  className="h-14 w-14 object-contain rounded-md border border-gray-200 dark:border-gray-600 flex-shrink-0"
+                                  className="h-14 w-14 object-contain rounded-md border border-gray-200 flex-shrink-0"
                                   onError={(e) => {
                                     e.currentTarget.style.display = "none";
                                   }}
@@ -504,16 +492,16 @@ const ContestEditorial: React.FC = () => {
                             </span>
                             {isCorrect && (
                               <div className="flex items-center">
-                                <Trophy className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                <span className="text-xs text-emerald-700 dark:text-emerald-300 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 rounded-md">
+                                <Trophy className="w-4 h-4 text-emerald-600" />
+                                <span className="text-xs text-emerald-700 px-2 py-1 bg-emerald-100 rounded-md">
                                   Correct
                                 </span>
                               </div>
                             )}
                             {isUserAnswer && !isCorrect && (
                               <div className="flex items-center">
-                                <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                                <span className="text-xs text-rose-700 dark:text-rose-300 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 rounded-md">
+                                <XCircle className="w-4 h-4 text-rose-600" />
+                                <span className="text-xs text-rose-700 px-2 py-1 bg-rose-100 rounded-md">
                                   Your Answer
                                 </span>
                               </div>
@@ -527,7 +515,7 @@ const ContestEditorial: React.FC = () => {
                   {/* Toggle Button */}
                   <button
                     onClick={() => toggleQuestionExpansion(question.id)}
-                    className="w-full flex items-center justify-center py-2 bg-blue-500 text-white rounded-md font-medium text-sm"
+                    className="w-full flex items-center justify-center py-2 bg-blue-fix-500 text-white rounded-md font-medium text-sm"
                   >
                     <div className="flex items-center space-x-2">
                       <Lightbulb className="w-4 h-4" />
@@ -543,15 +531,15 @@ const ContestEditorial: React.FC = () => {
 
                 {/* Expanded Content */}
                 {isExpanded && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                  <div className="border-t border-gray-200 bg-gray-50/50">
                     <div className="p-4 space-y-4">
                       {/* Detailed Explanation */}
-                      <div className="bg-white/80 dark:bg-gray-800/80 rounded-md p-3 border border-blue-100 dark:border-blue-800">
-                        <h4 className="flex items-center text-base font-bold text-gray-800 dark:text-white mb-2">
+                      <div className="bg-card/80 rounded-md p-3 border border-blue-100">
+                        <h4 className="flex items-center text-base font-bold text-gray-800 mb-2">
                           <Brain className="w-5 h-5 text-blue-500 mr-2" />
                           Explanation
                         </h4>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                        <p className="text-sm text-gray-700 whitespace-pre-line">
                           {question.explanation}
                         </p>
                       </div>
@@ -566,12 +554,12 @@ const ContestEditorial: React.FC = () => {
         {/* Empty State */}
         {filteredQuestions.length === 0 && (
           <div className="text-center py-8">
-            <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg p-6 border border-white/20 dark:border-gray-700/50">
-              <Eye className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
-              <h3 className="text-base font-bold text-gray-800 dark:text-white">
+            <div className="bg-card/80 rounded-lg p-6 border border-white/20">
+              <Eye className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <h3 className="text-base font-bold text-gray-800">
                 No Questions
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600">
                 Try a different filter.
               </p>
             </div>

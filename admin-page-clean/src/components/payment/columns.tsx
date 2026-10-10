@@ -55,10 +55,10 @@ const PendingActionsCell = ({
     });
     try {
       await handlers.onApprove(payment);
-      toast("✅ Success", { description: "Payment has been approved." });
+      toast.success("Success", { description: "Payment has been approved." });
       handlers.onApprove(payment);
     } catch {
-      toast.error("❌ Error", {
+      toast.error("Error", {
         description: "Failed to approve payment.",
       });
     }
@@ -76,12 +76,12 @@ const PendingActionsCell = ({
     });
     try {
       await handlers.onReject(payment, rejectionReason);
-      toast.success("✅ Success", {
+      toast.success("Success", {
         description: "Payment has been rejected.",
       });
       handlers.onReject(payment, rejectionReason);
     } catch {
-      toast.error("❌ Error", {
+      toast.error("Error", {
         description: "Failed to reject payment.",
       });
     } finally {
@@ -262,11 +262,11 @@ export const expiredColumns: ColumnDef<PaymentRequest>[] = [
             payment.userId,
             `Your payment request is awaiting review by an administrator.`
           );
-          toast.success("✅ Notification Sent!", {
+          toast.success("Notification sent", {
             description: `${payment.fullName} has been notified.`,
           });
         } catch {
-          toast.error("❌ Error", {
+          toast.error("Error", {
             description: "Failed to send notification.",
           });
         }
@@ -352,7 +352,7 @@ export const getApprovedColumns = (handlers: ActionHandlerForUndo) => {
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-green-600 hover:bg-green-400"
+                    className="bg-green-fix-600 hover:bg-green-400"
                     onClick={handleRejectConfirm}
                   >
                     Confirm
@@ -406,7 +406,7 @@ export const getRejectColumns = (handlers: ActionHandlerForUndo) => {
               description: `Successfully undo payment for user ${payment.userId}`,
             });
           } catch {
-            toast.error("❌ Error", {
+            toast.error("Error", {
               description: "Failed to send notification.",
             });
           } finally {
@@ -439,7 +439,7 @@ export const getRejectColumns = (handlers: ActionHandlerForUndo) => {
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-green-600 hover:bg-green-400"
+                    className="bg-green-fix-600 hover:bg-green-400"
                     onClick={handleRejectConfirm}
                   >
                     Confirm

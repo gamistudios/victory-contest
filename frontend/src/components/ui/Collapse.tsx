@@ -19,7 +19,7 @@ const CollapseText: React.FC<{ children: React.ReactNode }> = ({
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className="inline-flex items-center gap-x-1 text-sm font-semibold rounded-lg border border-transparent text-blue-600 decoration-2 hover:text-blue-700 hover:underline focus:outline-none focus:underline focus:text-blue-700 dark:text-blue-500 dark:hover:text-blue-600 dark:focus:text-blue-600"
+          className="inline-flex items-center gap-x-1 text-sm font-semibold rounded-lg border border-transparent text-blue-600 decoration-2 hover:text-blue-700 hover:underline focus:outline-none focus:underline focus:text-blue-700"
           aria-expanded={isOpen}
         >
           <span>{isOpen ? "Read less" : "Read more"}</span>

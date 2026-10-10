@@ -28,7 +28,7 @@ const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
             role="status"
             title="Screenshot protection active"
             aria-label="Screenshot protection active"
-            className="bg-green-500 text-white p-2 rounded-full shadow-lg opacity-70 hover:opacity-100 transition-opacity"
+            className="bg-green-fix-500 text-white p-2 rounded-full shadow-lg opacity-70 hover:opacity-100 transition-opacity"
           >
             <Shield className="w-4 h-4" />
           </div>
@@ -39,7 +39,7 @@ const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
         <div
           role="alert"
           aria-live="assertive"
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 text-white text-center px-6 backdrop-blur-xl pointer-events-none"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/90 text-white text-center px-6 backdrop-blur-xl pointer-events-none"
         >
           <div>
             <ShieldAlert className="w-12 h-12 mx-auto mb-4 text-red-400" />
@@ -60,13 +60,13 @@ const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
           aria-live="assertive"
           aria-label="Stay on this page during the contest"
           onClick={acknowledgeCover}
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-950 text-white text-center px-6"
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-fix-950 text-white text-center px-6"
         >
           <ShieldAlert className="w-12 h-12 mb-4 text-amber-400" />
           <p className="text-lg font-bold">
             Please stay on this page during the contest
           </p>
-          <p className="text-sm mt-2 text-gray-300">
+          <p className="text-sm mt-2 text-gray-500">
             Tab switch #{tabSwitches} was recorded.
           </p>
           <button
@@ -75,7 +75,7 @@ const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
               e.stopPropagation();
               acknowledgeCover();
             }}
-            className="mt-8 px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 font-medium"
+            className="mt-8 px-6 py-3 rounded-lg bg-blue-fix-600 hover:bg-blue-fix-700 font-medium"
           >
             Tap to resume the contest
           </button>

@@ -100,7 +100,7 @@ const Home: React.FC = () => {
       {/* Read Articles Section */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold font-nunito-sans text-gray-700 dark:text-white">
+          <h2 className="text-lg font-bold font-nunito-sans text-gray-700">
             Read Articles
           </h2>
         </div>
@@ -109,10 +109,10 @@ const Home: React.FC = () => {
       {/* Upcoming Contests */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold font-nunito-sans text-gray-700 dark:text-white">
+          <h2 className="text-lg font-bold font-nunito-sans text-gray-700">
             Upcoming Contests
           </h2>
-          <div className="flex items-center text-blue-600 dark:text-blue-400">
+          <div className="flex items-center text-blue-600">
             <Calendar className="w-4 h-4 mr-1" />
             <span className="text-sm font-medium">
               {contests.length} Available
@@ -143,7 +143,7 @@ const Home: React.FC = () => {
 
       {/* Previous Contests */}
       <div>
-        <h2 className="text-lg font-bold mb-4 font-nunito text-gray-700 dark:text-white">
+        <h2 className="text-lg font-bold mb-4 font-nunito text-gray-700">
           Previous Contests
         </h2>
         {loading ? (
@@ -180,14 +180,14 @@ const Home: React.FC = () => {
                 <div
                   onClick={() => handleShowStandings(contest)}
                   key={contest.id}
-                  className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700"
+                  className="bg-card p-4 rounded-xl shadow-sm border border-gray-100"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className="font-bold text-sm text-gray-800 dark:text-white mb-1">
+                      <h3 className="font-bold text-sm text-gray-800 mb-1">
                         {contest.title}
                       </h3>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
                         <span>
                           {safeFormatDistanceToNow(
                             contest.start_time,
@@ -216,7 +216,7 @@ const Home: React.FC = () => {
                           id: String(contest.id),
                           title: contest.title,
                         })}`}
-                        className={`flex rounded-full cursor-pointer items-center justify-center w-10 h-10 text-sm hover:text-[#00AB55] hover:bg-[#00AB5514] text-[#00AB55] font-bold`}
+                        className={`flex rounded-full cursor-pointer items-center justify-center w-10 h-10 text-sm hover:text-brand-ink hover:bg-brand/10 text-brand-ink font-bold`}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -243,7 +243,7 @@ const Home: React.FC = () => {
                       onClick={() => {
                         handleShowStandings(contest);
                       }}
-                      className={`flex rounded-full cursor-pointer items-center justify-center w-10 h-10 text-sm hover:text-[#00AB55] hover:bg-[#00AB5514] text-[#00AB55] font-bold`}
+                      className={`flex rounded-full cursor-pointer items-center justify-center w-10 h-10 text-sm hover:text-brand-ink hover:bg-brand/10 text-brand-ink font-bold`}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"

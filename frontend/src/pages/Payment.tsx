@@ -209,8 +209,8 @@ const Payment: FC = () => {
       await sendPaymentInfo(formData);
       toast.success("Payment submitted! It is pending review.", {
         style: {
-          backgroundColor: "#d4edda",
-          color: "#155724",
+          backgroundColor: "hsl(var(--green-100))",
+          color: "hsl(var(--green-800))",
         },
       });
       setIsSuccess(true);
@@ -226,9 +226,9 @@ const Payment: FC = () => {
         "Unable to send your payment!";
       toast.error(msg, {
         style: {
-          backgroundColor: "#f8d7da",
-          color: "#721c24",
-          border: "1px solid #f5c6cb",
+          backgroundColor: "hsl(var(--red-100))",
+          color: "hsl(var(--red-800))",
+          border: "1px solid hsl(var(--red-200))",
           padding: "10px",
           borderRadius: "8px",
         },
@@ -274,9 +274,9 @@ const Payment: FC = () => {
             {
               duration: 6000,
               style: {
-                backgroundColor: "#d4edda",
-                color: "#155724",
-                border: "1px solid #c3e6cb",
+                backgroundColor: "hsl(var(--green-100))",
+                color: "hsl(var(--green-800))",
+                border: "1px solid hsl(var(--green-200))",
                 borderRadius: "8px",
               },
             }
@@ -286,13 +286,13 @@ const Payment: FC = () => {
           toast.warning("Payment is cancelled", {
             position: "top-center",
             style: {
-              background: "#fef3c7",
-              color: "#92400e",
-              border: "1px solid #f59e0b",
+              background: "hsl(var(--amber-100))",
+              color: "hsl(var(--amber-800))",
+              border: "1px solid hsl(var(--chart-3))",
               borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "500",
-              boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
+              boxShadow: "0 2px 10px hsl(var(--shadow-color) / 0.1)",
               transition: "all 0.1s ease-in-out",
             },
           });
@@ -300,13 +300,13 @@ const Payment: FC = () => {
           toast.error("Payment failed", {
             position: "top-center",
             style: {
-              background: "red",
-              color: "white",
-              border: "1px solid #f59e0b",
+              background: "hsl(var(--destructive))",
+              color: "hsl(var(--destructive-foreground))",
+              border: "1px solid hsl(var(--chart-3))",
               borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "500",
-              boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
+              boxShadow: "0 2px 10px hsl(var(--shadow-color) / 0.1)",
               transition: "all 0.1s ease-in-out",
             },
           });
@@ -377,11 +377,11 @@ const Payment: FC = () => {
                       banks.map((bank) => (
                         <div key={bank.id}>
                           <p className="font-semibold">{bank.name}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className="text-sm text-gray-600">
                             Account Number: {bank.account_number}
                           </p>
                           {bank.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <p className="text-sm text-gray-600">
                               {bank.description}
                             </p>
                           )}
@@ -451,16 +451,16 @@ const Payment: FC = () => {
               )}
             </div>
             {selectedMethod?.account_number && (
-              <div className="animate-in fade-in duration-300 rounded-xl border-2 border-amber-400 bg-amber-50 p-3 dark:border-amber-500/60 dark:bg-amber-500/10">
+              <div className="animate-in fade-in duration-300 rounded-xl border-2 border-amber-400 bg-amber-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                    <p className="text-xs font-medium text-amber-700">
                       Transfer to this account
                     </p>
-                    <p className="font-mono text-base font-semibold break-all text-gray-900 dark:text-gray-100">
+                    <p className="font-mono text-base font-semibold break-all text-gray-900">
                       {selectedMethod.account_number}
                     </p>
-                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                    <p className="text-sm font-semibold text-amber-800">
                       {selectedMethod.account_holder || selectedMethod.name}
                     </p>
                   </div>
@@ -475,7 +475,7 @@ const Payment: FC = () => {
                   </Button>
                 </div>
                 {selectedMethod.description && (
-                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                  <p className="mt-2 text-xs text-amber-700">
                     {selectedMethod.description}
                   </p>
                 )}
@@ -551,7 +551,7 @@ const Payment: FC = () => {
             <CardFooter className="flex-col items-start text-xs text-muted-foreground">
               <div
                 onClick={handlePayWithTG}
-                className=" gap-2 rounded-lg bg-[#24A1DE] flex items-center text-white p-3 mx-auto text-sm"
+                className=" gap-2 rounded-lg bg-info flex items-center text-info-foreground p-3 mx-auto text-sm"
               >
                 <Send className="text-white w-6 h-6" />
                 Pay with Telegram

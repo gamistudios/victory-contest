@@ -6,6 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Contest App - Telegram Mini App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      /* Apply the saved theme before first paint to avoid a light flash. */
+      (function () {
+        try {
+          var t = localStorage.getItem("contest_theme");
+          var tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.colorScheme;
+          var sys = tg ? tg === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var dark = t === "dark" || ((!t || t === "system") && sys);
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -45,7 +58,7 @@
       }
 
       /* Dark theme overrides */
-      [data-theme="dark"] {
+      .dark {
         --tg-theme-bg-color: #1a1a1a;
         --tg-theme-text-color: #ffffff;
         --tg-theme-hint-color: #8e8e93;

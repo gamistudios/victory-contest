@@ -16,8 +16,6 @@ export const useTelegram = () => {
 
     if (app) {
       app.ready();
-      app.setHeaderColor("#8b5cf6");
-      app.setBackgroundColor("#ffffff");
       setWebApp(app);
       setUser(app.initDataUnsafe?.user || null);
     }

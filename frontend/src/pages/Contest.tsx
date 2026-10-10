@@ -126,8 +126,8 @@ const ContestComponent: React.FC = () => {
         toast.error(apiError, {
           description: "Please try again later or contact support.",
           style: {
-            backgroundColor: "red",
-            color: "white",
+            backgroundColor: "hsl(var(--destructive))",
+            color: "hsl(var(--destructive-foreground))",
           },
           position: "top-center",
         });
@@ -341,8 +341,8 @@ const ContestComponent: React.FC = () => {
         icon: <CheckCircle className="w-6 h-6 text-green-500" />,
         position: "bottom-right",
         style: {
-          backgroundColor: "#d4edda",
-          color: "#155724",
+          backgroundColor: "hsl(var(--green-100))",
+          color: "hsl(var(--green-800))",
         },
       });
       hideMainButton();
@@ -359,8 +359,8 @@ const ContestComponent: React.FC = () => {
         icon: <XCircle className="w-6 h-6 text-red-500" />,
         position: "bottom-right",
         style: {
-          backgroundColor: "#f8d7da",
-          color: "#721c24",
+          backgroundColor: "hsl(var(--red-100))",
+          color: "hsl(var(--red-800))",
         },
       });
     } finally {
@@ -385,10 +385,10 @@ const ContestComponent: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
         <XCircle className="w-12 h-12 mb-4 text-gray-400" />
-        <p className="text-lg font-semibold text-gray-800 dark:text-white">
+        <p className="text-lg font-semibold text-gray-800">
           No contest selected
         </p>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <p className="text-sm text-gray-600 mb-4">
           Open a contest from the home page to start answering.
         </p>
         <Button onClick={() => navigate("/")}>Back to contests</Button>
@@ -405,7 +405,7 @@ const ContestComponent: React.FC = () => {
   }
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-50 dark:bg-gray-900 text-red-700 dark:text-red-400 p-4 text-center">
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50 text-red-700 p-4 text-center">
         <XCircle className="w-12 h-12 mb-4" />
         <p className="text-lg font-semibold">Failed to Load Contest</p>
         <p className="text-sm">
@@ -430,17 +430,17 @@ const ContestComponent: React.FC = () => {
       <div className="p-4 flex flex-col items-center justify-center min-h-screen">
         <div className="text-center">
           <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
             Contest Complete!
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
+          <p className="text-gray-600 mb-6">
             Great job! Here's your total summary:
           </p>
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm">
+          <div className="bg-card p-6 rounded-xl shadow-sm">
             <div className="text-4xl font-bold text-blue-600 mb-2">
               {percent}
             </div>
-            <div className="text-gray-600 dark:text-gray-400">
+            <div className="text-gray-600">
               {scoreText} out of {totalQuestions} correct (graded by the
               server)
             </div>
@@ -462,39 +462,39 @@ const ContestComponent: React.FC = () => {
             answers={answers}
             onQuestionSelect={handleQuestionSelect}
           />
-          <div className="flex items-center text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center text-blue-600 bg-card px-3 py-2 rounded-lg border border-gray-200">
             <Clock className="w-4 h-4 mr-2" />
             <span className="font-mono text-sm">{formatTime(timeLeft)}</span>
           </div>
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+        <div className="w-full bg-gray-200 rounded-full h-2">
           <div
-            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            className="bg-blue-fix-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           ></div>
         </div>
-        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
           <span>Progress: {Math.round(progress)}%</span>
           <span>{answers.length} answered</span>
         </div>
       </div>
 
       {/* Question Card */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm mb-6">
+      <div className="bg-card p-6 rounded-xl shadow-sm mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
-            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400 text-xs font-medium rounded">
+            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
               {currentQuestion.subject}
             </span>
-            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 text-xs font-medium rounded">
+            <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded">
               {currentQuestion.grade}
             </span>
           </div>
         </div>
 
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+        <h3 className="text-lg font-semibold text-gray-800">
           {currentQuestion.question_text}
         </h3>
 
@@ -504,7 +504,7 @@ const ContestComponent: React.FC = () => {
             <img
               src={currentQuestion.question_image}
               alt={`Illustration for question ${currentQuestionIndex + 1}`}
-              className="w-full max-h-64 object-contain rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
+              className="w-full max-h-64 object-contain rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
               onError={(e) => {
                 // Hide the image element if it fails to load
                 e.currentTarget.style.display = "none";
@@ -525,20 +525,20 @@ const ContestComponent: React.FC = () => {
                 onClick={() => handleAnswerSelect(index)}
                 className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-200 ${
                   selectedAnswer! - 1 === index
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                    : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-6 h-6 rounded-full border-2 mr-0 flex items-center justify-center flex-shrink-0 ${
                       selectedAnswer === index + 1
-                        ? "border-blue-500 bg-blue-500"
-                        : "border-gray-300 dark:border-gray-600"
+                        ? "border-blue-500 bg-blue-fix-500"
+                        : "border-gray-300"
                     }`}
                   >
                     {selectedAnswer === index + 1 && (
-                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                      <div className="w-2 h-2 bg-card rounded-full"></div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0 flex items-center gap-3">
@@ -549,7 +549,7 @@ const ContestComponent: React.FC = () => {
                       <img
                         src={optionImage}
                         alt={`Option ${String.fromCharCode(65 + index)}`}
-                        className="h-16 w-16 object-contain rounded-md border border-gray-200 dark:border-gray-600 flex-shrink-0"
+                        className="h-16 w-16 object-contain rounded-md border border-gray-200 flex-shrink-0"
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
                         }}
@@ -570,7 +570,7 @@ const ContestComponent: React.FC = () => {
           <Button
             onClick={handlePreviousQuestion}
             disabled={currentQuestionIndex === 0 || submitting}
-            className="flex-1 bg-gray-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 bg-gray-fix-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-fix-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Previous
           </Button>
@@ -580,7 +580,7 @@ const ContestComponent: React.FC = () => {
             <Button
               disabled={submitting}
               onClick={handleNextQuestion}
-              className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-blue-fix-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-fix-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
             </Button>
@@ -596,7 +596,7 @@ const ContestComponent: React.FC = () => {
           <Button
             disabled={submitting}
             onClick={endContest}
-            className="flex-1 bg-emerald-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 bg-emerald-fix-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-emerald-fix-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? "Submitting..." : "Submit"}
           </Button>
@@ -606,7 +606,7 @@ const ContestComponent: React.FC = () => {
       {/* --- START: Image Modal --- */}
       {isImageModalOpen && currentQuestion.question_image && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in"
+          className="fixed inset-0 bg-scrim bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in"
           onClick={() => setIsImageModalOpen(false)}
         >
           <style>{`.animate-fade-in { animation: fadeIn 0.2s ease-out; } @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
@@ -622,7 +622,7 @@ const ContestComponent: React.FC = () => {
             />
             <button
               onClick={() => setIsImageModalOpen(false)}
-              className="absolute -top-3 -right-3 bg-white text-gray-800 rounded-full p-1.5 shadow-lg hover:bg-gray-200 transition-transform hover:scale-110"
+              className="absolute -top-3 -right-3 bg-card text-gray-800 rounded-full p-1.5 shadow-lg hover:bg-gray-200 transition-transform hover:scale-110"
               aria-label="Close image view"
             >
               <XCircle className="w-5 h-5" />

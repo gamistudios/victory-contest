@@ -8,23 +8,23 @@ import NotFound from "../components/not-found";
 import { safePercent } from "../lib/utils";
 
 const avatarColors = [
-  "bg-red-500",
-  "bg-orange-500",
-  "bg-amber-500",
-  "bg-yellow-500",
-  "bg-lime-500",
-  "bg-green-500",
-  "bg-emerald-500",
-  "bg-teal-500",
-  "bg-cyan-500",
-  "bg-sky-500",
-  "bg-blue-500",
-  "bg-indigo-500",
-  "bg-violet-500",
-  "bg-purple-500",
-  "bg-fuchsia-500",
-  "bg-pink-500",
-  "bg-rose-500",
+  "bg-red-fix-500",
+  "bg-orange-fix-500",
+  "bg-amber-fix-500",
+  "bg-yellow-fix-500",
+  "bg-lime-fix-500",
+  "bg-green-fix-500",
+  "bg-emerald-fix-500",
+  "bg-teal-fix-500",
+  "bg-cyan-fix-500",
+  "bg-sky-fix-500",
+  "bg-blue-fix-500",
+  "bg-indigo-fix-500",
+  "bg-violet-fix-500",
+  "bg-purple-fix-500",
+  "bg-fuchsia-fix-500",
+  "bg-pink-fix-500",
+  "bg-rose-fix-500",
 ];
 
 // Generates a consistent color from the list based on the user's name
@@ -97,19 +97,19 @@ const CrownIcon: React.FC<{ color: string; className?: string }> = ({
 
 const podiumConfig = {
   1: {
-    crownColor: "#EDE9FE",
+    crownColor: "hsl(var(--violet-fix-200))",
     sizeClass: "w-28 h-28",
     elevationClass: "-mt-8 z-10",
     crownSize: "w-10 h-10",
   },
   2: {
-    crownColor: "#C0C0C0",
+    crownColor: "hsl(var(--gray-fix-300))",
     sizeClass: "w-24 h-24",
     elevationClass: "mt-4",
     crownSize: "w-8 h-8",
   },
   3: {
-    crownColor: "#CD7F32",
+    crownColor: "hsl(var(--orange-fix-600))",
     sizeClass: "w-24 h-24",
     elevationClass: "mt-4",
     crownSize: "w-8 h-8",
@@ -135,11 +135,11 @@ const PodiumItem: React.FC<{ user: LeaderboardEntry }> = ({ user }) => {
         />
       </div>
       <div className="text-center">
-        <p className="font-bold text-lg text-gray-900 dark:text-white">
+        <p className="font-bold text-lg text-gray-900">
           {user.user_name}
         </p>
 
-        <p className="font-bold text-xl text-gray-800 dark:text-white mt-1">
+        <p className="font-bold text-xl text-gray-800 mt-1">
           {user.score}%
         </p>
       </div>
@@ -202,7 +202,7 @@ const Leaderboard: React.FC = () => {
         return <Award className="w-6 h-6 text-amber-600" />;
       default:
         return (
-          <div className="w-6 h-6 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded-full text-sm font-bold text-gray-600 dark:text-gray-400">
+          <div className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded-full text-sm font-bold text-gray-600">
             {rank}
           </div>
         );
@@ -223,7 +223,7 @@ const Leaderboard: React.FC = () => {
         <div className="text-lg mb-2">{error}</div>
         <button
           onClick={fetchLeaderboard}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+          className="px-4 py-2 bg-blue-fix-500 text-white rounded-lg"
         >
           Retry
         </button>
@@ -241,7 +241,7 @@ const Leaderboard: React.FC = () => {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       {/* Time Frame Filter */}
-      <div className="sticky top-0 z-30 py-4 rounded-xl bg-gray-100/80 dark:bg-gray-900/80 backdrop-blur-lg">
+      <div className="sticky top-0 z-30 py-4 rounded-xl bg-gray-100/80 backdrop-blur-lg">
         <div className="overflow-x-auto scrollbar-hide">
           <div className="flex justify-center space-x-3 px-4 w-max mx-auto">
             {(["today", "week", "month", "all"] as const).map((period) => (
@@ -251,8 +251,8 @@ const Leaderboard: React.FC = () => {
                 className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 ease-in-out
                     ${
                       timeFrame === period
-                        ? "bg-violet-600 text-white shadow-md"
-                        : "bg-white/60 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700"
+                        ? "bg-violet-fix-600 text-white shadow-md"
+                        : "bg-card/60 text-gray-700 hover:bg-card"
                     }
                     hover:scale-[1.03] active:scale-[0.98]
                   `}
@@ -288,7 +288,7 @@ const Leaderboard: React.FC = () => {
 
           {/* Full Leaderboard */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
               Full Rankings
             </h2>
             <div className="space-y-2">
@@ -304,8 +304,8 @@ const Leaderboard: React.FC = () => {
                       key={entry.user_id}
                       className={`p-4 rounded-xl shadow-sm transition-all duration-200 ${
                         isCurrentUser
-                          ? "bg-violet-100 dark:bg-violet-500/30 border-2 border-violet-400 dark:border-violet-500 shadow-lg scale-105"
-                          : "bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200 dark:border-gray-700"
+                          ? "bg-violet-100 border-2 border-violet-400 shadow-lg scale-105"
+                          : "bg-card/70 backdrop-blur-sm border border-gray-200"
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -315,18 +315,18 @@ const Leaderboard: React.FC = () => {
                             <div
                               className={`font-semibold ${
                                 isCurrentUser
-                                  ? "text-blue-800 dark:text-blue-300"
-                                  : "text-gray-800 dark:text-white"
+                                  ? "text-blue-800"
+                                  : "text-gray-800"
                               }`}
                             >
                               {entry.user_name}
                               {isCurrentUser && (
-                                <span className="ml-2 text-sm text-blue-600 dark:text-blue-400">
+                                <span className="ml-2 text-sm text-blue-600">
                                   (You)
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <div className="text-sm text-gray-600">
                               Rank #{entry.rank}
                             </div>
                           </div>
@@ -334,9 +334,9 @@ const Leaderboard: React.FC = () => {
 
                         <div className="flex items-center space-x-4">
                           <div className="text-center">
-                            <div className="flex items-center text-green-600 dark:text-green-400">
+                            <div className="flex items-center text-green-600">
                               <Target className="w-4 h-4 mr-1" />
-                              <span className="font-bold text-gray-600 dark:text-gray-300">
+                              <span className="font-bold text-gray-600">
                                 {Math.round(
                                   safePercent(
                                     entry.correct_answers,
@@ -346,19 +346,19 @@ const Leaderboard: React.FC = () => {
                                 %
                               </span>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="text-xs text-gray-500">
                               {entry.correct_answers}/{entry.total_questions}
                             </div>
                           </div>
 
                           <div className="text-center">
-                            <div className="flex items-center text-blue-600 dark:text-blue-400">
+                            <div className="flex items-center text-blue-600">
                               <Clock className="w-4 h-4 mr-1" />
                               <span className="font-bold">
                                 {entry.time_taken}
                               </span>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="text-xs text-gray-500">
                               Time
                             </div>
                           </div>
@@ -375,21 +375,21 @@ const Leaderboard: React.FC = () => {
 
       {/* Your Performance Summary */}
       {user && currentUserEntry && (
-        <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl">
-          <h3 className="font-semibold text-gray-800 dark:text-white mb-2">
+        <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl">
+          <h3 className="font-semibold text-gray-800 mb-2">
             Your Performance
           </h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+              <div className="text-lg font-bold text-blue-600">
                 #{currentUserEntry.rank || "N/A"}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600">
                 Current Rank
               </div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-green-600 dark:text-green-400">
+              <div className="text-lg font-bold text-green-600">
                 {Math.round(
                   safePercent(
                     currentUserEntry.correct_answers,
@@ -398,7 +398,7 @@ const Leaderboard: React.FC = () => {
                 )}
                 %
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600">
                 Score
               </div>
             </div>

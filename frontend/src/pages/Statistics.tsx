@@ -58,13 +58,13 @@ import TimeIcon from "../assets/timer-02-stroke-rounded.svg?react";
 // stays near-black on the dark chip (#64).
 const tooltipStyles = {
   contentStyle: {
-    backgroundColor: "#1f2937",
+    backgroundColor: "hsl(var(--popover))",
     border: "none",
     borderRadius: "12px",
-    color: "#fff",
+    color: "hsl(var(--popover-foreground))",
   },
-  labelStyle: { color: "#fff", fontWeight: 600 },
-  itemStyle: { color: "#fff" },
+  labelStyle: { color: "hsl(var(--popover-foreground))", fontWeight: 600 },
+  itemStyle: { color: "hsl(var(--popover-foreground))" },
 };
 
 const Statistics: React.FC = () => {
@@ -126,10 +126,10 @@ const Statistics: React.FC = () => {
   }, [tgUser, retryTick]);
 
   const getAccuracyColor = (accuracy: number) => {
-    if (accuracy >= 90) return "#10b981"; // green
-    if (accuracy >= 80) return "#3b82f6"; // blue
-    if (accuracy >= 70) return "#f59e0b"; // yellow
-    return "#ef4444"; // red
+    if (accuracy >= 90) return "hsl(var(--chart-2))"; // green
+    if (accuracy >= 80) return "hsl(var(--chart-1))"; // blue
+    if (accuracy >= 70) return "hsl(var(--chart-3))"; // yellow
+    return "hsl(var(--chart-4))"; // red
   };
 
   const getImprovementAreas = () => {
@@ -284,7 +284,7 @@ const Statistics: React.FC = () => {
         <div className="text-lg mb-2">{error}</div>
         <button
           onClick={() => setRetryTick((t) => t + 1)}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+          className="px-4 py-2 bg-blue-fix-500 text-white rounded-lg"
         >
           Retry
         </button>
@@ -315,50 +315,50 @@ const Statistics: React.FC = () => {
     <div className="p-4 max-w-6xl mx-auto space-y-6">
       {/* Performance Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="bg-card p-4 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <BarChart3 className="w-8 h-8 text-blue-500" />
           </div>
-          <div className="text-2xl font-bold text-gray-800 dark:text-white">
+          <div className="text-2xl font-bold text-gray-800">
             {stats.total_contests}
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-gray-600">
             Total Contests
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="bg-card p-4 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <Target className="w-8 h-8 text-green-500" />
           </div>
-          <div className="text-2xl font-bold text-gray-800 dark:text-white">
+          <div className="text-2xl font-bold text-gray-800">
             {stats.accuracy}%
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-gray-600">
             Overall Accuracy
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="bg-card p-4 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <TimeIcon className="w-8 h-8 text-purple-500" />
           </div>
-          <div className="text-2xl font-bold text-gray-800 dark:text-white">
+          <div className="text-2xl font-bold text-gray-800">
             {stats.average_time}s
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-gray-600">
             Avg. Response Time
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="bg-card p-4 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <TrendingUp className="w-8 h-8 text-orange-500" />
           </div>
-          <div className="text-2xl font-bold text-gray-800 dark:text-white">
+          <div className="text-2xl font-bold text-gray-800">
             {stats.correct_answers}
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-gray-600">
             Correct Answers
           </div>
         </div>
@@ -366,8 +366,8 @@ const Statistics: React.FC = () => {
 
       {/* Performance Trend Chart */}
       {performanceTrend.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
             <TrendingUp className="w-5 h-5 mr-2 text-blue-500" />
             Performance Trend (Last 6 Months)
           </h3>
@@ -382,13 +382,13 @@ const Statistics: React.FC = () => {
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" domain={[0, 100]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
+                <YAxis stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
                 <Tooltip
                   {...tooltipStyles}
                   formatter={(value) => [`${value}%`, "Accuracy"]}
@@ -396,7 +396,7 @@ const Statistics: React.FC = () => {
                 <Area
                   type="monotone"
                   dataKey="accuracy"
-                  stroke="#3b82f6"
+                  stroke="hsl(var(--chart-1))"
                   strokeWidth={3}
                   fillOpacity={1}
                   fill="url(#colorAccuracy)"
@@ -409,29 +409,29 @@ const Statistics: React.FC = () => {
 
       {/* Subject Performance Radar */}
       {radarData.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
             <Brain className="w-5 h-5 mr-2 text-purple-500" />
             Core Subject Performance
           </h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
-                <PolarGrid stroke="#e5e7eb" />
+                <PolarGrid stroke="hsl(var(--border))" />
                 <PolarAngleAxis
                   dataKey="subject"
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                 />
                 <PolarRadiusAxis
                   angle={90}
                   domain={[0, 100]}
-                  tick={{ fill: "#6b7280", fontSize: 10 }}
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
                 />
                 <Radar
                   name="Accuracy"
                   dataKey="accuracy"
-                  stroke="#3b82f6"
-                  fill="#3b82f6"
+                  stroke="hsl(var(--chart-1))"
+                  fill="hsl(var(--chart-1))"
                   fillOpacity={0.2}
                   strokeWidth={2}
                 />
@@ -448,9 +448,9 @@ const Statistics: React.FC = () => {
       {/* Performance Breakdown */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Bar Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+            <h3 className="text-lg font-semibold text-gray-800 flex items-center">
               <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
               Performance by{" "}
               {selectedFilter.charAt(0).toUpperCase() + selectedFilter.slice(1)}
@@ -459,7 +459,7 @@ const Statistics: React.FC = () => {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="justify-between border-2 bg-white hover:bg-gray-700 dark:bg-gray-800 "
+                  className="justify-between border-2 bg-card hover:bg-gray-fix-700 "
                 >
                   {/* Display the currently selected filter */}
                   {selectedFilter.charAt(0).toUpperCase() +
@@ -467,7 +467,7 @@ const Statistics: React.FC = () => {
                   <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-[150px] bg-white dark:bg-gray-800">
+              <DropdownMenuContent className="w-[150px] bg-card">
                 {filterOptions.map((filter) => (
                   <DropdownMenuItem
                     key={filter}
@@ -488,16 +488,16 @@ const Statistics: React.FC = () => {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="name"
-                  stroke="#6b7280"
+                  stroke="hsl(var(--muted-foreground))"
                   fontSize={12}
                   angle={-45}
                   textAnchor="end"
                   height={60}
                 />
-                <YAxis stroke="#6b7280" domain={[0, 100]} />
+                <YAxis stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
                 <Tooltip
                   {...tooltipStyles}
                   formatter={(value, name) => [
@@ -513,15 +513,15 @@ const Statistics: React.FC = () => {
                     label
                   }
                 />
-                <Bar dataKey="accuracy" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="accuracy" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Pie Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
             <Target className="w-5 h-5 mr-2 text-green-500" />
             Accuracy Distribution
           </h3>
@@ -557,8 +557,8 @@ const Statistics: React.FC = () => {
       {/* Areas for Improvement*/}
       <div className="grid md:grid-cols-2 gap-6">
         {
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+          <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <AlertTriangle className="w-5 h-5 mr-2 text-orange-500" />
               Areas for Improvement
             </h3>
@@ -566,26 +566,26 @@ const Statistics: React.FC = () => {
               {improvementAreas.map((area, index) => (
                 <div
                   key={area.name}
-                  className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl"
+                  className="p-3 bg-orange-50 rounded-xl"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
-                        <span className="text-orange-600 dark:text-orange-400 font-bold text-sm">
+                      <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                        <span className="text-orange-600 font-bold text-sm">
                           {index + 1}
                         </span>
                       </div>
                       <div>
-                        <div className="font-medium text-gray-800 dark:text-white">
+                        <div className="font-medium text-gray-800">
                           {area.name}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-gray-600">
                           {area.correct}/{area.total} correct • {area.type}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                      <div className="text-lg font-bold text-orange-600">
                         {area.accuracy}%
                       </div>
                       <div className="text-xs text-gray-500">Accuracy</div>
@@ -597,7 +597,7 @@ const Statistics: React.FC = () => {
                     {!user?.is_premium ? (
                       <Button
                         onClick={() => navigate("/payment")}
-                        className="w-full bg-gradient-to-r from-orange-300 to-red-400 hover:from-orange-600 hover:to-red-600 text-white border-0"
+                        className="w-full bg-gradient-to-r from-orange-300 to-red-400 hover:from-orange-fix-600 hover:to-red-fix-600 text-white border-0"
                       >
                         <Lock className="w-4 h-4 mr-2 " />
                         Get AI Recommendations
@@ -606,7 +606,7 @@ const Statistics: React.FC = () => {
                       <Button
                         onClick={() => getAiRecommendations(area.name)}
                         disabled={aiRecommendations[area.name]?.loading}
-                        className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-0"
+                        className="w-full bg-gradient-to-r from-orange-fix-500 to-red-fix-500 hover:from-orange-fix-600 hover:to-red-fix-600 text-white border-0"
                       >
                         {aiRecommendations[area.name]?.loading ? (
                           <>
@@ -633,8 +633,8 @@ const Statistics: React.FC = () => {
                     aiRecommendations[area.name] && (
                       <div className="mt-4 space-y-4">
                         {/* Recommendations */}
-                        <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-800 dark:text-white mb-2 flex items-center">
+                        <div className="bg-card/50 rounded-lg p-4">
+                          <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
                             <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
                             Key Recommendations
                           </h4>
@@ -643,9 +643,9 @@ const Statistics: React.FC = () => {
                               (rec, idx) => (
                                 <li
                                   key={idx}
-                                  className="flex items-start space-x-2 text-sm text-gray-700 dark:text-gray-300"
+                                  className="flex items-start space-x-2 text-sm text-gray-700"
                                 >
-                                  <div className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
+                                  <div className="w-1.5 h-1.5 bg-orange-fix-500 rounded-full mt-2 flex-shrink-0"></div>
                                   <span>{rec}</span>
                                 </li>
                               )
@@ -654,8 +654,8 @@ const Statistics: React.FC = () => {
                         </div>
 
                         {/* Strategies */}
-                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-800 dark:text-white mb-2 flex items-center">
+                        <div className="bg-blue-50 rounded-lg p-4">
+                          <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
                             <Brain className="w-4 h-4 mr-2 text-blue-500" />
                             Study Strategies
                           </h4>
@@ -664,9 +664,9 @@ const Statistics: React.FC = () => {
                               (strategy, idx) => (
                                 <li
                                   key={idx}
-                                  className="flex items-start space-x-2 text-sm text-gray-700 dark:text-gray-300"
+                                  className="flex items-start space-x-2 text-sm text-gray-700"
                                 >
-                                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                                  <div className="w-1.5 h-1.5 bg-blue-fix-500 rounded-full mt-2 flex-shrink-0"></div>
                                   <span>{strategy}</span>
                                 </li>
                               )
@@ -675,8 +675,8 @@ const Statistics: React.FC = () => {
                         </div>
 
                         {/* Resources */}
-                        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-800 dark:text-white mb-2 flex items-center">
+                        <div className="bg-green-50 rounded-lg p-4">
+                          <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
                             <BookOpen className="w-4 h-4 mr-2 text-green-500" />
                             Recommended Resources
                           </h4>
@@ -685,20 +685,20 @@ const Statistics: React.FC = () => {
                               (resource, idx) => (
                                 <div
                                   key={idx}
-                                  className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-3"
+                                  className="bg-card/50 rounded-lg p-3"
                                 >
                                   <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                      <div className="font-medium text-gray-800 dark:text-white text-sm">
+                                      <div className="font-medium text-gray-800 text-sm">
                                         {resource.name}
                                       </div>
-                                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                      <div className="text-xs text-gray-600 mt-1">
                                         Topic: {resource.topic} • Type:{" "}
                                         {resource.type}
                                       </div>
                                     </div>
                                     <div className="ml-2">
-                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                         {resource.platform}
                                       </span>
                                     </div>
@@ -710,8 +710,8 @@ const Statistics: React.FC = () => {
                         </div>
 
                         {/* Practice Plan */}
-                        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-800 dark:text-white mb-2 flex items-center">
+                        <div className="bg-purple-50 rounded-lg p-4">
+                          <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
                             <Play className="w-4 h-4 mr-2 text-purple-500" />
                             Practice Plan
                           </h4>
@@ -720,21 +720,21 @@ const Statistics: React.FC = () => {
                               (step, idx) => (
                                 <div
                                   key={idx}
-                                  className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-3"
+                                  className="bg-card/50 rounded-lg p-3"
                                 >
                                   <div className="flex items-start space-x-3">
                                     <div className="flex-shrink-0">
-                                      <div className="w-6 h-6 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
-                                        <span className="text-purple-600 dark:text-purple-400 text-xs font-bold">
+                                      <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                                        <span className="text-purple-600 text-xs font-bold">
                                           {idx + 1}
                                         </span>
                                       </div>
                                     </div>
                                     <div className="flex-1">
-                                      <div className="font-medium text-purple-800 dark:text-purple-300 text-sm">
+                                      <div className="font-medium text-purple-800 text-sm">
                                         {step.timeframe}
                                       </div>
-                                      <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                                      <div className="text-sm text-gray-700 mt-1">
                                         {step.focus}
                                       </div>
                                     </div>
@@ -749,14 +749,14 @@ const Statistics: React.FC = () => {
                 </div>
               ))}
             </div>
-            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+            <div className="mt-4 p-3 bg-blue-50 rounded-xl">
               <div className="flex items-start space-x-2">
-                <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
-                  <div className="font-medium text-blue-800 dark:text-blue-300 mb-1">
+                  <div className="font-medium text-blue-800 mb-1">
                     Recommendation
                   </div>
-                  <div className="text-sm text-blue-700 dark:text-blue-400">
+                  <div className="text-sm text-blue-700">
                     Focus on practicing {improvementAreas[0]?.name} questions.
                     Consider reviewing fundamental concepts and taking practice
                     tests.
@@ -768,8 +768,8 @@ const Statistics: React.FC = () => {
         }
 
         {strengths.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+          <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
               <CheckCircle className="w-5 h-5 mr-2 text-green-500" />
               Your Strengths
             </h3>
@@ -777,24 +777,24 @@ const Statistics: React.FC = () => {
               {strengths.map((strength) => (
                 <div
                   key={strength.name}
-                  className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-xl"
+                  className="flex items-center justify-between p-3 bg-green-50 rounded-xl"
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                      <Award className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                      <Award className="w-4 h-4 text-green-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-gray-800 dark:text-white">
+                      <div className="font-medium text-gray-800">
                         {strength.name}
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <div className="text-sm text-gray-600">
                         {strength.correct}/{strength.total} correct •{" "}
                         {strength.type}
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                    <div className="text-lg font-bold text-green-600">
                       {strength.accuracy}%
                     </div>
                     <div className="text-xs text-gray-500">Accuracy</div>
@@ -802,14 +802,14 @@ const Statistics: React.FC = () => {
                 </div>
               ))}
             </div>
-            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
+            <div className="mt-4 p-3 bg-green-50 rounded-xl">
               <div className="flex items-start space-x-2">
-                <Zap className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" />
+                <Zap className="w-5 h-5 text-green-600 mt-0.5" />
                 <div>
-                  <div className="font-medium text-green-800 dark:text-green-300 mb-1">
+                  <div className="font-medium text-green-800 mb-1">
                     Keep it up!
                   </div>
-                  <div className="text-sm text-green-700 dark:text-green-400">
+                  <div className="text-sm text-green-700">
                     You're excelling in {strengths[0]?.name}. Use this strength
                     to tackle more challenging problems in this area.
                   </div>
@@ -821,42 +821,42 @@ const Statistics: React.FC = () => {
       </div>
 
       {/* Study Plan Recommendations */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl p-6 border border-blue-100 dark:border-blue-800">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-100">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
           <BookOpen className="w-5 h-5 mr-2 text-blue-500" />
           Personalized Study Plan
         </h3>
         <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-white/50 dark:bg-gray-800/50 p-4 rounded-xl">
-            <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">
+          <div className="bg-card/50 p-4 rounded-xl">
+            <div className="text-sm font-medium text-blue-600 mb-2">
               This Week
             </div>
-            <div className="text-gray-800 dark:text-white font-medium mb-1">
+            <div className="text-gray-800 font-medium mb-1">
               Focus on {improvementAreas[0]?.name || "your weakest area"}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="text-sm text-gray-600">
               Practice 15-20 questions daily
             </div>
           </div>
-          <div className="bg-white/50 dark:bg-gray-800/50 p-4 rounded-xl">
-            <div className="text-sm font-medium text-purple-600 dark:text-purple-400 mb-2">
+          <div className="bg-card/50 p-4 rounded-xl">
+            <div className="text-sm font-medium text-purple-600 mb-2">
               Next Week
             </div>
-            <div className="text-gray-800 dark:text-white font-medium mb-1">
+            <div className="text-gray-800 font-medium mb-1">
               Review {improvementAreas[1]?.name || "another weak area"}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="text-sm text-gray-600">
               Take 2 practice tests
             </div>
           </div>
-          <div className="bg-white/50 dark:bg-gray-800/50 p-4 rounded-xl">
-            <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">
+          <div className="bg-card/50 p-4 rounded-xl">
+            <div className="text-sm font-medium text-green-600 mb-2">
               Goal
             </div>
-            <div className="text-gray-800 dark:text-white font-medium mb-1">
+            <div className="text-gray-800 font-medium mb-1">
               Reach 90% Accuracy
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="text-sm text-gray-600">
               In your weak areas
             </div>
           </div>

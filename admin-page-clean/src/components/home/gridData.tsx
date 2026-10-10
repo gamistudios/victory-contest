@@ -53,7 +53,7 @@ function renderStatus(status: "Online" | "Offline") {
     <Chip
       label={status}
       sx={{
-        backgroundColor: status == "Online" ? "#00AB5514" : "#fff0f0",
+        backgroundColor: status == "Online" ? "hsl(var(--brand) / 0.08)" : "hsl(var(--destructive) / 0.1)",
         color: status == "Online" ? "green" : "red",
         fontFamily: "'Public Sans',sans-serif",
         fontWeight: 700,

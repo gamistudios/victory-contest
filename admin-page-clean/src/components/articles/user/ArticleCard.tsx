@@ -2,7 +2,7 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, User, ArrowRight } from "lucide-react";
+import { Calendar, Clock, User, ArrowRight, FileText } from "lucide-react";
 import { ArticleSummary } from "@/types/article";
 
 interface ArticleCardProps {
@@ -45,7 +45,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
                   />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                    <span className="text-2xl">📝</span>
+                    <FileText className="h-6 w-6 text-blue-700" aria-hidden="true" />
                   </div>
                 )}
               </div>
@@ -131,7 +131,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                <span className="text-4xl">📝</span>
+                <FileText className="h-10 w-10 text-blue-700" aria-hidden="true" />
               </div>
             )}
           </div>

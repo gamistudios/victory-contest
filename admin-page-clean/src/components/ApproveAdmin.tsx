@@ -124,7 +124,7 @@ export default function ApproveAdmin() {
         <Typography
           sx={{
             fontSize: "0.875rem",
-            color: "rgb(145, 158, 171)",
+            color: "hsl(var(--muted-foreground))",
             fontFamily: '"Public Sans", sans-serif',
           }}
         >
@@ -261,7 +261,7 @@ function Row({ student, onApprove }: RowProps) {
       <StyledTableRow
         sx={{
           cursor: "pointer",
-          "&:hover": { backgroundColor: "#f7f7f5" },
+          "&:hover": { backgroundColor: "hsl(var(--muted))" },
         }}
       >
         <StyledTableCell align="right">
@@ -295,7 +295,7 @@ function Row({ student, onApprove }: RowProps) {
                   display: { xs: "block", sm: "none" },
                   fontFamily: "'Public Sans',sans-serif",
                   fontSize: "0.75rem",
-                  color: "rgb(145, 158, 171)",
+                  color: "hsl(var(--muted-foreground))",
                   overflowWrap: "anywhere",
                 }}
               >

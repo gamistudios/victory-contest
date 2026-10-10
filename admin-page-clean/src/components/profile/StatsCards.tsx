@@ -50,7 +50,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
       {cards.map((card, index) => (
         <Card
           key={index}
-          className={`bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 border-l-4 ${card.borderColor}`}
+          className={`bg-card border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 border-l-4 ${card.borderColor}`}
         >
           <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 min-w-0">

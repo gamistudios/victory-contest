@@ -263,7 +263,7 @@ export function PaymentManagement({
               <Button
                 disabled={loading.notice}
                 onClick={handleSendFinalNotice}
-                className="bg-red-600 hover:bg-red-700 text-white text-sm py-2"
+                className="bg-red-fix-600 hover:bg-red-fix-700 text-white text-sm py-2"
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 {loading.notice ? "Sending" : "Send Final Notice"}
@@ -297,7 +297,7 @@ export function PaymentManagement({
             <div className="flex flex-col space-y-2">
               <Button
                 onClick={handleReactivateAccount}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm py-2"
+                className="bg-emerald-fix-600 hover:bg-emerald-fix-700 text-white text-sm py-2"
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Reactivate Account
@@ -330,7 +330,7 @@ export function PaymentManagement({
               <Button
                 onClick={handleNotifyUser}
                 disabled={isNotifying}
-                className="bg-red-600 hover:bg-red-700 text-white text-sm py-2"
+                className="bg-red-fix-600 hover:bg-red-fix-700 text-white text-sm py-2"
               >
                 <Bell className="w-4 h-4 mr-2" />
                 {isNotifying ? "Sending" : "Send Urgent Reminder"}
@@ -383,7 +383,7 @@ export function PaymentManagement({
   //         <div className="flex flex-col space-y-3">
   //           <Button
   //             onClick={handleSendFinalNotice}
-  //             className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+  //             className="w-full bg-red-fix-600 hover:bg-red-fix-700 text-white font-bold py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
   //           >
   //             <AlertTriangle className="w-5 h-5 mr-3" />
   //             Send Final Notice
@@ -404,7 +404,7 @@ export function PaymentManagement({
   //         <div className="flex flex-col space-y-3">
   //           <Button
   //             onClick={handleReactivateAccount}
-  //             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+  //             className="w-full bg-emerald-fix-600 hover:bg-emerald-fix-700 text-white font-bold py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
   //           >
   //             <CheckCircle className="w-5 h-5 mr-3" />
   //             Reactivate Account
@@ -425,7 +425,7 @@ export function PaymentManagement({
   //         <div className="flex flex-col space-y-3">
   //           <Button
   //             onClick={handleNotifyUser}
-  //             className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+  //             className="w-full bg-red-fix-600 hover:bg-red-fix-700 text-white font-bold py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
   //           >
   //             <Bell className="w-5 h-5 mr-3" />
   //             Send Urgent Reminder
@@ -445,7 +445,7 @@ export function PaymentManagement({
   //       return (
   //         <Button
   //           onClick={handleNotifyUser}
-  //           className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+  //           className="w-full bg-gradient-to-r from-emerald-fix-600 to-emerald-fix-700 hover:from-emerald-fix-700 hover:to-emerald-fix-800 text-white font-bold py-4 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
   //         >
   //           <Bell className="w-5 h-5 mr-3" />
   //           Send Payment Reminder
@@ -455,7 +455,7 @@ export function PaymentManagement({
   // };
 
   return (
-    <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+    <Card className="bg-card border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
       <CardHeader className="border-b border-gray-100 ">
         <CardTitle className="flex items-center space-x-3 text-gray-900 min-w-0">
           <div className="rounded-xl shadow-sm shrink-0">
@@ -592,7 +592,7 @@ export function PaymentManagement({
                   Delete User Account
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="bg-white max-w-[calc(100vw-2rem)] sm:max-w-md">
+              <AlertDialogContent className="bg-card max-w-[calc(100vw-2rem)] sm:max-w-md">
                 <AlertDialogHeader>
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="p-3 bg-red-100 rounded-xl">
@@ -625,7 +625,7 @@ export function PaymentManagement({
                   </AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleDeleteUser}
-                    className="bg-red-600 hover:bg-red-700 font-bold px-6 py-2"
+                    className="bg-red-fix-600 hover:bg-red-fix-700 font-bold px-6 py-2"
                   >
                     Delete Account
                   </AlertDialogAction>

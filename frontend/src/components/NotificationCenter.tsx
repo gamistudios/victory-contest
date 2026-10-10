@@ -87,8 +87,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     } catch {
       toast.error("Unable to delete the notification", {
         style: {
-          backgroundColor: "red",
-          color: "white",
+          backgroundColor: "hsl(var(--destructive))",
+          color: "hsl(var(--destructive-foreground))",
         },
       });
     }
@@ -142,17 +142,17 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center pt-20">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full mx-4 max-h-[70vh] overflow-hidden">
+    <div className="fixed inset-0 bg-scrim/50 backdrop-blur-sm z-50 flex items-start justify-center pt-20">
+      <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full mx-4 max-h-[70vh] overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+              <h3 className="text-lg font-bold text-gray-800">
                 Notifications
               </h3>
               {unreadCount > 0 && (
-                <span className="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded-full">
+                <span className="px-2 py-1 bg-red-fix-500 text-white text-xs font-bold rounded-full">
                   {unreadCount}
                 </span>
               )}
@@ -161,7 +161,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-sm text-blue-600 hover:underline"
                 >
                   Mark all read
                 </button>
@@ -169,7 +169,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
               <button
                 onClick={onClose}
                 aria-label="Close notifications"
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
@@ -185,13 +185,13 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
             </div>
           ) : notifications.length === 0 ? (
             <div className="text-center py-12">
-              <Bell className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">
+              <Bell className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+              <p className="text-gray-500">
                 No notifications yet
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <div className="divide-y divide-gray-200">
               {notifications.map((notification) => {
                 const IconComponent = getNotificationIcon(notification.type);
                 const iconColor = getNotificationColor(notification.type);
@@ -209,9 +209,9 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         navigate("/feedback");
                       }
                     }}
-                    className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                    className={`p-4 hover:bg-gray-50 transition-colors ${
                       !notification.is_read
-                        ? "bg-blue-50/50 dark:bg-blue-900/10"
+                        ? "bg-blue-50/50"
                         : ""
                     } ${
                       notification.type === "feedback_question"
@@ -223,8 +223,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       <div
                         className={`w-10 h-10 rounded-full flex items-center justify-center ${
                           !notification.is_read
-                            ? "bg-blue-100 dark:bg-blue-900/20"
-                            : "bg-gray-100 dark:bg-gray-700"
+                            ? "bg-blue-100"
+                            : "bg-gray-100"
                         }`}
                       >
                         <IconComponent className={`w-5 h-5 ${iconColor}`} />
@@ -235,19 +235,19 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                             <h4
                               className={`text-sm font-semibold ${
                                 !notification.is_read
-                                  ? "text-gray-900 dark:text-white"
-                                  : "text-gray-700 dark:text-gray-300"
+                                  ? "text-gray-900"
+                                  : "text-gray-700"
                               }`}
                             >
                               {notification.title}
                               {!notification.is_read && (
-                                <span className="ml-2 w-2 h-2 bg-blue-500 rounded-full inline-block"></span>
+                                <span className="ml-2 w-2 h-2 bg-blue-fix-500 rounded-full inline-block"></span>
                               )}
                             </h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                               {notification.message}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                            <p className="text-xs text-gray-500 mt-2">
                               {formatTimestamp(notification.sent_at)}
                             </p>
                           </div>
@@ -259,7 +259,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                                   e.stopPropagation();
                                   markAsRead(notification.id);
                                 }}
-                                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                className="p-1 hover:bg-gray-200 rounded transition-colors"
                                 title="Mark as read"
                               >
                                 <CheckCircle className="w-4 h-4 text-green-500" />
@@ -276,7 +276,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                                 notification.id.toString()
                               );
                             }}
-                            className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                            className="text-xs text-red-600 hover:underline"
                           >
                             Delete
                           </button>

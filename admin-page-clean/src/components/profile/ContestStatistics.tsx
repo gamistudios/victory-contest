@@ -61,12 +61,12 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
   const gradeAnalysis = getGradeAnalysis();
 
   const subjectColors = [
-    "#10b981",
-    "#3b82f6",
-    "#8b5cf6",
-    "#f59e0b",
-    "#ef4444",
-    "#06b6d4",
+    "hsl(var(--chart-2))",
+    "hsl(var(--chart-1))",
+    "hsl(var(--chart-5))",
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+    "hsl(var(--cyan-fix-600))",
   ];
 
   // Data for the 'Missed Questions' pie chart
@@ -85,7 +85,7 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
 
   // ## Component Return ##
   return (
-    <Card className="bg-white border border-gray-200 shadow-sm">
+    <Card className="bg-card border border-gray-200 shadow-sm">
       <CardHeader className="border-b border-gray-100 bg-gray-50">
         <CardTitle className="flex items-center space-x-3 text-gray-900 min-w-0">
           <BarChart3 className="w-5 h-5 text-gray-500 shrink-0" />
@@ -99,25 +99,25 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
           <TabsList className="bg-gray-100 p-1 rounded-lg mb-6 h-auto w-full grid grid-cols-2 gap-1 sm:flex sm:w-auto sm:grid-cols-none">
             <TabsTrigger
               value="subjects"
-              className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 data-[state=active]:bg-white data-[state=active]:text-emerald-600 font-medium"
+              className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 data-[state=active]:bg-card data-[state=active]:text-emerald-600 font-medium"
             >
               Subject Analysis
             </TabsTrigger>
             <TabsTrigger
               value="grades"
-              className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 data-[state=active]:bg-white data-[state=active]:text-emerald-600 font-medium"
+              className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 data-[state=active]:bg-card data-[state=active]:text-emerald-600 font-medium"
             >
               Grade Analysis
             </TabsTrigger>
             <TabsTrigger
               value="missed"
-              className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 data-[state=active]:bg-white data-[state=active]:text-emerald-600 font-medium"
+              className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 data-[state=active]:bg-card data-[state=active]:text-emerald-600 font-medium"
             >
               Areas for Improvement
             </TabsTrigger>
             <TabsTrigger
               value="performance"
-              className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 data-[state=active]:bg-white data-[state=active]:text-emerald-600 font-medium"
+              className="whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 data-[state=active]:bg-card data-[state=active]:text-emerald-600 font-medium"
             >
               Performance Trends
             </TabsTrigger>
@@ -125,35 +125,35 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
 
           {/* Subject Analysis Tab */}
           <TabsContent value="subjects" className="space-y-6">
-            <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
+            <div className="bg-card border border-gray-200 rounded-lg p-4 sm:p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Performance by Subject
               </h3>
               <div className="h-64 sm:h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={subjectAnalysis}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
                     <XAxis
                       dataKey="subject"
-                      tick={{ fontSize: 12, fill: "#64748b" }}
+                      tick={{ fontSize: 12, fill: "hsl(var(--chart-axis))" }}
                     />
-                    <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                    <YAxis tick={{ fontSize: 12, fill: "hsl(var(--chart-axis))" }} />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e2e8f0",
+                        backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))",
+                        border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
                     />
                     <Bar
                       dataKey="correctAnswers"
-                      fill="#10b981"
+                      fill="hsl(var(--chart-2))"
                       name="Correct"
                       radius={[4, 4, 0, 0]}
                     />
                     <Bar
                       dataKey="missedQuestions"
-                      fill="#ef4444"
+                      fill="hsl(var(--chart-4))"
                       name="Missed"
                       radius={[4, 4, 0, 0]}
                     />
@@ -197,35 +197,35 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
 
           {/* Grade Analysis Tab */}
           <TabsContent value="grades" className="space-y-6">
-            <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
+            <div className="bg-card border border-gray-200 rounded-lg p-4 sm:p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Performance by Grade Level
               </h3>
               <div className="h-64 sm:h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={gradeAnalysis}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
                     <XAxis
                       dataKey="grade"
-                      tick={{ fontSize: 12, fill: "#64748b" }}
+                      tick={{ fontSize: 12, fill: "hsl(var(--chart-axis))" }}
                     />
-                    <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                    <YAxis tick={{ fontSize: 12, fill: "hsl(var(--chart-axis))" }} />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e2e8f0",
+                        backgroundColor: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))",
+                        border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
                     />
                     <Bar
                       dataKey="correctAnswers"
-                      fill="#3b82f6"
+                      fill="hsl(var(--chart-1))"
                       name="Correct"
                       radius={[4, 4, 0, 0]}
                     />
                     <Bar
                       dataKey="missedQuestions"
-                      fill="#f59e0b"
+                      fill="hsl(var(--chart-3))"
                       name="Missed"
                       radius={[4, 4, 0, 0]}
                     />
@@ -238,7 +238,7 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
           {/* Areas for Improvement Tab */}
           <TabsContent value="missed" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
+              <div className="bg-card border border-gray-200 rounded-lg p-4 sm:p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
                   <PieChartIcon className="w-5 h-5 text-emerald-600" />
                   <span>Missed Questions Distribution</span>
@@ -255,7 +255,7 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
                           `${name} ${(percent! * 100).toFixed(0)}%`
                         }
                         outerRadius={100}
-                        fill="#8884d8"
+                        fill="hsl(var(--chart-5))"
                         dataKey="value"
                       >
                         {pieData.map((entry, index) => (
@@ -273,7 +273,7 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
                 </div>
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
+              <div className="bg-card border border-gray-200 rounded-lg p-4 sm:p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
                   <Target className="w-5 h-5 text-emerald-600" />
                   <span>Focus Areas</span>
@@ -322,7 +322,7 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
 
           {/* Performance Trends Tab */}
           <TabsContent value="performance" className="space-y-6">
-            <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
+            <div className="bg-card border border-gray-200 rounded-lg p-4 sm:p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
                 <TrendingUp className="w-5 h-5 text-emerald-600" />
                 <span>Performance Over Time</span>
@@ -330,13 +330,13 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
               <div className="h-64 sm:h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={performanceTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
                     <XAxis
                       dataKey="month"
-                      tick={{ fontSize: 12, fill: "#64748b" }}
+                      tick={{ fontSize: 12, fill: "hsl(var(--chart-axis))" }}
                     />
                     <YAxis
-                      tick={{ fontSize: 12, fill: "#64748b" }}
+                      tick={{ fontSize: 12, fill: "hsl(var(--chart-axis))" }}
                       domain={[0, 100]}
                       unit="%"
                     />
@@ -346,9 +346,9 @@ export function ContestStatistics({ stat }: ContestStatisticsProps) {
                     <Line
                       type="monotone"
                       dataKey="accuracy"
-                      stroke="#10b981"
+                      stroke="hsl(var(--chart-2))"
                       strokeWidth={3}
-                      dot={{ fill: "#10b981", r: 5 }}
+                      dot={{ fill: "hsl(var(--chart-2))", r: 5 }}
                       name="Accuracy"
                     />
                   </LineChart>

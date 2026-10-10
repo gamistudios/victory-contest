@@ -52,7 +52,7 @@ export function ArticleFilters({
     statusFilter !== "all" || authorFilter !== "all" || tagFilter !== "all";
 
   return (
-    <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div className="bg-card border-b border-gray-200 sticky top-0 z-10">
       {/* Search and Filter Row */}
       <div className="p-4 space-y-3">
         {/* Search Bar */}
@@ -114,7 +114,7 @@ export function ArticleFilters({
                 <SlidersHorizontal className="w-4 h-4 mr-1" />
                 Filters
                 {hasActiveFilters && (
-                  <span className="ml-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <span className="ml-1 w-2 h-2 bg-blue-fix-500 rounded-full"></span>
                 )}
               </Button>
             </SheetTrigger>
