@@ -43,6 +43,7 @@ type Server struct {
 	articleHandler             *ArticleHandler
 	imageHandler               *ImageHandler
 	contestStatisticsHandler   *ContestStatisticsHandler
+	academyHandler             *AcademyHandler
 	jwtSecret                  string
 	aiRequestsPerMinute        int
 }
@@ -107,6 +108,8 @@ func NewServer() *Server {
 	aiSettingsRepo := repository.NewAiSettingsDynamoRepository(ddb, "ai_settings")
 	paymentSettingsRepo := repository.NewPaymentSettingsDynamoRepository(ddb, "payment_settings")
 
+	academyRepo := repository.NewAcademyDynamoRepository(ddb, "academy_content", "academy_students")
+
 	// --- Initialize Feedback Repositories ---
 	feedbackQuestionRepo := repository.NewFeedbackQuestionDynamoRepository(ddb, "feedback_questions")
 	pollOptionRepo := repository.NewPollOptionDynamoRepository(ddb, "poll_options")
@@ -146,6 +149,14 @@ func NewServer() *Server {
 		}
 	}
 
+	// --- Victory Academy (Learn) ---
+	academyUsecase := usecase.NewAcademyUsecase(academyRepo, studentUsecase, aiUsecase)
+	// Data migration: seed the catalogue into an empty academy_content table.
+	// Best-effort and idempotent, like the schema migration above.
+	if err := academyUsecase.SeedIfEmpty(); err != nil {
+		log.Printf("academy seed incomplete (retried on next boot): %v", err)
+	}
+
 	// --- Initialize Contest Statistics Use Case ---
 	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil)
 
@@ -177,6 +188,7 @@ func NewServer() *Server {
 		articleHandler:             NewArticleHandler(articleUsecase),
 		imageHandler:               NewImageHandler(imgRepo),
 		contestStatisticsHandler:   NewContestStatisticsHandler(contestStatisticsUsecase),
+		academyHandler:             NewAcademyHandler(academyUsecase),
 		jwtSecret:                  jwtSecret,
 		aiRequestsPerMinute:        aiRequestsPerMinute,
 	}
@@ -314,6 +326,10 @@ func (s *Server) NewRouter() *gin.Engine {
 	// Image routes
 	s.imageHandler.RegisterRoutes(api.Group("/images"), adminAuthMw)
 	s.contestStatisticsHandler.RegisterRoutes(api.Group("/statistics"), adminAuthMw)
+	// Victory Academy (Learn): student routes need the student session JWT,
+	// /admin routes the admin cookie; AI routes share the Gemini rate limiter.
+	s.academyHandler.RegisterRoutes(api.Group("/academy"), studentAuth([]byte(s.jwtSecret)), adminAuthMw,
+		rateLimitByClientIP(s.aiRequestsPerMinute, float64(s.aiRequestsPerMinute)))
 
 	// Static hosting for the bundled frontend and admin SPAs (single-origin
 	// deployment, see root Dockerfile): a request is served the real file from

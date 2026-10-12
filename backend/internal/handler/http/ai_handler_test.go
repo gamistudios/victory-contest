@@ -44,6 +44,10 @@ func (f *fakeAiUsecase) ChatExplain(req domain.AiChatExplainRequest) (string, er
 	return "Guided explanation for: " + req.Focus.QuestionText, nil
 }
 
+func (f *fakeAiUsecase) GenerateText(prompt string) (string, error) {
+	return "", nil
+}
+
 func (f *fakeAiUsecase) PracticeSubjects() ([]string, error) {
 	f.bankSubjectCalls++
 	return []string{"Math", "Physics"}, nil

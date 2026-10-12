@@ -70,6 +70,10 @@ var Tables = []Table{
 	{Name: "ai_providers"},
 	{Name: "ai_settings"},
 	{Name: "payment_settings"},
+	// Victory Academy (Learn): JSON documents keyed by "<kind>#<id>" and one
+	// learning-state document per student. See repository/academy_dynamo.go.
+	{Name: "academy_content"},
+	{Name: "academy_students"},
 	{Name: "submissions", GSIs: []GSI{
 		{Name: "contest_id-index", Partition: "contest_id", PartType: types.ScalarAttributeTypeS},
 		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},

@@ -327,6 +327,11 @@ func (a *aiUsecase) generate(prompt string) (string, error) {
 	return completeProvider(ctx, *provider, model, completionRequest{prompt: prompt})
 }
 
+// GenerateText exposes generate() to other usecases (Victory Academy).
+func (a *aiUsecase) GenerateText(prompt string) (string, error) {
+	return a.generate(prompt)
+}
+
 // ChatExplain runs the on-question AI tutor: it receives the whole generated
 // quiz (with each question's correct answer, for context only) plus the
 // focused question and an optional free-text follow-up. The hard requirement
@@ -489,6 +494,9 @@ type AiUsecase interface {
 	// subject (optionally scoped to a topic). Fails with a clear error when
 	// the bank has no matching questions.
 	PracticeBankQuestions(subject, topic string, count int) ([]domain.Question, error)
+	// GenerateText is the plain prompt-to-text entry point (Victory Academy
+	// AI tutor / content generation) over the configured AI provider.
+	GenerateText(prompt string) (string, error)
 }
 
 func NewAiUsecase(subRepo SubmissionRepository, providerRepo AiProviderRepository, questionRepo QuestionRepository) AiUsecase {
