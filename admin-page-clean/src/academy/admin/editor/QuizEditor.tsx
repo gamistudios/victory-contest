@@ -19,23 +19,25 @@ const TF = ["True", "False"];
 const newQuestion = (): QuizQuestion => ({ id: uid("q"), type: "multiple_choice", question: "", options: ["", "", "", ""], correct_answers: [], explanation: "", difficulty: "Medium", topic_tag: "" });
 
 function retype(q: QuizQuestion, type: QuestionType): QuizQuestion {
-  if (type === "true_false") return { ...q, type, options: TF, correct_answers: q.correct_answers.filter((i) => i < 2).slice(0, 1) };
+  const answers = q.correct_answers ?? [];
+  if (type === "true_false") return { ...q, type, options: TF, correct_answers: answers.filter((i) => i < 2).slice(0, 1) };
   const opts = q.type === "true_false" || (q.options ?? []).length < 2 ? ["", "", "", ""] : (q.options ?? []);
-  const keep = q.type === "true_false" ? [] : q.correct_answers;
+  const keep = q.type === "true_false" ? [] : answers;
   return { ...q, type, options: opts, correct_answers: type === "multiple_answer" ? keep : keep.slice(0, 1) };
 }
 
 function QuestionCard({ q, index, error, onChange, onRemove }: { q: QuizQuestion; index: number; error?: string; onChange: (q: QuizQuestion) => void; onRemove: () => void }) {
   const [open, setOpen] = useState(!q.question);
   const opts = q.options ?? [];
+  const answers = q.correct_answers ?? [];
   const multi = q.type === "multiple_answer";
   const fixed = q.type === "true_false";
   const toggle = (i: number) => {
-    const has = q.correct_answers.includes(i);
-    onChange({ ...q, correct_answers: multi ? (has ? q.correct_answers.filter((x) => x !== i) : [...q.correct_answers, i].sort()) : [i] });
+    const has = answers.includes(i);
+    onChange({ ...q, correct_answers: multi ? (has ? answers.filter((x) => x !== i) : [...answers, i].sort()) : [i] });
   };
   const setOpt = (i: number, v: string) => onChange({ ...q, options: opts.map((o, j) => (j === i ? v : o)) });
-  const removeOpt = (i: number) => onChange({ ...q, options: opts.filter((_, j) => j !== i), correct_answers: q.correct_answers.filter((x) => x !== i).map((x) => (x > i ? x - 1 : x)) });
+  const removeOpt = (i: number) => onChange({ ...q, options: opts.filter((_, j) => j !== i), correct_answers: answers.filter((x) => x !== i).map((x) => (x > i ? x - 1 : x)) });
 
   return (
     <Expandable
@@ -48,7 +50,7 @@ function QuestionCard({ q, index, error, onChange, onRemove }: { q: QuizQuestion
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">{q.question || "New question"}</p>
             <p className="truncate text-[11px] text-muted-foreground">
-              {TYPES.find((t) => t.value === q.type)?.label} · {q.correct_answers.length} correct
+              {TYPES.find((t) => t.value === q.type)?.label} · {answers.length} correct
               {error && <span className="font-semibold text-destructive"> · {error}</span>}
             </p>
           </div>
@@ -67,7 +69,7 @@ function QuestionCard({ q, index, error, onChange, onRemove }: { q: QuizQuestion
       <fieldset className="space-y-2">
         <legend className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Options · tap the check for correct</legend>
         {opts.map((o, i) => {
-          const on = q.correct_answers.includes(i);
+          const on = answers.includes(i);
           return (
             <div key={i} className="flex items-center gap-2">
               <button type="button" role={multi ? "checkbox" : "radio"} aria-checked={on} aria-label={`Option ${i + 1} is correct`} onClick={() => toggle(i)} className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on ? "border-transparent bg-green-fix-600 text-white" : "border-border bg-card text-muted-foreground")}>

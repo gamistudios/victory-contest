@@ -10,6 +10,23 @@ import {
 
 const DISMISS_KEY = "vc-admin-install-dismissed";
 
+/** Storage can throw (private mode, blocked cookies) - the banner must not take the app down for it. */
+const readDismissed = () => {
+  try {
+    return sessionStorage.getItem(DISMISS_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const writeDismissed = () => {
+  try {
+    sessionStorage.setItem(DISMISS_KEY, "1");
+  } catch {
+    /* ignore: the banner just shows again next load */
+  }
+};
+
 export default function InstallPromptBanner() {
   const [available, setAvailable] = useState(false);
 
@@ -19,14 +36,14 @@ export default function InstallPromptBanner() {
   );
 
   useEffect(() => {
-    if (sessionStorage.getItem(DISMISS_KEY) || isStandalone()) return;
+    if (readDismissed() || isStandalone()) return;
     setAvailable(canInstall());
   }, []);
 
   if (!available) return null;
 
   const dismiss = () => {
-    sessionStorage.setItem(DISMISS_KEY, "1");
+    writeDismissed();
     setAvailable(false);
   };
 

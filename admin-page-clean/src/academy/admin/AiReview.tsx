@@ -73,9 +73,11 @@ function CardItem({ c, onChange, onRemove }: { c: Flashcard; onChange: (c: Flash
 function QuestionItem({ q, onChange, onRemove }: { q: QuizQuestion; onChange: (q: QuizQuestion) => void; onRemove: () => void }) {
   const [edit, setEdit] = useState(false);
   const opts = q.options ?? [];
+  // AI drafts are the least trustworthy source here: correct_answers can be missing.
+  const answers = q.correct_answers ?? [];
   const toggle = (i: number) => {
-    const has = q.correct_answers.includes(i);
-    onChange({ ...q, correct_answers: q.type === "multiple_answer" ? (has ? q.correct_answers.filter((x) => x !== i) : [...q.correct_answers, i]) : [i] });
+    const has = answers.includes(i);
+    onChange({ ...q, correct_answers: q.type === "multiple_answer" ? (has ? answers.filter((x) => x !== i) : [...answers, i]) : [i] });
   };
   return (
     <li className="rounded-xl border border-border bg-background p-3">
@@ -84,7 +86,7 @@ function QuestionItem({ q, onChange, onRemove }: { q: QuizQuestion; onChange: (q
           {edit ? <textarea aria-label="Question" rows={2} className={areaCls} value={q.question} onChange={(e) => onChange({ ...q, question: e.target.value })} /> : <p className="text-sm font-bold text-foreground">{q.question}</p>}
           <ul className="space-y-1.5">
             {opts.map((o, i) => {
-              const ok = q.correct_answers.includes(i);
+              const ok = answers.includes(i);
               return (
                 <li key={i} className={cn("flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm", ok ? "bg-green-100 font-semibold text-green-800" : "bg-muted text-foreground")}>
                   {edit ? (

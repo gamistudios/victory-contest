@@ -107,7 +107,7 @@ export function validate(m: LearningModule): Errors {
     const opts = (q.options ?? []).filter((o) => o.trim());
     if (!q.question.trim()) e.quiz[q.id] = "Question text is required";
     else if (opts.length < 2) e.quiz[q.id] = "Needs at least 2 options";
-    else if (q.correct_answers.length < 1) e.quiz[q.id] = "Mark at least 1 correct answer";
+    else if ((q.correct_answers ?? []).length < 1) e.quiz[q.id] = "Mark at least 1 correct answer";
   }
   return e;
 }

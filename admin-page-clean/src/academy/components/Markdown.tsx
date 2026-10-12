@@ -61,7 +61,7 @@ function Md({ text }: { text: string }) {
 
 /** Markdown + KaTeX + `:::callout` blocks (definition, tip, warning, example, key-concept). */
 export function Markdown({ source, className }: { source: string; className?: string }) {
-  const segs = useMemo(() => split(source), [source]);
+  const segs = useMemo(() => split(source ?? ""), [source]);
   return (
     <div className={cn("reader", className)}>
       {segs.map((s, i) =>
