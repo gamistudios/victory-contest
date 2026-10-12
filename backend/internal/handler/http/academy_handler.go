@@ -27,18 +27,18 @@ func NewAcademyHandler(uc *usecase.AcademyUsecase) *AcademyHandler {
 func academyFail(c *gin.Context, err error) {
 	var ae *usecase.AcademyError
 	if errors.As(err, &ae) {
-		c.JSON(ae.Status, gin.H{"error": ae.Msg})
+		academyWrite(c, ae.Status, gin.H{"error": ae.Msg})
 		return
 	}
 	log.Printf("academy: %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
-	c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+	academyWrite(c, http.StatusInternalServerError, gin.H{"error": "internal server error"})
 }
 
 func academyBody(c *gin.Context) ([]byte, bool) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, academyMaxBody)
 	raw, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or oversized request body"})
+		academyWrite(c, http.StatusBadRequest, gin.H{"error": "invalid or oversized request body"})
 		return nil, false
 	}
 	return raw, true
@@ -47,7 +47,7 @@ func academyBody(c *gin.Context) ([]byte, bool) {
 func academyBind(c *gin.Context, v any) bool {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, academyMaxBody)
 	if err := c.ShouldBindJSON(v); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		academyWrite(c, http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return false
 	}
 	return true
@@ -68,7 +68,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"student": s})
+		academyWrite(c, 200, gin.H{"student": s})
 	})
 	st.PATCH("/me", func(c *gin.Context) {
 		var b struct {
@@ -83,7 +83,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"student": s})
+		academyWrite(c, 200, gin.H{"student": s})
 	})
 	st.PUT("/me/target", func(c *gin.Context) {
 		var b struct {
@@ -97,7 +97,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"student": s})
+		academyWrite(c, 200, gin.H{"student": s})
 	})
 	st.GET("/dashboard", func(c *gin.Context) {
 		d, err := h.uc.Dashboard(sid(c))
@@ -105,7 +105,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"dashboard": d})
+		academyWrite(c, 200, gin.H{"dashboard": d})
 	})
 	st.GET("/programs", func(c *gin.Context) {
 		p, s, err := h.uc.Programs()
@@ -113,7 +113,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"programs": p, "streams": s})
+		academyWrite(c, 200, gin.H{"programs": p, "streams": s})
 	})
 	st.GET("/subjects", func(c *gin.Context) {
 		list, err := h.uc.Subjects(sid(c), c.Query("level_id"), c.Query("stream_id"))
@@ -121,7 +121,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"subjects": list})
+		academyWrite(c, 200, gin.H{"subjects": list})
 	})
 	st.GET("/subjects/:id", func(c *gin.Context) {
 		o, err := h.uc.SubjectOutline(sid(c), c.Param("id"))
@@ -129,7 +129,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, o)
+		academyWrite(c, 200, o)
 	})
 	st.GET("/modules/:id", func(c *gin.Context) {
 		d, err := h.uc.ModuleDetail(sid(c), c.Param("id"))
@@ -137,7 +137,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, d)
+		academyWrite(c, 200, d)
 	})
 	st.POST("/modules/:id/progress", func(c *gin.Context) {
 		var b usecase.AcademyProgressPatch
@@ -149,7 +149,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"progress": p})
+		academyWrite(c, 200, gin.H{"progress": p})
 	})
 	st.POST("/modules/:id/complete", func(c *gin.Context) {
 		var b struct {
@@ -162,7 +162,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, r)
+		academyWrite(c, 200, r)
 	})
 	st.POST("/referrals/claim", func(c *gin.Context) {
 		var b struct {
@@ -177,7 +177,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"referral": r})
+		academyWrite(c, 200, gin.H{"referral": r})
 	})
 	st.POST("/flashcard-reviews", func(c *gin.Context) {
 		var b struct {
@@ -193,7 +193,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"flashcard_progress": fp})
+		academyWrite(c, 200, gin.H{"flashcard_progress": fp})
 	})
 	st.POST("/quiz-attempts", func(c *gin.Context) {
 		var b usecase.AcademyQuizAttemptInput
@@ -205,7 +205,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(201, gin.H{"attempt": a})
+		academyWrite(c, 201, gin.H{"attempt": a})
 	})
 	st.GET("/quiz-attempts", func(c *gin.Context) {
 		list, err := h.uc.QuizAttempts(sid(c), c.Query("module_id"))
@@ -213,7 +213,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"attempts": list})
+		academyWrite(c, 200, gin.H{"attempts": list})
 	})
 
 	ai := st.Group("/ai")
@@ -230,7 +230,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"flashcards": cards})
+		academyWrite(c, 200, gin.H{"flashcards": cards})
 	})
 	ai.POST("/quiz", func(c *gin.Context) {
 		var b usecase.AcademyAiQuizInput
@@ -242,7 +242,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"quiz": q})
+		academyWrite(c, 200, gin.H{"quiz": q})
 	})
 	ai.POST("/tutor", func(c *gin.Context) {
 		var b usecase.AcademyTutorInput
@@ -254,7 +254,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"reply": reply})
+		academyWrite(c, 200, gin.H{"reply": reply})
 	})
 
 	/* -------------------------------- admin -------------------------------- */
@@ -268,7 +268,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, t)
+		academyWrite(c, 200, t)
 	})
 	ad.GET("/modules/:id", func(c *gin.Context) {
 		d, err := h.uc.AdminGetModule(c.Param("id"))
@@ -276,7 +276,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, d)
+		academyWrite(c, 200, d)
 	})
 	ad.POST("/modules", func(c *gin.Context) {
 		raw, ok := academyBody(c)
@@ -288,7 +288,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(201, gin.H{"module": m})
+		academyWrite(c, 201, gin.H{"module": m})
 	})
 	ad.PUT("/modules/:id", func(c *gin.Context) {
 		raw, ok := academyBody(c)
@@ -300,7 +300,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"module": m})
+		academyWrite(c, 200, gin.H{"module": m})
 	})
 	ad.DELETE("/modules/:id", func(c *gin.Context) {
 		if err := h.uc.AdminDeleteModule(c.Param("id")); err != nil {
@@ -315,7 +315,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(201, gin.H{"module": m})
+		academyWrite(c, 201, gin.H{"module": m})
 	})
 	ad.PATCH("/modules/:id/access", func(c *gin.Context) {
 		var b usecase.AcademyAccessPatch
@@ -327,7 +327,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"module": m})
+		academyWrite(c, 200, gin.H{"module": m})
 	})
 	ad.PATCH("/modules/:id/status", func(c *gin.Context) {
 		var b struct {
@@ -341,7 +341,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"module": m})
+		academyWrite(c, 200, gin.H{"module": m})
 	})
 	ad.POST("/modules/:id/reorder", func(c *gin.Context) {
 		var b struct {
@@ -354,7 +354,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"message": "success"})
+		academyWrite(c, 200, gin.H{"message": "success"})
 	})
 	ad.POST("/chapters", func(c *gin.Context) {
 		var b struct {
@@ -371,7 +371,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(201, gin.H{"chapter": ch})
+		academyWrite(c, 201, gin.H{"chapter": ch})
 	})
 	ad.PUT("/chapters/:id", func(c *gin.Context) {
 		var b usecase.AcademyChapterPatch
@@ -383,7 +383,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"chapter": ch})
+		academyWrite(c, 200, gin.H{"chapter": ch})
 	})
 	ad.DELETE("/chapters/:id", func(c *gin.Context) {
 		if err := h.uc.AdminDeleteChapter(c.Param("id")); err != nil {
@@ -403,7 +403,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"message": "success"})
+		academyWrite(c, 200, gin.H{"message": "success"})
 	})
 	ad.POST("/subjects", func(c *gin.Context) {
 		var b domainSubjectInput
@@ -415,7 +415,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(201, gin.H{"subject": s})
+		academyWrite(c, 201, gin.H{"subject": s})
 	})
 	ad.PATCH("/programs/:id", func(c *gin.Context) {
 		var b struct {
@@ -423,7 +423,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 		}
 		if !academyBind(c, &b) || b.IsActive == nil {
 			if b.IsActive == nil {
-				c.JSON(400, gin.H{"error": "is_active is required"})
+				academyWrite(c, 400, gin.H{"error": "is_active is required"})
 			}
 			return
 		}
@@ -432,7 +432,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"program": p})
+		academyWrite(c, 200, gin.H{"program": p})
 	})
 
 	adAI := ad.Group("/ai")
@@ -449,7 +449,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(201, gin.H{"drafts": drafts})
+		academyWrite(c, 201, gin.H{"drafts": drafts})
 	})
 	ad.GET("/ai-drafts", func(c *gin.Context) {
 		list, err := h.uc.AdminListDrafts(c.Query("module_id"))
@@ -457,7 +457,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"drafts": list})
+		academyWrite(c, 200, gin.H{"drafts": list})
 	})
 	ad.PATCH("/ai-drafts/:id", func(c *gin.Context) {
 		var b usecase.AcademyDraftPatch
@@ -469,7 +469,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"draft": d})
+		academyWrite(c, 200, gin.H{"draft": d})
 	})
 	ad.DELETE("/ai-drafts/:id", func(c *gin.Context) {
 		if err := h.uc.AdminDeleteDraft(c.Param("id")); err != nil {
@@ -484,7 +484,7 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 			academyFail(c, err)
 			return
 		}
-		c.JSON(200, gin.H{"analytics": a})
+		academyWrite(c, 200, gin.H{"analytics": a})
 	})
 }
 
