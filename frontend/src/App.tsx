@@ -18,6 +18,7 @@ import ArticlesPage from "./pages/Articles";
 import { ArticleView } from "./components/article/ArticleView";
 import NotFound from "./components/not-found";
 import { AcademyProvider } from "./academy/context/AcademyContext";
+import { AcademyBoundary } from "./academy/components/AcademyBoundary";
 import AcademyHome from "./academy/pages/Home";
 import AcademyCourses from "./academy/pages/Courses";
 import AcademySubject from "./academy/pages/Subject";
@@ -71,13 +72,15 @@ function App() {
               path="payment-history"
               element={<UserPaymentHistoryPage />}
             />
-            <Route path="academy" element={<AcademyHome />} />
-            <Route path="academy/courses" element={<AcademyCourses />} />
-            <Route path="academy/subject/:id" element={<AcademySubject />} />
-            <Route path="academy/module/:id" element={<AcademyModule />} />
-            <Route path="academy/review" element={<AcademyReview />} />
-            <Route path="academy/progress" element={<AcademyProgress />} />
-            <Route path="academy/upgrade" element={<AcademyUpgrade />} />
+            <Route element={<AcademyBoundary />}>
+              <Route path="academy" element={<AcademyHome />} />
+              <Route path="academy/courses" element={<AcademyCourses />} />
+              <Route path="academy/subject/:id" element={<AcademySubject />} />
+              <Route path="academy/module/:id" element={<AcademyModule />} />
+              <Route path="academy/review" element={<AcademyReview />} />
+              <Route path="academy/progress" element={<AcademyProgress />} />
+              <Route path="academy/upgrade" element={<AcademyUpgrade />} />
+            </Route>
             <Route path="article" element={<ArticlesPage />} />
             <Route path="article/:id" element={<ArticleView />} />
             <Route
