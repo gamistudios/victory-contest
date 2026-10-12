@@ -1,5 +1,4 @@
 import axios, { AxiosError } from "axios";
-import { installAcademyMock } from "./academy/mock/adapter";
 
 //const baseURL = "https://7wwb0knl-8080.euw.devtunnels.ms";
 // Empty/undefined means same-origin: requests go to <origin>/api, which is how
@@ -9,13 +8,6 @@ const api = axios.create({
   baseURL: baseURL + "/api",
   withCredentials: true,
 });
-
-// Academy mock backend: only `/academy/*` calls are answered locally; every other
-// request uses axios' real adapter. Set VITE_ACADEMY_MOCK=false once the Go
-// endpoints exist - no UI changes needed.
-if (import.meta.env.VITE_ACADEMY_MOCK !== "false") {
-  installAcademyMock(api);
-}
 
 // Student session token (S2): minted by POST /telegram/auth from validated
 // Telegram initData and sent as `Authorization: Bearer` on every request.

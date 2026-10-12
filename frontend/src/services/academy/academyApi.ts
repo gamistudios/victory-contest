@@ -49,14 +49,6 @@ export const updateMe = async (patch: { level_id?: LevelId; stream_id?: StreamId
 export const setTargetScore = async (target_score: number): Promise<AcademyStudent> =>
   (await api.put("/academy/me/target", { target_score })).data.student;
 
-/** Mock-only helper (no Go equivalent): preview the app as a free or premium student. */
-export const devSetPremium = async (is_premium: boolean): Promise<AcademyStudent> =>
-  (await api.patch("/academy/dev/tier", { is_premium })).data.student;
-
-export const devReset = async (): Promise<void> => {
-  await api.post("/academy/dev/reset");
-};
-
 export const getDashboard = async (): Promise<DashboardData> => (await api.get("/academy/dashboard")).data.dashboard;
 
 export const getPrograms = async (): Promise<{ programs: ProgramWithCount[]; streams: Stream[] }> =>
@@ -78,8 +70,8 @@ export const postModuleProgress = async (
 export const completeModule = async (id: string, completed = true): Promise<{ progress: ModuleProgress; overall_completion: number }> =>
   (await api.post(`/academy/modules/${id}/complete`, { completed })).data;
 
-export const registerReferral = async (id: string) =>
-  (await api.post(`/academy/modules/${id}/referral`)).data.referral as { enabled: boolean; required: number; current: number; unlocked: boolean };
+export const claimReferral = async (referrer_id: string, module_id: string) =>
+  (await api.post(`/academy/referrals/claim`, { referrer_id, module_id })).data.referral as { enabled: boolean; required: number; current: number; unlocked: boolean };
 
 export const postFlashcardReview = async (module_id: string, mastered_ids: string[], struggling_ids: string[]): Promise<FlashcardProgress> =>
   (await api.post("/academy/flashcard-reviews", { module_id, mastered_ids, struggling_ids })).data.flashcard_progress;

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AcademyStudent } from "@/types/academy";
-import { devSetPremium, getMe } from "@/services/academy/academyApi";
+import { claimReferral, getMe } from "@/services/academy/academyApi";
 
 /** Reader preferences (font size, data saver) — persisted per device like the contest theme. */
 export type FontSize = "sm" | "md" | "lg" | "xl";
@@ -18,8 +18,6 @@ interface Ctx {
   isPremium: boolean;
   setStudent: (s: AcademyStudent) => void;
   refreshStudent: () => Promise<void>;
-  /** Mock-only preview switch. */
-  setPremiumPreview: (v: boolean) => Promise<void>;
   prefs: Prefs;
   setPrefs: (p: Partial<Prefs>) => void;
 }
@@ -49,6 +47,22 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Referral deep link: t.me/<bot>?startapp=ref_<referrerId>_<moduleId>.
+  // A friend opening it is counted once for the referrer (the server enforces
+  // uniqueness and rejects self-referrals), so errors are safe to ignore.
+  useEffect(() => {
+    const param = (window.Telegram?.WebApp?.initDataUnsafe as { start_param?: string } | undefined)?.start_param;
+    const m = param?.match(/^ref_(\d+)_(.+)$/);
+    if (!m) return;
+    try {
+      if (sessionStorage.getItem("academy_ref_claimed") === param) return;
+      sessionStorage.setItem("academy_ref_claimed", param as string);
+    } catch {
+      /* storage blocked: the server de-duplicates anyway */
+    }
+    claimReferral(m[1], m[2]).catch(() => undefined);
+  }, []);
+
   useEffect(() => {
     refreshStudent();
   }, [refreshStudent]);
@@ -69,13 +83,9 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setPremiumPreview = useCallback(async (v: boolean) => {
-    setStudent(await devSetPremium(v));
-  }, []);
-
   const value = useMemo<Ctx>(
-    () => ({ student, loading, isPremium: !!student?.is_premium, setStudent, refreshStudent, setPremiumPreview, prefs, setPrefs }),
-    [student, loading, refreshStudent, setPremiumPreview, prefs, setPrefs],
+    () => ({ student, loading, isPremium: !!student?.is_premium, setStudent, refreshStudent, prefs, setPrefs }),
+    [student, loading, refreshStudent, prefs, setPrefs],
   );
   return <AcademyContext.Provider value={value}>{children}</AcademyContext.Provider>;
 }

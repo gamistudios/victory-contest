@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "./ProgressRing";
-import { registerReferral } from "@/services/academy/academyApi";
+import { useAcademy } from "../context/AcademyContext";
 import { useTelegram } from "@/hooks/useTelegram";
 import { useNavigate } from "react-router-dom";
 
@@ -27,29 +27,26 @@ interface Props {
 export function UpgradeSheet({ open, onOpenChange, moduleId, feature = "this content", referral, onUnlocked }: Props) {
   const { hapticFeedback } = useTelegram();
   const navigate = useNavigate();
+  const { student } = useAcademy();
 
   const share = async () => {
     hapticFeedback("impact", "light");
-    const link = `https://t.me/victory_academy_bot?start=ref_${moduleId ?? "academy"}`;
+    // Referral deep link opens the mini app with start_param=ref_<id>_<module>;
+    // AcademyContext claims it. Default is this app's own bot (same one
+    // src/components/article/ArticleView.tsx shares to), overridable per deploy.
+    const bot = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "VictoryLearningBot";
+    const link = `https://t.me/${bot}?startapp=ref_${student?.id ?? "0"}_${moduleId ?? "academy"}`;
     try {
       if (navigator.share) await navigator.share({ title: "Victory Academy", text: "Study with me on Victory Academy!", url: link });
-      else await navigator.clipboard?.writeText(link);
+      else {
+        await navigator.clipboard?.writeText(link);
+        toast.success("Link copied — send it to a friend");
+      }
     } catch {
       /* dismissed */
     }
-    // Mock: pretend a friend opened the link so the unlock flow can be demoed.
-    if (moduleId && referral?.enabled) {
-      try {
-        const r = await registerReferral(moduleId);
-        toast.success(r.unlocked ? "Unlocked! Enjoy the lesson." : `A friend joined (${r.current}/${r.required})`);
-        if (r.unlocked) {
-          onOpenChange(false);
-          onUnlocked?.();
-        } else onUnlocked?.();
-      } catch (e) {
-        toast.error((e as Error).message);
-      }
-    }
+    // The unlock itself happens when friends open the link (counted server-side).
+    onUnlocked?.();
   };
 
   const pct = referral ? (referral.current / referral.required) * 100 : 0;

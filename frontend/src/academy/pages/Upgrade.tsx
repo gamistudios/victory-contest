@@ -1,5 +1,4 @@
 import { BookOpen, Bot, Check, Layers, ShieldCheck, Sparkles, Video } from "lucide-react";
-import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "../components/PageHeader";
@@ -12,9 +11,9 @@ const PERKS = [
   { icon: Bot, label: "AI tutor & quizzes" },
 ];
 
-/** Placeholder for the existing payment flow (see victory-contest /payment). */
+/** Premium pitch; the purchase itself runs through the existing /payment flow. */
 export default function Upgrade() {
-  const { isPremium, setPremiumPreview } = useAcademy();
+  const { isPremium } = useAcademy();
   const navigate = useNavigate();
   return (
     <div className="space-y-5 p-4">
@@ -31,10 +30,10 @@ export default function Upgrade() {
           </li>
         ))}
       </ul>
-      <Button className="h-14 w-full rounded-2xl bg-blue-fix-600 text-lg font-bold text-white" onClick={async () => { await setPremiumPreview(true); toast.success("Premium unlocked (mock)"); navigate(-1); }}>
-        {isPremium ? <><Check className="h-5 w-5" /> You're Premium</> : "Pay & unlock (mock)"}
+      <Button className="h-14 w-full rounded-2xl bg-blue-fix-600 text-lg font-bold text-white" onClick={() => (isPremium ? navigate(-1) : navigate("/payment"))}>
+        {isPremium ? <><Check className="h-5 w-5" /> You're Premium</> : "Upgrade to Premium"}
       </Button>
-      <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="h-4 w-4" />Connects to the existing payment flow</p>
+      <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="h-4 w-4" />Secure payment — Premium unlocks as soon as it is approved</p>
     </div>
   );
 }
