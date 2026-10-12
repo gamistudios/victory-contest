@@ -18,7 +18,10 @@ export function AiTab({ moduleId, moduleTitle, selection, onClearSelection }: { 
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [msgs, busy]);
+  useEffect(() => {
+    // block body on purpose: an effect must not return anything but a cleanup function
+    end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [msgs, busy]);
 
   const send = async (message: string, mode: TutorMode = "chat") => {
     if (!message.trim() || busy) return;

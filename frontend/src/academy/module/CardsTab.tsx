@@ -36,7 +36,9 @@ export function CardsTab({ moduleId, deck, initialMastered, initialStruggling, a
   const [isAi, setIsAi] = useState(false);
   const { hapticFeedback } = useTelegram();
 
-  useEffect(() => setSource(deck), [deck]);
+  useEffect(() => {
+    setSource(deck);
+  }, [deck]);
 
   const start = (cards: Flashcard[]) => {
     setQueue(cards);
