@@ -1,4 +1,4 @@
-import api, { setStudentToken } from "./api";
+import api, { getStudentToken, setStudentToken } from "./api";
 
 export async function getPreparedMessageIdTelegram(data: {
   user_id: number;
@@ -61,7 +61,7 @@ export async function getBotUsername(): Promise<string | null> {
  * axios interceptor attaches the resulting JWT to every request, so student
  * mutations (register / payment / submission) run as a verified identity.
  */
-export async function exchangeTelegramInitData(): Promise<void> {
+async function exchangeTelegramInitData(): Promise<void> {
   const webApp = window.Telegram?.WebApp;
   const initData = webApp?.initData ?? "";
 
@@ -85,4 +85,34 @@ export async function exchangeTelegramInitData(): Promise<void> {
     initData,
   });
   setStudentToken(res.data.token);
+}
+
+/**
+ * The student session, shared by every caller that needs one.
+ *
+ * AuthProvider starts the exchange in its mount effect, but React runs child
+ * effects first, and the Academy provider needs the token before it can read
+ * `/academy/me` or claim a referral. So the exchange is exposed as a promise
+ * instead of a fire-and-forget call: whoever arrives first starts it, everyone
+ * else awaits the same request, and nobody has to know which provider mounted
+ * before the other.
+ *
+ * A settled session is cached; a failed or empty exchange is not, so the next
+ * caller can retry rather than spend the whole launch unauthenticated.
+ */
+let sessionRequest: Promise<void> | null = null;
+
+export function ensureStudentSession(): Promise<void> {
+  if (getStudentToken()) return Promise.resolve();
+  sessionRequest ??= exchangeTelegramInitData()
+    .then(() => {
+      // "Nothing to exchange" (a browser outside Telegram, no dev endpoint)
+      // leaves no token: not a session, so do not cache it as one.
+      if (!getStudentToken()) sessionRequest = null;
+    })
+    .catch((err: unknown) => {
+      sessionRequest = null;
+      throw err;
+    });
+  return sessionRequest;
 }
