@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { BarChart3, Library, LayoutDashboard, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
 import { adminGetDrafts } from "@/services/academy/academyApi";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { cn } from "@/lib/utils";
 import { ADMIN_BASE, DRAFTS_EVENT } from "./components/kit";
 import { GuardedLink, NavGuardProvider } from "./components/guard";
@@ -82,7 +83,9 @@ function Shell() {
           </div>
         </nav>
       )}
-      <Outlet />
+      <ErrorBoundary resetKey={pathname} label="This Academy page">
+        <Outlet />
+      </ErrorBoundary>
     </div>
   );
 }

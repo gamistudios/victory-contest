@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { initPwaInstall, initPwaUpdate } from "./lib/pwa";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { AppThemeProvider } from "./components/ThemeProviders";
 import "./index.css";
 initPwaInstall();
@@ -14,10 +15,12 @@ const queryClient = new QueryClient();
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 root.render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AppThemeProvider>
-        <App />
-      </AppThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary label="The admin app">
+      <QueryClientProvider client={queryClient}>
+        <AppThemeProvider>
+          <App />
+        </AppThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
