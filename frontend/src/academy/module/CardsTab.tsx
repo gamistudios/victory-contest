@@ -9,6 +9,7 @@ import { ProgressBar, ProgressRing } from "../components/ProgressRing";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTelegram } from "@/hooks/useTelegram";
+import type { PremiumSubject } from "../lib/premium";
 
 interface Props {
   moduleId: string;
@@ -16,7 +17,7 @@ interface Props {
   initialMastered: string[];
   initialStruggling: string[];
   aiLocked: boolean;
-  onNeedUpgrade: () => void;
+  onNeedUpgrade: (subject: PremiumSubject) => void;
 }
 
 type Phase = "idle" | "run" | "done";
@@ -77,7 +78,7 @@ export function CardsTab({ moduleId, deck, initialMastered, initialStruggling, a
   };
 
   const generate = async () => {
-    if (aiLocked) return onNeedUpgrade();
+    if (aiLocked) return onNeedUpgrade("ai_tutor");
     setBusy(true);
     try {
       const cards = await aiGenerateFlashcards({ module_id: moduleId, count: 6, difficulty: diff });

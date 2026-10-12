@@ -11,6 +11,7 @@ import { BackButton } from "../components/PageHeader";
 import { ProgressRing } from "../components/ProgressRing";
 import { UpgradeSheet } from "../components/UpgradeSheet";
 import { LockedPanel } from "../module/LockedPanel";
+import type { PremiumSubject } from "../lib/premium";
 import { ReadTab } from "../module/ReadTab";
 import { WatchTab } from "../module/WatchTab";
 import { DocsTab } from "../module/DocsTab";
@@ -29,7 +30,7 @@ export default function ModulePage() {
   const navigate = useNavigate();
   const { hapticFeedback } = useTelegram();
   const { data, loading, error, reload, refresh } = useAsync(() => getModule(id), [id]);
-  const [upgrade, setUpgrade] = useState<{ open: boolean; feature: string }>({ open: false, feature: "" });
+  const [upgrade, setUpgrade] = useState<{ open: boolean; subject: PremiumSubject }>({ open: false, subject: "plan" });
   const [selection, setSelection] = useState("");
   const [prog, setProg] = useState<ModuleProgress | null>(null);
   const [readPct, setReadPct] = useState(0);
@@ -63,12 +64,12 @@ export default function ModulePage() {
   // the upgrade - "Mark complete" here promised an action it did not perform.
   const lessonLocked = locks.reading;
   const pct = done ? 100 : Math.round(Math.max(readPct, prog?.video_completed ? 100 : 0) * 0.9);
-  const openUpgrade = (feature: string) => setUpgrade({ open: true, feature });
+  const openUpgrade = (subject: PremiumSubject) => setUpgrade({ open: true, subject });
 
   const toggleComplete = async () => {
     if (lessonLocked) {
       hapticFeedback("impact", "light");
-      return openUpgrade("this lesson");
+      return openUpgrade("reading");
     }
     try {
       const r = await completeModule(m.id, !done);
@@ -89,24 +90,25 @@ export default function ModulePage() {
   const content = () => {
     switch (active.id) {
       case "read":
-        return <ReadTab module={m} locked={locks.reading} fullyLocked={data.fully_locked} referral={referral} onUpgrade={() => openUpgrade("this lesson")} initialPct={readPct} onProgress={setReadPct} onAskSelection={(t) => { setSelection(t); setTab("ai"); }} />;
+        return <ReadTab module={m} locked={locks.reading} fullyLocked={data.fully_locked} referral={referral} onUpgrade={() => openUpgrade("reading")} initialPct={readPct} onProgress={setReadPct} onAskSelection={(t) => { setSelection(t); setTab("ai"); }} />;
       case "watch":
-        return locks.video ? <Locked label="Video lesson" /> : <WatchTab module={m} initialSeconds={prog?.video_time_seconds ?? 0} completed={!!prog?.video_completed} onCompleted={refresh} />;
+        return locks.video ? <Locked label="Video lesson" subject="video" /> : <WatchTab module={m} initialSeconds={prog?.video_time_seconds ?? 0} completed={!!prog?.video_completed} onCompleted={refresh} />;
       case "docs":
-        return locks.documents ? <Locked label="Documents" /> : <DocsTab module={m} initialPage={prog?.document_current_page ?? 1} />;
+        return locks.documents ? <Locked label="Documents" subject="documents" /> : <DocsTab module={m} initialPage={prog?.document_current_page ?? 1} />;
       case "cards":
-        return locks.flashcards ? <Locked label="Flashcards" /> : <CardsTab moduleId={m.id} deck={m.flashcard_deck} initialMastered={data.flashcard_progress?.mastered_ids ?? []} initialStruggling={data.flashcard_progress?.struggling_ids ?? []} aiLocked={locks.ai_tutor} onNeedUpgrade={() => openUpgrade("AI flashcards")} />;
+        return locks.flashcards ? <Locked label="Flashcards" subject="flashcards" /> : <CardsTab moduleId={m.id} deck={m.flashcard_deck} initialMastered={data.flashcard_progress?.mastered_ids ?? []} initialStruggling={data.flashcard_progress?.struggling_ids ?? []} aiLocked={locks.ai_tutor} onNeedUpgrade={openUpgrade} />;
       case "quiz":
         return <QuizTab moduleId={m.id} quiz={m.quiz ?? null} quizLocked={locks.quiz} aiLocked={locks.ai_tutor} onNeedUpgrade={openUpgrade} onAttempt={refresh} />;
       case "ai":
-        return locks.ai_tutor ? <Locked label="AI tutor" /> : <AiTab moduleId={m.id} moduleTitle={m.title} selection={selection} onClearSelection={() => setSelection("")} />;
+        return locks.ai_tutor ? <Locked label="AI tutor" subject="ai_tutor" /> : <AiTab moduleId={m.id} moduleTitle={m.title} selection={selection} onClearSelection={() => setSelection("")} />;
     }
   };
 
   // Each locked resource gets the same panel; the Read tab has its own premium
-  // card (ReadTab) because it keeps a server-approved teaser to show.
-  function Locked({ label }: { label: string }) {
-    return <LockedPanel title={label} hasReferral={referral.enabled} onUnlock={() => openUpgrade(label.toLowerCase())} />;
+  // card (ReadTab) because it keeps a server-approved teaser to show. The panel
+  // names what is blocked; the sheet is the one place that explains Premium.
+  function Locked({ label, subject }: { label: string; subject: PremiumSubject }) {
+    return <LockedPanel title={label} hasReferral={referral.enabled} onUnlock={() => openUpgrade(subject)} />;
   }
 
   return (
@@ -149,7 +151,7 @@ export default function ModulePage() {
         <button onClick={() => goto(next)} disabled={!next} aria-label="Next lesson" className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted disabled:opacity-30"><ChevronRight className="h-5 w-5" />{next?.is_locked && <Lock className="absolute right-1 top-1 h-3 w-3 text-yellow-700" />}</button>
       </div>
 
-      <UpgradeSheet open={upgrade.open} onOpenChange={(o) => setUpgrade((u) => ({ ...u, open: o }))} moduleId={m.id} feature={upgrade.feature} referral={referral} onUnlocked={reload} />
+      <UpgradeSheet open={upgrade.open} onOpenChange={(o) => setUpgrade((u) => ({ ...u, open: o }))} moduleId={m.id} subject={upgrade.subject} referral={referral} onUnlocked={reload} />
     </div>
   );
 }

@@ -85,8 +85,6 @@ const TopNavigation: React.FC = () => {
       return "Review";
     } else if (pathname.startsWith("/academy/progress")) {
       return "Progress";
-    } else if (pathname.startsWith("/academy/upgrade")) {
-      return "Upgrade";
     } else if (pathname.startsWith("/academy")) {
       return "Victory Academy";
     } else if (pathname.startsWith("/article")) {

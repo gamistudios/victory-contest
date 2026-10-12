@@ -25,7 +25,6 @@ import AcademySubject from "./academy/pages/Subject";
 import AcademyModule from "./academy/pages/Module";
 import AcademyReview from "./academy/pages/Review";
 import AcademyProgress from "./academy/pages/Progress";
-import AcademyUpgrade from "./academy/pages/Upgrade";
 
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -79,7 +78,6 @@ function App() {
               <Route path="academy/module/:id" element={<AcademyModule />} />
               <Route path="academy/review" element={<AcademyReview />} />
               <Route path="academy/progress" element={<AcademyProgress />} />
-              <Route path="academy/upgrade" element={<AcademyUpgrade />} />
             </Route>
             <Route path="article" element={<ArticlesPage />} />
             <Route path="article/:id" element={<ArticleView />} />

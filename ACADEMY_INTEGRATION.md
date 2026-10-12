@@ -4,7 +4,8 @@
 - Added `src/academy/**`, `src/services/academy/**` (mock API), `src/types/academy.ts`.
 - `src/index.css`: KaTeX import + Academy block (reader typography, utilities) appended.
 - `src/services/api.ts`: plain axios (`baseURL` + `/api`); the Academy mock adapter is gone and every `/academy/*` call hits the Go routes — see `ACADEMY_BACKEND_NOTES.md`.
-- `App.tsx`: `/academy`, `/academy/courses`, `/academy/subject/:id`, `/academy/module/:id`, `/academy/review`, `/academy/progress`, `/academy/upgrade`.
+- `App.tsx`: `/academy`, `/academy/courses`, `/academy/subject/:id`, `/academy/module/:id`, `/academy/review`, `/academy/progress`.
+- Premium gating lives in one surface: `academy/components/UpgradeSheet.tsx` (copy map in `academy/lib/premium.ts`) opens from the Home banner and every locked lesson affordance, then goes straight to `/payment`. The standalone Victory Premium page is removed — no `/academy/upgrade` route.
 - `Layout.tsx`: lesson + subject screens hide the contest top bar; lessons also hide the bottom bar (they have their own action bar).
 - `BottomNavigation.tsx`: new "Learn" tab. `TopNavigation.tsx`: academy titles + "Learning settings" (font size, data saver) in the gear menu — the mock's free/premium preview switch is gone, since premium now comes from real payments.
 - `components/chat/MarkdownMessage.tsx` now renders through the Academy `Markdown` viewer (KaTeX math, tables, `:::callout`), so AI Practice answers match lessons. Props unchanged.

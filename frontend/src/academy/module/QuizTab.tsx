@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { fmtClock } from "../lib/theme";
+import type { PremiumSubject } from "../lib/premium";
 import { useTelegram } from "@/hooks/useTelegram";
 
 interface Props {
@@ -16,7 +17,7 @@ interface Props {
   quiz: ModuleQuiz | null;
   quizLocked: boolean;
   aiLocked: boolean;
-  onNeedUpgrade: (what: string) => void;
+  onNeedUpgrade: (subject: PremiumSubject) => void;
   onAttempt: () => void;
 }
 
@@ -36,7 +37,7 @@ export function QuizTab({ moduleId, quiz, quizLocked, aiLocked, onNeedUpgrade, o
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
   const generate = async () => {
-    if (aiLocked) return onNeedUpgrade("AI quizzes");
+    if (aiLocked) return onNeedUpgrade("ai_tutor");
     setBusy(true);
     try {
       const q = await aiGenerateQuiz({ module_id: moduleId, count, difficulty: diff, types });
@@ -59,7 +60,7 @@ export function QuizTab({ moduleId, quiz, quizLocked, aiLocked, onNeedUpgrade, o
       {quiz && (
         <button
           disabled={!quiz.questions.length && !quizLocked}
-          onClick={() => (quizLocked ? onNeedUpgrade("the module quiz") : setRun({ quiz, timed: false, source: "module" }))}
+          onClick={() => (quizLocked ? onNeedUpgrade("quiz") : setRun({ quiz, timed: false, source: "module" }))}
           className="flex w-full items-center gap-4 rounded-3xl bg-gradient-to-br from-blue-fix-700 to-blue-fix-500 p-5 text-left text-white active:scale-[0.99]"
         >
           <div className="min-w-0 flex-1">

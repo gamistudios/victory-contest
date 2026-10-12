@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useAsync } from "../hooks/useAsync";
 import { useAcademy } from "../context/AcademyContext";
 import { HomeSkeleton, InlineError } from "../components/States";
+import { UpgradeSheet } from "../components/UpgradeSheet";
 import { ProgressRing } from "../components/ProgressRing";
 import { SectionTitle } from "../components/PageHeader";
 import { SubjectTile } from "../components/SubjectTile";
@@ -24,6 +25,7 @@ export default function Home() {
   const navigate = useNavigate();
   const { hapticFeedback } = useTelegram();
   const [pick, setPick] = useState(false);
+  const [pitch, setPitch] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
   if (loading && !data) return <HomeSkeleton />;
@@ -113,11 +115,11 @@ export default function Home() {
       </div>
 
       {!isPremium && (
-        <Link to="/academy/upgrade" className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-yellow-fix-600 to-orange-fix-700 p-3 text-white">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20"><Sparkles className="h-5 w-5" /></span>
+        <button onClick={() => setPitch(true)} className="flex w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-yellow-fix-600 to-orange-fix-700 p-3 text-left text-white active:scale-[0.99]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20"><Sparkles className="h-5 w-5" /></span>
           <span className="flex-1 text-sm font-bold">Unlock every lesson, video & AI tool</span>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-extrabold text-gray-fix-900">Upgrade</span>
-        </Link>
+          <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-extrabold text-gray-fix-900">Upgrade</span>
+        </button>
       )}
 
       {/* Subjects */}
@@ -160,6 +162,7 @@ export default function Home() {
       )}
 
       <ProgramSheet open={pick} onOpenChange={setPick} level={d.student.level_id} stream={d.student.stream_id} onSaved={async () => { await refreshStudent(); reload(); }} />
+      <UpgradeSheet open={pitch} onOpenChange={setPitch} subject="plan" />
     </div>
   );
 }
