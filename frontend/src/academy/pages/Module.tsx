@@ -10,7 +10,6 @@ import { AccessBadge } from "../components/AccessBadge";
 import { BackButton } from "../components/PageHeader";
 import { ProgressRing } from "../components/ProgressRing";
 import { UpgradeSheet } from "../components/UpgradeSheet";
-import { Markdown } from "../components/Markdown";
 import { LockedPanel } from "../module/LockedPanel";
 import { ReadTab } from "../module/ReadTab";
 import { WatchTab } from "../module/WatchTab";
@@ -92,7 +91,7 @@ export default function ModulePage() {
       case "read":
         return <ReadTab module={m} locked={locks.reading} fullyLocked={data.fully_locked} referral={referral} onUpgrade={() => openUpgrade("this lesson")} initialPct={readPct} onProgress={setReadPct} onAskSelection={(t) => { setSelection(t); setTab("ai"); }} />;
       case "watch":
-        return locks.video ? <Locked label="Video lesson" preview={null} /> : <WatchTab module={m} initialSeconds={prog?.video_time_seconds ?? 0} completed={!!prog?.video_completed} onCompleted={refresh} />;
+        return locks.video ? <Locked label="Video lesson" /> : <WatchTab module={m} initialSeconds={prog?.video_time_seconds ?? 0} completed={!!prog?.video_completed} onCompleted={refresh} />;
       case "docs":
         return locks.documents ? <Locked label="Documents" /> : <DocsTab module={m} initialPage={prog?.document_current_page ?? 1} />;
       case "cards":
@@ -104,9 +103,10 @@ export default function ModulePage() {
     }
   };
 
-  function Locked({ label, preview }: { label: string; preview?: null }) {
-    void preview;
-    return <LockedPanel title={label} hasReferral={referral.enabled} onUnlock={() => openUpgrade(label.toLowerCase())} preview={active.id === "read" && m.reading_markdown ? <Markdown source={m.reading_markdown} /> : undefined} />;
+  // Each locked resource gets the same panel; the Read tab has its own premium
+  // card (ReadTab) because it keeps a server-approved teaser to show.
+  function Locked({ label }: { label: string }) {
+    return <LockedPanel title={label} hasReferral={referral.enabled} onUnlock={() => openUpgrade(label.toLowerCase())} />;
   }
 
   return (
