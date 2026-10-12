@@ -37,7 +37,7 @@ import {
 import { Label } from "../components/ui/label";
 import { isPremiumRequiredError, aiExplain, getPracticeSubjects, getBankPracticeQuestions } from "../services/aiService";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { usePremiumSheet } from "../context/PremiumSheetContext";
 import { useTelegram } from "../hooks/useTelegram";
 import { Input } from "../components/ui/input";
 import MarkdownMessage from "../components/chat/MarkdownMessage";
@@ -89,8 +89,8 @@ export function AIPracticePage() {
   const [answers, setAnswers] = React.useState<Answer[]>([]);
   const [timeLeft, setTimeLeft] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(false);
-  const navigate = useNavigate();
   const { showBackButton, hideBackButton } = useTelegram();
+  const { open: openPremium } = usePremiumSheet();
 
   // --- Question bank ---
   // Practice now draws from the stored question bank (subjects that already
@@ -160,15 +160,7 @@ export function AIPracticePage() {
         // premium: surface the upgrade prompt and drop the pending slot.
         setAiMessages((prev) => prev.filter((m) => m.content !== `__pending:${pendingId}__`));
         setAiPremiumLocked(true);
-        toast.error("AI explanations need a premium account — pay to unlock", {
-          style: {
-            backgroundColor: "hsl(var(--amber-100))",
-            color: "hsl(var(--amber-800))",
-            border: "1px solid hsl(var(--amber-300))",
-            padding: "10px",
-            borderRadius: "8px",
-          },
-        });
+        openPremium("ai_practice");
       } else {
         // Other failure: remove the pending marker and keep the student turn
         // visible so they can retry.
@@ -258,15 +250,7 @@ export function AIPracticePage() {
     } catch (err) {
       if (isPremiumRequiredError(err)) {
         // Backend 403: the admin switched /api/ai to premium-only.
-        toast.error("AI practice needs a premium account — pay to unlock", {
-          style: {
-            backgroundColor: "hsl(var(--amber-100))",
-            color: "hsl(var(--amber-800))",
-            border: "1px solid hsl(var(--amber-300))",
-            padding: "10px",
-            borderRadius: "8px",
-          },
-        });
+        openPremium("ai_practice");
       } else {
         toast.error("Failed to load practice questions. Please try again.", {
           style: {
@@ -493,7 +477,7 @@ export function AIPracticePage() {
                     <Button
                       size="sm"
                       className="bg-yellow-fix-500 hover:bg-yellow-fix-600 text-white"
-                      onClick={() => navigate("/payment")}
+                      onClick={() => openPremium("ai_practice")}
                     >
                       Get Premium
                     </Button>

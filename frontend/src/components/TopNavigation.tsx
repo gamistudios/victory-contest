@@ -20,11 +20,12 @@ import FeedbackIcon from "../assets/comment-add-01-stroke-rounded.svg?react";
 import UpgradeIcon from "../assets/sparkles-stroke-rounded.svg?react";
 import PaymentHistoryIcon from "../assets/document-validation-stroke-rounded.svg?react";
 import { useAuth } from "../context/AuthContext";
+import { usePremiumSheet } from "../context/PremiumSheetContext";
 import { getAiSettings } from "../services/aiService";
-import { toast } from "sonner";
 const TopNavigation: React.FC = () => {
   const { user: tgUser, hapticFeedback } = useTelegram();
   const { user } = useAuth();
+  const { open: openPremium } = usePremiumSheet();
   const location = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showReading, setShowReading] = useState(false);
@@ -123,16 +124,11 @@ const TopNavigation: React.FC = () => {
   };
 
   const handleAiPracticeClick = () => {
+    // A toast that says "buy premium" and goes nowhere is not a gate: the same
+    // sheet the Academy locks use explains what is locked and how to pay.
     if (aiLocked) {
-      toast.error("Buy Premium to unlock AI Practice", {
-        style: {
-          backgroundColor: "hsl(var(--amber-100))",
-          color: "hsl(var(--amber-800))",
-          border: "1px solid hsl(var(--amber-300))",
-          padding: "10px",
-          borderRadius: "8px",
-        },
-      });
+      hapticFeedback("impact", "light");
+      openPremium("ai_practice");
       return;
     }
     navigate("/ai-practice");
@@ -159,7 +155,7 @@ const TopNavigation: React.FC = () => {
                 {location.pathname.startsWith("/article")
                   ? "Read the latest articles"
                   : `Welcome back, ${tgUser?.first_name || "Student"}`}
-                {tgUser?.is_premium && (
+                {user?.is_premium && (
                   <span className="ml-2 px-2 py-0.5 bg-gradient-to-r from-yellow-fix-600 to-orange-fix-700 text-white text-xs font-medium rounded-full">
                     Premium
                   </span>

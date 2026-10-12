@@ -11,13 +11,14 @@ import {
   Timer,
   XCircle,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTelegram } from "../hooks/useTelegram";
 import { isUserRegistered } from "../services/contestApi";
 import { useContestTimer, ContestStatus } from "../hooks/useContestTimer";
 import LeaderboardModal from "./LeaderboardModal";
 import { formatDistanceStrict } from "date-fns";
 import { useAuth } from "../context/AuthContext";
+import { usePremiumSheet } from "../context/PremiumSheetContext";
 
 const ExpandableDescription = ({ text }: { text: string }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -61,6 +62,7 @@ export default function ContestCard({ contest }: { contest: Contest }) {
     contest.end_time
   );
   const { user: userInfo } = useAuth();
+  const { open: openPremium } = usePremiumSheet();
 
   const { hapticFeedback, user } = useTelegram();
   const userId = user?.id;
@@ -68,7 +70,6 @@ export default function ContestCard({ contest }: { contest: Contest }) {
   const [checkingRegistration, setCheckingRegistration] =
     useState<boolean>(true);
   const [showModal, setShowModal] = useState<boolean>(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     let ignore = false;
@@ -191,7 +192,7 @@ export default function ContestCard({ contest }: { contest: Contest }) {
         <div className="">
           {contest.type === "premium" && !userInfo?.is_premium ? (
             <PremiumUpgradeButton
-              onClick={() => navigate("/payment")}
+              onClick={() => openPremium("premium_contest")}
               fullWidth={true}
               priceHint="200/mo"
             />

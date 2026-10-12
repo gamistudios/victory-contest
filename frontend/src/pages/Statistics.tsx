@@ -50,7 +50,7 @@ import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
 import { getAiRecommendationsFromApi } from "../services/aiService";
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { usePremiumSheet } from "../context/PremiumSheetContext";
 import TimeIcon from "../assets/timer-02-stroke-rounded.svg?react";
 
 // recharts 3 does not inherit the wrapper `color` from contentStyle into the
@@ -70,11 +70,11 @@ const tooltipStyles = {
 const Statistics: React.FC = () => {
   const { user: tgUser } = useTelegram();
   const { user } = useAuth();
+  const { open: openPremium } = usePremiumSheet();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
-  const navigate = useNavigate();
   const [selectedFilter, setSelectedFilter] = useState<
     "subjects" | "chapters" | "grades"
   >("subjects");
@@ -596,7 +596,7 @@ const Statistics: React.FC = () => {
                   <div className="mt-3">
                     {!user?.is_premium ? (
                       <Button
-                        onClick={() => navigate("/payment")}
+                        onClick={() => openPremium("ai_recommendations")}
                         className="w-full bg-gradient-to-r from-orange-300 to-red-400 hover:from-orange-fix-600 hover:to-red-fix-600 text-white border-0"
                       >
                         <Lock className="w-4 h-4 mr-2 " />

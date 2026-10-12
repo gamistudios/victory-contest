@@ -5,7 +5,7 @@ import { Calendar } from "lucide-react";
 import { getAllContests } from "../services/contestApi";
 import ContestCard, { PremiumUpgradeButton } from "../components/ContestCard";
 import NoContests from "../components/NoContest";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ContestCardSkeleton } from "../components/ContestCardSkeleton";
 import WelcomeCarousel from "../components/WelcomeCarousell";
 import LeaderboardModal from "../components/LeaderboardModal";
@@ -17,6 +17,7 @@ import {
 } from "../lib/utils";
 import { ArticleListForHome } from "../components/article/ArticleList";
 import { useAuth } from "../context/AuthContext";
+import { usePremiumSheet } from "../context/PremiumSheetContext";
 import ErrorState from "../components/ErrorState";
 import { isAbortedRequest } from "../services/api";
 
@@ -32,7 +33,7 @@ const Home: React.FC = () => {
   const [contestError, setContestError] = useState<string | null>(null);
 
   const [showPreviousModal, setShowPreviousModal] = useState(false);
-  const navigate = useNavigate();
+  const { open: openPremium } = usePremiumSheet();
   useEffect(() => {
     hideBackButton();
   }, [hideBackButton]);
@@ -202,9 +203,9 @@ const Home: React.FC = () => {
                       </div>
                     </div>
 
-                    {contest.type === "premium" && !user?.is_premium ? (
+                    {contest.type === "premium" && !userInfo?.is_premium ? (
                       <PremiumUpgradeButton
-                        onClick={() => navigate("payment")}
+                        onClick={() => openPremium("premium_contest")}
                         locked
                         label="Pro"
                         loading={false}

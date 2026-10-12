@@ -7,6 +7,7 @@ import { getLeaderboardByContest } from "../services/contestApi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { usePremiumSheet } from "../context/PremiumSheetContext";
 import { PremiumUpgradeButton } from "./ContestCard";
 import { safePercent } from "../lib/utils";
 
@@ -24,6 +25,7 @@ export default function LeaderboardModal({
     React.useState<LeaderboardEntry[]>([]);
   const { user } = useTelegram();
   const { user: userInfo } = useAuth();
+  const { open: openPremium } = usePremiumSheet();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -102,7 +104,7 @@ export default function LeaderboardModal({
             <div className="flex items-center gap-2">
               {selectedContest.type === "premium" && !userInfo?.is_premium ? (
                 <PremiumUpgradeButton
-                  onClick={() => navigate("payment")}
+                  onClick={() => openPremium("premium_contest")}
                   locked
                   label="Editorial"
                   loading={modalLoading}

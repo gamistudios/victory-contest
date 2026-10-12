@@ -316,7 +316,7 @@ const Profile = () => {
                 <p className="text-gray-600">
                   @{tgUser?.username || "student"}
                 </p>
-                {tgUser?.is_premium && (
+                {user?.is_premium && (
                   <span className="px-2 py-0.5 bg-gradient-to-r from-yellow-400 to-orange-fix-500 text-white text-xs font-medium rounded-full">
                     Premium
                   </span>
