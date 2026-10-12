@@ -26,7 +26,13 @@ const DrawerOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
     ref={ref}
-    className={cn("fixed inset-0 z-50 bg-scrim/10", className)}
+    // A drawer stays mounted while it animates out; until it unmounts it must
+    // not keep swallowing taps meant for the page underneath it. vaul writes an
+    // inline `pointer-events: auto`, so the override needs !important to win.
+    className={cn(
+      "fixed inset-0 z-50 bg-scrim/10 data-[state=closed]:!pointer-events-none",
+      className
+    )}
     {...props}
   />
 ));
@@ -42,6 +48,7 @@ const DrawerContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-card",
+        "data-[state=closed]:!pointer-events-none",
         className
       )}
       {...props}
