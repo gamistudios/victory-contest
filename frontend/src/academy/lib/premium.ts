@@ -17,7 +17,7 @@ export interface PremiumPitch {
 
 export const PREMIUM_PITCH: Record<PremiumSubject, PremiumPitch> = {
   plan: {
-    title: "Victory Premium",
+    title: "Unlock the whole Academy",
     blurb: "Every lesson, video, deck and quiz in the Academy, plus the AI tutor.",
   },
   reading: {
@@ -52,5 +52,5 @@ export const PREMIUM_PERKS: Array<{ icon: LucideIcon; label: string; note: strin
   { icon: Video, label: "Full video lessons", note: "Recorded explanations for each topic" },
   { icon: Layers, label: "Unlimited flashcards", note: "Built-in decks plus AI-generated cards" },
   { icon: PenLine, label: "Quizzes with feedback", note: "Instant scoring and weak-topic tracking" },
-  { icon: Bot, label: "AI tutor, any time", note: "Ask about a section you can select" },
+  { icon: Bot, label: "AI tutor, any time", note: "Ask about any part of a lesson you select" },
 ];

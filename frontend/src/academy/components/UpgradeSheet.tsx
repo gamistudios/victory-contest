@@ -97,7 +97,7 @@ export function UpgradeSheet({ open, onOpenChange, subject = "plan", moduleId, r
           </ul>
 
           {invite && (
-            <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="rounded-2xl border border-border bg-muted/50 p-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-700"><Gift className="h-5 w-5" /></div>
                 <div className="min-w-0 flex-1">
