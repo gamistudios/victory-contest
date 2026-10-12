@@ -175,3 +175,31 @@ func (f *captureInvoiceUsecase) CreatePremiumInvoiceLink(userID string) (string,
 	captureInvoiceUsecaseLast = userID
 	return "https://example.invalid/invoice", nil
 }
+
+// TestBotInfoReportsTheRunningBot guards the base of every t.me/<bot> link the
+// app hands out (Academy referral invite, article preview URL): the client must
+// be told which bot this process authenticated as, and must never receive an
+// empty username it would paste into a link that opens nothing.
+func TestBotInfoReportsTheRunningBot(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	serve := func(botUserName string) (int, map[string]any) {
+		r := gin.New()
+		api := r.Group("/api")
+		NewTelegramHandler(&captureInvoiceUsecase{}, "").withBotName(botUserName).RegisterRoutes(api.Group("/telegram"))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/telegram/bot", nil))
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode body %q: %v", w.Body.String(), err)
+		}
+		return w.Code, body
+	}
+
+	if code, body := serve("RealVictoryBot"); code != http.StatusOK || body["username"] != "RealVictoryBot" {
+		t.Fatalf("configured bot: status %d body %v, want 200 with username RealVictoryBot", code, body)
+	}
+	if code, body := serve(""); code != http.StatusServiceUnavailable || body["username"] != nil {
+		t.Fatalf("disabled bot: status %d body %v, want 503 and no username", code, body)
+	}
+}

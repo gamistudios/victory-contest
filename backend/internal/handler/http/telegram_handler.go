@@ -15,6 +15,9 @@ import (
 type telegramHandler struct {
 	usecase       usecase.TelegramUsecase
 	webhookSecret string // TELEGRAM_WEBHOOK_SECRET; empty = verification disabled
+	// botUserName is the @username of the bot TELEGRAM_BOT_TOKEN belongs to,
+	// taken from getMe at startup. Empty means the bot is disabled here.
+	botUserName string
 	// studentAuthMw is wired by NewRouter; when set, POST /invoice-link
 	// requires a student token whose Telegram id equals the body's user_id.
 	studentAuthMw gin.HandlerFunc
@@ -24,6 +27,7 @@ func (t *telegramHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/webhook", t.Updater)
 	rg.POST("/invoice-link", withStudentAuth(t.studentAuthMw, t.InvoiceLink)...)
 	rg.POST("/prepared-inline-message", t.PreparedInlineMessage)
+	rg.GET("/bot", t.BotInfo)
 }
 
 // InvoiceLink creates a Telegram Stars invoice server-side (bot token stays
@@ -105,4 +109,27 @@ func NewTelegramHandler(usecase usecase.TelegramUsecase, webhookSecret string) *
 		log.Println("TELEGRAM_WEBHOOK_SECRET not set — webhook updates are accepted without secret-token verification")
 	}
 	return &telegramHandler{usecase: usecase, webhookSecret: webhookSecret}
+}
+
+// withBotName records the identity of the bot this process actually
+// authenticated with (tgbotapi fetches it through getMe while starting up), so
+// clients can build t.me/<bot> links without guessing.
+func (t *telegramHandler) withBotName(name string) *telegramHandler {
+	t.botUserName = name
+	return t
+}
+
+// BotInfo answers GET /telegram/bot: the username of the running bot.
+//
+// The mini app puts this in links students share (Academy referral invite,
+// article preview URL), and a guessed username produces a link that opens
+// nothing. Reporting it is not a secret - the token never leaves the server.
+func (t *telegramHandler) BotInfo(c *gin.Context) {
+	if t.botUserName == "" {
+		// No TELEGRAM_BOT_TOKEN (or the bot failed to initialise): say so
+		// instead of handing the client an empty link to build on.
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "telegram bot is not configured"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"username": t.botUserName})
 }

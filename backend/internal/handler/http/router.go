@@ -52,6 +52,7 @@ func NewServer() *Server {
 
 	// Bot — optional: API boots without it, webhook route reports it as disabled
 	var bot *tgbotapi.BotAPI
+	botUserName := ""
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if botToken == "" {
 		log.Println("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
@@ -59,6 +60,10 @@ func NewServer() *Server {
 		log.Printf("failed to initialize Telegram bot, disabling: %v", err)
 	} else {
 		bot = b
+		// NewBotAPI authenticated with getMe, so this is the username the
+		// token really belongs to - the only trustworthy source for the
+		// t.me/<bot> links the app hands to students.
+		botUserName = b.Self.UserName
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
@@ -183,7 +188,7 @@ func NewServer() *Server {
 		paymentSettingsHandler:     NewPaymentSettingsHandler(paymentSettingsUsecase),
 		aiHandler:                  NewAiHandler(aiUsecase, aiSettingsUsecase, jwtSecret),
 		aiAdminHandler:             NewAiAdminHandler(aiProviderUsecase, aiSettingsUsecase),
-		telegramHandler:            NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")),
+		telegramHandler:            NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")).withBotName(botUserName),
 		pageViewHandler:            NewPageViewHandler(pageViewUsecase),
 		articleHandler:             NewArticleHandler(articleUsecase),
 		imageHandler:               NewImageHandler(imgRepo),
