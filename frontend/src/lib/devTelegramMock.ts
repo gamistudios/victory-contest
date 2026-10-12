@@ -8,10 +8,16 @@ export function installDevTelegramMock(): void {
   if (window.Telegram?.WebApp?.initDataUnsafe?.user) return;
 
   const noop = () => {};
+  // Local stand-in for a Telegram deep link: opening the app as
+  // /?startapp=ref_<referrerId>_<moduleId> puts the parameter in
+  // initDataUnsafe.start_param exactly as the mini app delivers it, so the
+  // invite-to-unlock flow can be exercised in a plain browser.
+  const startParam = new URLSearchParams(window.location.search).get("startapp");
   const webApp = {
     initData: "",
     initDataUnsafe: {
       user: { id: 999001, first_name: "Dev", username: "devuser" },
+      ...(startParam ? { start_param: startParam } : {}),
     },
     version: "2.0",
     platform: "web",

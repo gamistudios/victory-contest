@@ -10,10 +10,11 @@ import React, {
 } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { getStudentById } from "../services/studentServices";
-import { exchangeTelegramInitData } from "../services/telegramServices";
+import { ensureStudentSession } from "../services/telegramServices";
 import { isAbortedRequest } from "../services/api";
 import { AuthStudent } from "../types";
 import { useTelegram } from "../hooks/useTelegram";
+import { useReferralDeepLink } from "../hooks/useReferralDeepLink";
 import Loader from "../components/Loader";
 import ErrorState from "../components/ErrorState";
 
@@ -68,16 +69,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [tgUser]);
 
-  // One-shot Telegram session exchange (S2): validates initData on the
-  // server and stores the student token used by the axios interceptor.
-  // StrictMode double-mounts, hence the ref guard. A failure must not block
-  // the app: public reads keep working and the register/payment flows
+  // One-shot Telegram session exchange (S2): validates initData on the server
+  // and stores the student token used by the axios interceptor. The promise is
+  // shared, so a StrictMode remount and the Academy provider (whose child
+  // effect runs before this one) all await one request. A failure must not
+  // block the app: public reads keep working and the register/payment flows
   // surface their own errors if the token never arrives.
-  const authExchanged = useRef(false);
   useEffect(() => {
-    if (authExchanged.current) return;
-    authExchanged.current = true;
-    exchangeTelegramInitData().catch((err: unknown) => {
+    ensureStudentSession().catch((err: unknown) => {
       console.warn("telegram initData exchange failed:", err);
     });
   }, []);
@@ -91,6 +90,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setStatus("success");
     }
   }, [fetchUser, tgLoading, tgUser]);
+
+  // Invite-to-unlock deep links are handled here rather than on an Academy screen:
+  // an unregistered launch replaces the routed content below with the /register
+  // redirect, and the friend's visit still has to count for whoever shared it.
+  useReferralDeepLink({ registered: !!user, settled: status !== "pending" });
 
   const isLoading = status === "pending";
 

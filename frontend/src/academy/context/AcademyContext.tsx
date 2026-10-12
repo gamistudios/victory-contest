@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AcademyStudent } from "@/types/academy";
-import { claimReferral, getMe } from "@/services/academy/academyApi";
+import { getMe } from "@/services/academy/academyApi";
+import { ensureStudentSession } from "@/services/telegramServices";
 
 /** Reader preferences (font size, data saver) — persisted per device like the contest theme. */
 export type FontSize = "sm" | "md" | "lg" | "xl";
@@ -60,24 +61,19 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Referral deep link: t.me/<bot>?startapp=ref_<referrerId>_<moduleId>.
-  // A friend opening it is counted once for the referrer (the server enforces
-  // uniqueness and rejects self-referrals), so errors are safe to ignore.
+  // Every /academy/* route is student-auth only, and a child effect runs before
+  // AuthProvider's, so the profile load waits for the session exchange instead of
+  // reading a first-launch 401 as "could not load your profile".
   useEffect(() => {
-    const param = (window.Telegram?.WebApp?.initDataUnsafe as { start_param?: string } | undefined)?.start_param;
-    const m = param?.match(/^ref_(\d+)_(.+)$/);
-    if (!m) return;
-    try {
-      if (sessionStorage.getItem("academy_ref_claimed") === param) return;
-      sessionStorage.setItem("academy_ref_claimed", param as string);
-    } catch {
-      /* storage blocked: the server de-duplicates anyway */
-    }
-    claimReferral(m[1], m[2]).catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    refreshStudent();
+    let alive = true;
+    ensureStudentSession()
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) refreshStudent();
+      });
+    return () => {
+      alive = false;
+    };
   }, [refreshStudent]);
 
   useEffect(() => {
