@@ -1,4 +1,4 @@
-import { Bot, BookOpen, Check, ChevronLeft, ChevronRight, FileText, Layers, Lock, PenLine, Video } from "lucide-react";
+import { Bot, BookOpen, Check, ChevronLeft, ChevronRight, FileText, Layers, Lock, PenLine, Sparkles, Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -60,11 +60,17 @@ export default function ModulePage() {
   const tone = toneFor(subject.color_theme);
   const active = tabs.find((t) => t.id === tab) ?? tabs[0];
   const done = !!prog?.completed;
+  // A locked lesson cannot be completed at all, so the bottom bar's whole job is
+  // the upgrade - "Mark complete" here promised an action it did not perform.
+  const lessonLocked = locks.reading;
   const pct = done ? 100 : Math.round(Math.max(readPct, prog?.video_completed ? 100 : 0) * 0.9);
   const openUpgrade = (feature: string) => setUpgrade({ open: true, feature });
 
   const toggleComplete = async () => {
-    if (locks.reading) return openUpgrade("this lesson");
+    if (lessonLocked) {
+      hapticFeedback("impact", "light");
+      return openUpgrade("this lesson");
+    }
     try {
       const r = await completeModule(m.id, !done);
       setProg(r.progress);
@@ -84,7 +90,7 @@ export default function ModulePage() {
   const content = () => {
     switch (active.id) {
       case "read":
-        return <ReadTab module={m} locked={locks.reading} initialPct={readPct} onProgress={setReadPct} onAskSelection={(t) => { setSelection(t); setTab("ai"); }} />;
+        return <ReadTab module={m} locked={locks.reading} fullyLocked={data.fully_locked} referral={referral} onUpgrade={() => openUpgrade("this lesson")} initialPct={readPct} onProgress={setReadPct} onAskSelection={(t) => { setSelection(t); setTab("ai"); }} />;
       case "watch":
         return locks.video ? <Locked label="Video lesson" preview={null} /> : <WatchTab module={m} initialSeconds={prog?.video_time_seconds ?? 0} completed={!!prog?.video_completed} onCompleted={refresh} />;
       case "docs":
@@ -137,8 +143,8 @@ export default function ModulePage() {
 
       <div className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-3xl items-center gap-2 border-t border-border bg-card/95 p-3 pb-safe backdrop-blur-lg">
         <button onClick={() => goto(prev)} disabled={!prev} aria-label="Previous lesson" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted disabled:opacity-30"><ChevronLeft className="h-5 w-5" /></button>
-        <button onClick={toggleComplete} className={cn("flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-base font-bold transition active:scale-[0.98]", done ? "bg-green-100 text-green-900" : "bg-blue-fix-600 text-white")}>
-          <Check className="h-5 w-5" />{done ? "Completed" : "Mark complete"}
+        <button onClick={toggleComplete} className={cn("flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-base font-bold transition active:scale-[0.98]", lessonLocked ? "bg-gradient-to-r from-yellow-fix-600 to-orange-fix-700 text-white" : done ? "bg-green-100 text-green-900" : "bg-blue-fix-600 text-white")}>
+          {lessonLocked ? <Sparkles className="h-5 w-5" /> : <Check className="h-5 w-5" />}{lessonLocked ? "Upgrade to Unlock" : done ? "Completed" : "Mark complete"}
         </button>
         <button onClick={() => goto(next)} disabled={!next} aria-label="Next lesson" className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted disabled:opacity-30"><ChevronRight className="h-5 w-5" />{next?.is_locked && <Lock className="absolute right-1 top-1 h-3 w-3 text-yellow-700" />}</button>
       </div>
