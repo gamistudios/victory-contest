@@ -1,12 +1,17 @@
-import { BookOpen, Bot, Layers, PenLine, Video, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, Layers, PenLine, Trophy, Video, type LucideIcon } from "lucide-react";
 import type { ResourceKey } from "@/types/academy";
 
 /**
- * What the student tapped into. `plan` is the general pitch (the Home banner);
- * every other case is a specific locked resource, so the sheet can name it
- * instead of showing generic "Premium content" text.
+ * One vocabulary for "this is Premium" across the whole app: the Academy keys come
+ * straight from the API's `resource_access` map, the rest are the contest-side
+ * features the student can be blocked from. `plan` is the general pitch.
  */
-export type PremiumSubject = ResourceKey | "plan";
+export type PremiumSubject =
+  | ResourceKey
+  | "plan"
+  | "ai_practice"
+  | "ai_recommendations"
+  | "premium_contest";
 
 export interface PremiumPitch {
   /** Sheet headline - says exactly what is locked. */
@@ -44,13 +49,37 @@ export const PREMIUM_PITCH: Record<PremiumSubject, PremiumPitch> = {
     title: "AI Tutor is Premium",
     blurb: "Ask as many questions as you like, on any lesson, with Premium.",
   },
+  ai_practice: {
+    title: "AI Practice is Premium",
+    blurb: "AI-generated questions, guided explanations and tutor chat are for Premium members.",
+  },
+  ai_recommendations: {
+    title: "AI Recommendations are Premium",
+    blurb: "Per-topic AI coaching on your Statistics weak areas is part of Premium.",
+  },
+  premium_contest: {
+    title: "This contest is Premium",
+    blurb: "Premium contests, their editorial and the full standings are for Premium members.",
+  },
 };
 
-/** What Premium buys, shown in the sheet. The plan pitch, not the locked item. */
+/**
+ * What Premium buys. The same list is shown for every subject, because it is one
+ * plan: the headline above it names what was blocked, these rows justify the price.
+ */
 export const PREMIUM_PERKS: Array<{ icon: LucideIcon; label: string; note: string }> = [
   { icon: BookOpen, label: "Every chapter and note", note: "All premium lessons unlocked in full" },
   { icon: Video, label: "Full video lessons", note: "Recorded explanations for each topic" },
   { icon: Layers, label: "Unlimited flashcards", note: "Built-in decks plus AI-generated cards" },
   { icon: PenLine, label: "Quizzes with feedback", note: "Instant scoring and weak-topic tracking" },
-  { icon: Bot, label: "AI tutor, any time", note: "Ask about any part of a lesson you select" },
+  { icon: Bot, label: "AI tutor and AI practice", note: "Ask about any part of a lesson you select" },
+  { icon: Trophy, label: "Premium contests", note: "Contest editorials and full standings" },
 ];
+
+/** Referral-to-unlock state, as the Academy API reports it for one module. */
+export interface ReferralState {
+  enabled: boolean;
+  required: number;
+  current: number;
+  unlocked: boolean;
+}

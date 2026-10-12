@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { fmtClock } from "../lib/theme";
-import type { PremiumSubject } from "../lib/premium";
+import type { PremiumSubject } from "@/lib/premium";
 import { useTelegram } from "@/hooks/useTelegram";
 
 interface Props {

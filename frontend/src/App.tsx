@@ -14,6 +14,7 @@ import RegistrationForm from "./pages/StudentRegisteration";
 import Payment from "./pages/Payment";
 import { UserPaymentHistoryPage } from "./pages/UserPaymentHistoryPage";
 import { AuthProvider } from "./context/AuthContext";
+import { PremiumSheetProvider } from "./context/PremiumSheetContext";
 import ArticlesPage from "./pages/Articles";
 import { ArticleView } from "./components/article/ArticleView";
 import NotFound from "./components/not-found";
@@ -54,6 +55,7 @@ function App() {
       <ScrollToTop />
       <AuthProvider>
         <AcademyProvider>
+        <PremiumSheetProvider>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
@@ -87,6 +89,7 @@ function App() {
             />
           </Route>
         </Routes>
+        </PremiumSheetProvider>
         </AcademyProvider>
       </AuthProvider>
     </Router>

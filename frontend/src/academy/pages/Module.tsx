@@ -11,7 +11,7 @@ import { BackButton } from "../components/PageHeader";
 import { ProgressRing } from "../components/ProgressRing";
 import { UpgradeSheet } from "../components/UpgradeSheet";
 import { LockedPanel } from "../module/LockedPanel";
-import type { PremiumSubject } from "../lib/premium";
+import type { PremiumSubject } from "@/lib/premium";
 import { ReadTab } from "../module/ReadTab";
 import { WatchTab } from "../module/WatchTab";
 import { DocsTab } from "../module/DocsTab";

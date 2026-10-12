@@ -9,7 +9,7 @@ import { ProgressBar, ProgressRing } from "../components/ProgressRing";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTelegram } from "@/hooks/useTelegram";
-import type { PremiumSubject } from "../lib/premium";
+import type { PremiumSubject } from "@/lib/premium";
 
 interface Props {
   moduleId: string;
