@@ -1,6 +1,5 @@
 import axios from "axios";
 import { DashboardStatsResponse } from "../types/dashboard";
-import { installAcademyMock } from "./academy/mock/adapter";
 
 // Empty string means same-origin (how the Docker image serves the admin panel
 // and the API from one host); undefined keeps the localhost dev default.
@@ -10,13 +9,6 @@ const api = axios.create({
   baseURL: VITE_API_URL,
   withCredentials: true,
 });
-
-// Academy mock backend: only `/api/academy/*` calls are answered locally; every
-// other request uses axios' real adapter. Set VITE_ACADEMY_MOCK=false once the
-// Go endpoints exist - no UI changes needed.
-if (import.meta.env.VITE_ACADEMY_MOCK !== "false") {
-  installAcademyMock(api);
-}
 
 export function isAbortedRequest(err: unknown): boolean {
   return axios.isCancel(err) || (err as { code?: string })?.code === "ERR_CANCELED";
