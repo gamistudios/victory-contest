@@ -17,6 +17,14 @@ import { AuthProvider } from "./context/AuthContext";
 import ArticlesPage from "./pages/Articles";
 import { ArticleView } from "./components/article/ArticleView";
 import NotFound from "./components/not-found";
+import { AcademyProvider } from "./academy/context/AcademyContext";
+import AcademyHome from "./academy/pages/Home";
+import AcademyCourses from "./academy/pages/Courses";
+import AcademySubject from "./academy/pages/Subject";
+import AcademyModule from "./academy/pages/Module";
+import AcademyReview from "./academy/pages/Review";
+import AcademyProgress from "./academy/pages/Progress";
+import AcademyUpgrade from "./academy/pages/Upgrade";
 
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -45,6 +53,7 @@ function App() {
     <Router>
       <ScrollToTop />
       <AuthProvider>
+        <AcademyProvider>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
@@ -62,6 +71,13 @@ function App() {
               path="payment-history"
               element={<UserPaymentHistoryPage />}
             />
+            <Route path="academy" element={<AcademyHome />} />
+            <Route path="academy/courses" element={<AcademyCourses />} />
+            <Route path="academy/subject/:id" element={<AcademySubject />} />
+            <Route path="academy/module/:id" element={<AcademyModule />} />
+            <Route path="academy/review" element={<AcademyReview />} />
+            <Route path="academy/progress" element={<AcademyProgress />} />
+            <Route path="academy/upgrade" element={<AcademyUpgrade />} />
             <Route path="article" element={<ArticlesPage />} />
             <Route path="article/:id" element={<ArticleView />} />
             <Route
@@ -70,6 +86,7 @@ function App() {
             />
           </Route>
         </Routes>
+        </AcademyProvider>
       </AuthProvider>
     </Router>
   );

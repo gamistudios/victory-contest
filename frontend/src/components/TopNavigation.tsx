@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTelegram } from "../hooks/useTelegram";
 import { ThemeToggle } from "./ThemeToggle";
-import { Bell, Settings, Lock } from "lucide-react";
+import { Bell, Settings, Lock, SlidersHorizontal } from "lucide-react";
+import { SettingsSheet } from "../academy/components/SettingsSheet";
 import NotificationCenter from "./NotificationCenter";
 import { useNotification } from "../context/NotificationContext";
 import {
@@ -26,6 +27,7 @@ const TopNavigation: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showReading, setShowReading] = useState(false);
   const { notifications } = useNotification();
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const navigate = useNavigate();
@@ -77,6 +79,16 @@ const TopNavigation: React.FC = () => {
       return "Feedback";
     } else if (pathname === "/payment") {
       return "Payment";
+    } else if (pathname.startsWith("/academy/courses")) {
+      return "Courses";
+    } else if (pathname.startsWith("/academy/review")) {
+      return "Review";
+    } else if (pathname.startsWith("/academy/progress")) {
+      return "Progress";
+    } else if (pathname.startsWith("/academy/upgrade")) {
+      return "Upgrade";
+    } else if (pathname.startsWith("/academy")) {
+      return "Victory Academy";
     } else if (pathname.startsWith("/article")) {
       return "Article";
     } else {
@@ -215,6 +227,13 @@ const TopNavigation: React.FC = () => {
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
+                      onSelect={() => setShowReading(true)}
+                      className="cursor-pointer"
+                    >
+                      <SlidersHorizontal className="mr-2 h-5 w-5" />
+                      <span>Learning settings</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       // disabled={true}
                       onSelect={handlePaymentsClick}
                       className="cursor-pointer"
@@ -238,6 +257,7 @@ const TopNavigation: React.FC = () => {
         </div>
       </div>
 
+      <SettingsSheet open={showReading} onOpenChange={setShowReading} />
       <NotificationCenter
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, GraduationCap } from "lucide-react";
 import HomeIcon from "../assets/home-09-stroke-rounded.svg?react";
 import AwardIcon from "../assets/award-04-stroke-rounded.svg?react";
 import AccountIcon from "../assets/account-setting-02-stroke-rounded (1).svg?react";
@@ -14,6 +14,12 @@ const BottomNavigation: React.FC = () => {
         return <HomeIcon className={className} />;
       },
       label: "Home",
+    },
+    {
+      path: "/academy",
+      icon: () => <GraduationCap className="mb-1 transition-all duration-200" />,
+      label: "Learn",
+      match: (p: string) => p.startsWith("/academy"),
     },
     {
       path: "/leaderboard",
@@ -46,7 +52,7 @@ const BottomNavigation: React.FC = () => {
       <div className="flex justify-around items-center">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
+          const isActive = "match" in item && item.match ? item.match(location.pathname) : location.pathname === item.path;
 
           return (
             <Link

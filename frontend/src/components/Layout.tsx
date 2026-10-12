@@ -26,6 +26,9 @@ const Layout: React.FC = () => {
       <div className="p-4 text-center">Please open this link in Telegram.</div>
     );
   }
+  // Lesson + subject screens bring their own header; lessons also own the bottom bar.
+  const inModule = location.pathname.startsWith("/academy/module/");
+  const immersive = inModule || location.pathname.startsWith("/academy/subject/");
   return (
     <div
       // Removed `` from className to prevent dark background
@@ -33,15 +36,17 @@ const Layout: React.FC = () => {
       // style={getThemeStyles()}
     >
       <NotificationProvider>
-        <div className="fixed top-0 left-0 right-0 z-50">
-          <PaymentAlert onVisibilityChange={setHasAlert} />
-          <TopNavigation />
-        </div>
+        {!immersive && (
+          <div className="fixed top-0 left-0 right-0 z-50">
+            <PaymentAlert onVisibilityChange={setHasAlert} />
+            <TopNavigation />
+          </div>
+        )}
       </NotificationProvider>
 
       <main
         className={`flex-1 pb-20 overflow-y-auto transition-all duration-300 ${
-          hasAlert ? "pt-[7.5rem]" : "pt-16"
+          immersive ? "pb-0 pt-0" : hasAlert ? "pt-[7.5rem]" : "pt-16"
         }`}
       >
         <Outlet />
@@ -55,7 +60,7 @@ const Layout: React.FC = () => {
           }}
         />
       </main>
-      {location.pathname !== "/register" && <BottomNavigation />}
+      {location.pathname !== "/register" && !inModule && <BottomNavigation />}
     </div>
   );
 };

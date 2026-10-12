@@ -10,6 +10,7 @@ import {
   BookOpen,
   BrainCircuit,
   CreditCard,
+  GraduationCap,
 } from "lucide-react";
 import React from "react";
 export interface NavItem {
@@ -108,6 +109,12 @@ export const menuList: NavGroup[] = [
         title: "Articles",
         path: "/dashboard/articles",
         icon: BookOpen,
+      },
+      {
+        id: 13,
+        title: "Academy",
+        path: "/dashboard/academy",
+        icon: GraduationCap,
       },
       {
         id: 4,

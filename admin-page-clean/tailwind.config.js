@@ -19,6 +19,8 @@ export default {
       fontFamily: {
         sans: ["Public Sans", "sans-serif"],
         dirt: ["Rubik Dirt", "system-ui"],
+        nunito: ["Poppins", "Inter", "sans-serif"],
+        "nunito-sans": ["Inter", "sans-serif"],
       },
       colors: {
         background: "hsl(var(--background) / <alpha-value>)",

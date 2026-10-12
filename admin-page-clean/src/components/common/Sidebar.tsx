@@ -109,7 +109,10 @@ export function NavLinks({ isCollapsed, onNavigate }: NavLinksProps) {
             )}
             {isCollapsed && groupIndex > 0 && <Separator />}
             {group.items.map((item) => {
-              const isActive = location.pathname === item.path;
+              const isActive =
+                item.path === "/dashboard/academy"
+                  ? location.pathname.startsWith(item.path)
+                  : location.pathname === item.path;
 
               return (
                 <Tooltip key={item.path}>

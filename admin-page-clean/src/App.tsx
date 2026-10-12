@@ -22,6 +22,7 @@ import { PaymentsPage } from "./components/payment/Payment";
 import { PaymentManagementPage } from "./components/settings/PaymentManagement";
 import QuestionsPage from "./components/questions/Questions";
 import ArticlesPage from "./components/articles/ArticlesPage";
+import { adminRoutes as academyAdminRoutes } from "./academy/admin/routes";
 
 // BASE_URL is "/" in dev and "/admin/" in the single-origin production build,
 // so the same route table works in both.
@@ -62,6 +63,7 @@ const router = createBrowserRouter(
           { path: "payment", element: <PaymentsPage /> },
           { path: "ai", element: <AiManagement /> },
           { path: "settings/payment", element: <PaymentManagementPage /> },
+          { path: "academy", children: academyAdminRoutes },
           // Without these, a mistyped URL rendered the sidebar and an empty
           // content area with nothing to explain it.
           { path: "*", element: <Navigate to="/dashboard" replace /> },
