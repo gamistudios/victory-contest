@@ -44,7 +44,12 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
 
   const refreshStudent = useCallback(async () => {
     try {
-      setStudent(await getMe());
+      const s = await getMe();
+      // A 200 whose body has no student (an error page served by a proxy, a
+      // changed payload) must not replace the cached profile with undefined -
+      // every reader of `student` assumes the fields it asks for exist.
+      if (!s?.id) throw new Error("Malformed profile response");
+      setStudent(s);
       setStudentError(null);
     } catch (e) {
       // A failed profile load must not escape as an unhandled rejection (it would
