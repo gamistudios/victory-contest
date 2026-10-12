@@ -8,6 +8,7 @@ import { fmtClock } from "../lib/theme";
 import { postModuleProgress } from "@/services/academy/academyApi";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export function youtubeId(url: string): string | null {
   const m = url.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([\w-]{11})/);
@@ -52,6 +53,15 @@ export function WatchTab({ module: m, initialSeconds, completed, onCompleted }: 
     }
   };
 
+  // A rejected completion used to be an unhandled promise rejection (the "Mark as
+  // watched" button) or silently swallowed (onEnded): the lesson stayed unfinished
+  // with no clue why. Time flushes above stay quiet so they can't toast per tick.
+  const reportWatched = (seconds: number | null) => {
+    postModuleProgress(m.id, { video_completed: true, ...(seconds != null ? { video_time_seconds: seconds } : {}) })
+      .then(onCompleted)
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Could not save your progress"));
+  };
+
   const pct = v.duration_seconds ? Math.min(100, Math.round((now / v.duration_seconds) * 100)) : 0;
   const stamp = student ? `${student.full_name} · ${student.id}` : "Victory Academy";
 
@@ -94,7 +104,7 @@ export function WatchTab({ module: m, initialSeconds, completed, onCompleted }: 
                   postModuleProgress(m.id, { video_time_seconds: Math.floor(t) }).catch(() => undefined);
                 }
               }}
-              onEnded={() => { postModuleProgress(m.id, { video_completed: true, video_time_seconds: v.duration_seconds }).then(onCompleted).catch(() => undefined); }}
+              onEnded={() => reportWatched(v.duration_seconds)}
               className="h-full w-full"
             />
           )}
@@ -116,7 +126,7 @@ export function WatchTab({ module: m, initialSeconds, completed, onCompleted }: 
         <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-brand" style={{ width: `${pct}%` }} /></div>{pct}%</div>
       )}
       {(yt || failed) && !completed && (
-        <Button variant="outline" className="h-11 w-full" onClick={() => postModuleProgress(m.id, { video_completed: true }).then(onCompleted)}>Mark video as watched</Button>
+        <Button variant="outline" className="h-11 w-full" onClick={() => reportWatched(null)}>Mark video as watched</Button>
       )}
 
       {v.description && <div className="rounded-2xl border border-border bg-card p-4"><Markdown source={v.description} className="text-[0.95em]" /></div>}

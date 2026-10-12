@@ -44,7 +44,8 @@ export function ImageViewer({ src, alt, onClose }: Props) {
       drag.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
       const now = Date.now();
       if (now - lastTap.current < 280) {
-        scale > 1 ? reset() : setScale(2.5);
+        if (scale > 1) reset();
+        else setScale(2.5);
       }
       lastTap.current = now;
     }

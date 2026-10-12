@@ -15,6 +15,8 @@ interface Prefs {
 interface Ctx {
   student: AcademyStudent | null;
   loading: boolean;
+  /** Why the profile could not be loaded (offline, expired session). Null when in sync. */
+  studentError: string | null;
   isPremium: boolean;
   setStudent: (s: AcademyStudent) => void;
   refreshStudent: () => Promise<void>;
@@ -37,11 +39,17 @@ function readPrefs(): Prefs {
 export function AcademyProvider({ children }: { children: ReactNode }) {
   const [student, setStudent] = useState<AcademyStudent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [studentError, setStudentError] = useState<string | null>(null);
   const [prefs, setPrefsState] = useState<Prefs>(readPrefs);
 
   const refreshStudent = useCallback(async () => {
     try {
       setStudent(await getMe());
+      setStudentError(null);
+    } catch (e) {
+      // A failed profile load must not escape as an unhandled rejection (it would
+      // also wipe the cached student, which the shell still needs to render).
+      setStudentError(e instanceof Error ? e.message : "Could not load your profile");
     } finally {
       setLoading(false);
     }
@@ -84,8 +92,8 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<Ctx>(
-    () => ({ student, loading, isPremium: !!student?.is_premium, setStudent, refreshStudent, prefs, setPrefs }),
-    [student, loading, refreshStudent, prefs, setPrefs],
+    () => ({ student, loading, studentError, isPremium: !!student?.is_premium, setStudent, refreshStudent, prefs, setPrefs }),
+    [student, loading, studentError, refreshStudent, prefs, setPrefs],
   );
   return <AcademyContext.Provider value={value}>{children}</AcademyContext.Provider>;
 }

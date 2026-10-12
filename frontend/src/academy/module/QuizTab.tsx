@@ -122,7 +122,13 @@ const Choice = ({ on, onClick, children }: { on: boolean; onClick: () => void; c
 /* ============================== runner ============================== */
 
 function QuizRunner({ moduleId, quiz, timed, source, onExit, onRegenerate }: { moduleId: string; quiz: ModuleQuiz; timed: boolean; source: "module" | "ai"; onExit: () => void; onRegenerate: () => void }) {
-  const qs = quiz.questions;
+  // The wire contract types these as arrays, but a document saved before the
+  // server-side guard can still carry null for options/correct_answers - one of
+  // those would throw and take the whole quiz screen down with it.
+  const qs = useMemo(
+    () => (quiz.questions ?? []).map((q) => ({ ...q, options: q.options ?? [], correct_answers: q.correct_answers ?? [] })),
+    [quiz.questions],
+  );
   const [i, setI] = useState(0);
   const [picked, setPicked] = useState<Record<number, number[]>>({});
   const [checked, setChecked] = useState<Record<number, boolean>>({});

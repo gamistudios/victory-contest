@@ -61,7 +61,9 @@ function Md({ text }: { text: string }) {
 
 /** Markdown + KaTeX + `:::callout` blocks (definition, tip, warning, example, key-concept). */
 export function Markdown({ source, className }: { source: string; className?: string }) {
-  const segs = useMemo(() => split(source), [source]);
+  // `?? ""` keeps a missing body (an old row, a field the admin left empty) from
+  // throwing inside split() and taking the whole lesson down with it.
+  const segs = useMemo(() => split(source ?? ""), [source]);
   return (
     <div className={cn("reader", className)}>
       {segs.map((s, i) =>

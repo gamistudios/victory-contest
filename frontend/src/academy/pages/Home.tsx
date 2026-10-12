@@ -1,6 +1,7 @@
 import { Bot, ChevronDown, Flame, Info, Layers, Lock, Play, PenLine, Sparkles, Target, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { getDashboard, getPrograms, updateMe } from "@/services/academy/academyApi";
 import type { LevelId, StreamId } from "@/types/academy";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -19,7 +20,7 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 export default function Home() {
   const { data, loading, error, reload } = useAsync(getDashboard, []);
-  const { isPremium, refreshStudent } = useAcademy();
+  const { isPremium, refreshStudent, studentError } = useAcademy();
   const navigate = useNavigate();
   const { hapticFeedback } = useTelegram();
   const [pick, setPick] = useState(false);
@@ -42,6 +43,16 @@ export default function Home() {
           <Info className="h-4 w-4 shrink-0 text-info" />
           <p className="min-w-0 flex-1 truncate font-medium">{d.notice.text}</p>
           <button aria-label="Dismiss notice" className="tight p-1 text-muted-foreground" onClick={() => setDismissed(true)}><X className="h-4 w-4" /></button>
+        </div>
+      )}
+
+      {/* The dashboard can load while the profile call fails (expired session,
+          offline). Silent here meant locked lessons with no way to recover. */}
+      {studentError && (
+        <div role="status" className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <Info className="h-4 w-4 shrink-0 text-amber-700" />
+          <p className="min-w-0 flex-1 font-medium">{studentError}</p>
+          <button onClick={() => refreshStudent()} className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">Retry</button>
         </div>
       )}
 
@@ -181,7 +192,23 @@ function ProgramSheet({ open, onOpenChange, level, stream, onSaved }: { open: bo
               ))}
             </div>
           )}
-          <Button className="h-12 w-full bg-blue-fix-600 text-base font-bold text-white" onClick={async () => { await updateMe({ level_id: l, stream_id: s }); onOpenChange(false); onSaved(); }}>Save</Button>
+          <Button
+            className="h-12 w-full bg-blue-fix-600 text-base font-bold text-white"
+            onClick={async () => {
+              // A rejected save used to escape as an unhandled promise rejection:
+              // the sheet stayed open with no feedback at all.
+              try {
+                await updateMe({ level_id: l, stream_id: s });
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Could not save your track");
+                return;
+              }
+              onOpenChange(false);
+              onSaved();
+            }}
+          >
+            Save
+          </Button>
         </div>
       </DrawerContent>
     </Drawer>

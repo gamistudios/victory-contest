@@ -217,7 +217,7 @@ function SwipeCard({ card, onAnswer }: { card: Flashcard; onAnswer: (known: bool
             <Markdown source={card.answer} className="!text-[1.05rem] font-semibold [&_p]:m-0" />
             {card.explanation && <p className="rounded-xl bg-white/60 p-3 text-sm">{card.explanation}</p>}
           </div>
-          <div className="flex flex-wrap gap-1.5">{card.tags.map((t) => <span key={t} className="rounded-full bg-violet-200 px-2 py-0.5 text-[10px] font-bold">{t}</span>)}</div>
+          <div className="flex flex-wrap gap-1.5">{(card.tags ?? []).map((t) => <span key={t} className="rounded-full bg-violet-200 px-2 py-0.5 text-[10px] font-bold">{t}</span>)}</div>
         </div>
       </div>
       <motion.span style={{ opacity: knownOp }} className="pointer-events-none absolute left-4 top-4 rounded-xl border-4 border-green-fix-600 px-3 py-1 text-lg font-extrabold text-green-700 -rotate-12">GOT IT</motion.span>
