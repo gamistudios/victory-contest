@@ -26,6 +26,36 @@ export async function createInvoice(userId: string | number): Promise<string> {
 type TelegramAuthResponse = { token: string; user_id: string };
 
 /**
+ * The @username of the bot this deployment actually runs as, taken from the API's
+ * own getMe result (GET /telegram/bot). A `t.me/<bot>` link only opens the mini
+ * app when `<bot>` is the account the server's token belongs to, so guessing it
+ * on the client produces a link that opens nothing.
+ *
+ * VITE_TELEGRAM_BOT_USERNAME survives only as a fallback for the cases where the
+ * API cannot answer (bot disabled, or a dev build pointed at a stub). Resolved
+ * once, then cached; a failed lookup is retried on the next call.
+ */
+let botUsername: string | null = null;
+let botUsernameRequest: Promise<string> | null = null;
+
+const clean = (name: unknown) =>
+  String(name ?? "")
+    .replace(/^@/, "")
+    .trim();
+
+export async function getBotUsername(): Promise<string | null> {
+  if (botUsername) return botUsername;
+  botUsernameRequest ??= api
+    .get("/telegram/bot")
+    .then((res) => clean(res.data?.username))
+    .catch(() => "");
+  const fromApi = await botUsernameRequest;
+  botUsernameRequest = null;
+  botUsername = fromApi || clean(import.meta.env.VITE_TELEGRAM_BOT_USERNAME) || null;
+  return botUsername;
+}
+
+/**
  * Exchange the Telegram WebApp initData for a student session token (S2).
  * The backend HMAC-verifies initData against the bot token; from here on the
  * axios interceptor attaches the resulting JWT to every request, so student

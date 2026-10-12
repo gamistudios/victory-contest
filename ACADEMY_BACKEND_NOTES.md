@@ -43,10 +43,12 @@ ends in `/api` (`/academy/...`), the admin app's does not (`/api/academy/...`).
   and "Reset mock data" removed; the Upgrade page goes to the existing `/payment` route.
 - Locked content is stripped server-side (`academyProtectModule`), not just hidden in the UI.
 - Referral unlock: link is `t.me/<bot>?startapp=ref_<referrerId>_<moduleId>`; the friend's app
-  claims it (once per account, no self-referral, referrer must exist). The bot name comes from
-  `VITE_TELEGRAM_BOT_USERNAME`, defaulting to `VictoryLearningBot` — the bot this app already
-  shares to in `src/components/article/ArticleView.tsx`. Confirm it is the bot that opens the
-  Academy mini app, and test the flow on a real device.
+  claims it (once per account, no self-referral, referrer must exist). `<bot>` is read from
+  `GET /telegram/bot`, which reports the username of the bot this process authenticated as
+  (`tgbotapi` runs getMe while starting up), so the link can never name an account that does
+  not open the mini app. `VITE_TELEGRAM_BOT_USERNAME` is only a fallback for when that call
+  cannot be answered, and `src/components/article/ArticleView.tsx` uses the same source.
+  Test the flow on a real device.
 - AI (tutor, flashcards, quizzes, admin drafts) uses the configured AI provider; 503 if none,
   502 when a provider reply cannot be parsed.
 - Analytics are computed from real student data (avg minutes uses the module's estimated time,

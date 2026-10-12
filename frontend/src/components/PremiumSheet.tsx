@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { PREMIUM_PERKS, PREMIUM_PITCH, type PremiumSubject, type ReferralState } from "@/lib/premium";
+import { getBotUsername } from "@/services/telegramServices";
 import { useTelegram } from "@/hooks/useTelegram";
 
 /** Invite-to-unlock rail. Local so shared/ never reaches into a feature folder. */
@@ -65,9 +66,23 @@ export function PremiumSheet({ open, onOpenChange, subject, isPremium, referral,
   const share = async () => {
     hapticFeedback("impact", "light");
     // Referral deep link opens the mini app with start_param=ref_<id>_<module>;
-    // AcademyContext claims it. Default is this app's own bot (same one
-    // components/article/ArticleView.tsx shares to), overridable per deploy.
-    const bot = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "VictoryLearningBot";
+    // AcademyContext claims it. The bot is the one the API is actually running
+    // as (GET /telegram/bot), so renaming or re-provisioning the bot needs no
+    // code change and an invite can never point at an account that does not
+    // open the lesson.
+    const bot = await getBotUsername();
+    if (!bot) {
+      toast.error("Could not build your invite link. Please try again.", {
+        style: {
+          backgroundColor: "hsl(var(--red-100))",
+          color: "hsl(var(--red-800))",
+          border: "1px solid hsl(var(--red-200))",
+          padding: "10px",
+          borderRadius: "8px",
+        },
+      });
+      return;
+    }
     const link = `https://t.me/${bot}?startapp=ref_${referrerId ?? "0"}_${moduleId ?? "academy"}`;
     try {
       if (navigator.share) await navigator.share({ title: "Victory Academy", text: "Study with me on Victory Academy!", url: link });

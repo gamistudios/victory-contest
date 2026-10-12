@@ -25,6 +25,7 @@ import {
   DrawerTrigger,
 } from "../ui/drawer";
 import { useTelegram } from "../../hooks/useTelegram";
+import { getBotUsername } from "../../services/telegramServices";
 import { Input } from "../ui/input";
 import ErrorState from "../ErrorState";
 import { InlineQueryResultArticle } from "../../types";
@@ -218,9 +219,12 @@ export function ArticleView() {
     }
   };
 
-  // ... (handleArticleShare and formatDate are unchanged)
   const handleArticleShare = async () => {
     if (article?.title && article?.excerpt) {
+      // The preview URL is the mini app, so it must name the bot this
+      // deployment actually runs as (the API reports it; VITE_TELEGRAM_BOT_USERNAME
+      // is only the fallback). A guessed username yields a link that opens nothing.
+      const bot = await getBotUsername();
       const payload: InlineQueryResultArticle = {
         type: "article",
         id: article.id, // 1-64 chars
@@ -230,7 +234,11 @@ export function ArticleView() {
           parse_mode: "HTML",
           link_preview_options: {
             is_disabled: false,
-            url: "https://t.me/VictoryLearningBot/learn",
+            // Unknown bot (bot disabled server-side and no fallback configured):
+            // an empty url tells Telegram to preview the first link in the text,
+            // which is the article itself - better than a t.me URL that opens
+            // nothing.
+            url: bot ? `https://t.me/${bot}/learn` : "",
             prefer_large_media: false,
             prefer_small_media: true,
           },
