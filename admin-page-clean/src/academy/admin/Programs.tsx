@@ -266,7 +266,7 @@ export default function Programs() {
         title="Hide this program?"
         description={hide ? `"${hide.name}" disappears from registration and the student app. Content and existing enrollments are kept.` : undefined}
         confirmLabel="Hide"
-        onConfirm={() => hide && setActive(hide, false)}
+        onConfirm={() => { if (hide) return setActive(hide, false); }}
       />
     </div>
   );
