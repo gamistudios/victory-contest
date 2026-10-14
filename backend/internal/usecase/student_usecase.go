@@ -75,7 +75,7 @@ func (u *studentUsecase) AddStudent(student domain.Student) error {
 	// Enrollments are server-owned: never trust a client-supplied list.
 	student.Enrollments = nil
 	if u.enroll != nil && student.PrimaryProgramID != "" {
-		es, err := u.enroll.ForRegistration(student.PrimaryProgramID, firstStream(student), student.RegionID, student.CityID)
+		es, err := u.enroll.ForRegistration(student.PrimaryProgramID, firstStream(student), student.RegionID, student.CityID, student.Region, student.City)
 		if err != nil {
 			return err
 		}
@@ -139,8 +139,15 @@ func (u *studentUsecase) GetStudents() ([]domain.Student, error) {
 // attribute existed (and rejected/pending rows) simply carry no expiration —
 // dereferencing those panicked the admin profile and student-login read paths.
 func grantsAccess(pay domain.PaymentRequest, now time.Time) bool {
-	return pay.Status == domain.StatusApproved &&
-		pay.ExpirationDate != nil &&
+	if pay.Status != domain.StatusApproved || pay.Revoked {
+		return false
+	}
+	// A lifetime plan row (grant or payment) carries no expiry date but is
+	// always active; stamped rows fall through to the date check below.
+	if pay.Validity != nil && pay.Validity.Type == domain.ValidityLifetime {
+		return true
+	}
+	return pay.ExpirationDate != nil &&
 		pay.ExpirationDate.After(now)
 }
 

@@ -74,7 +74,15 @@ func (u *aiSettingsUsecase) IsPremiumStudent(studentID string) bool {
 	}
 	now := time.Now().UTC()
 	for _, pay := range payments {
-		if pay.Status == domain.StatusApproved && pay.ExpirationDate != nil && pay.ExpirationDate.After(now) {
+		if pay.Status != domain.StatusApproved || pay.Revoked {
+			continue
+		}
+		// Lifetime plan rows carry no expiry but are always active
+		// (mirrors grantsAccess in student_usecase.go).
+		if pay.Validity != nil && pay.Validity.Type == domain.ValidityLifetime {
+			return true
+		}
+		if pay.ExpirationDate != nil && pay.ExpirationDate.After(now) {
 			return true
 		}
 	}

@@ -57,18 +57,20 @@ func (u *EnrollmentUsecase) build(programID, streamID, source string, requireOpe
 }
 
 // ForRegistration builds the first enrollment (+ validates the location pick)
-// for a brand-new student. Called from AddStudent.
-func (u *EnrollmentUsecase) ForRegistration(programID, streamID, regionID, cityID string) ([]domain.Enrollment, error) {
+// for a brand-new student. Called from AddStudent. The free texts matter
+// because "Other" city under a known region (and Other/Other) is supported:
+// ValidatePick checks their length against the ids.
+func (u *EnrollmentUsecase) ForRegistration(programID, streamID, regionID, cityID, regionText, cityText string) ([]domain.Enrollment, error) {
 	e, err := u.build(programID, streamID, "self", true)
 	if err != nil {
 		return nil, err
 	}
-	if regionID != "" || cityID != "" {
+	if regionID != "" || cityID != "" || regionText != "" || cityText != "" {
 		locs := DefaultLocations()
 		if u.locations != nil {
 			locs = u.locations()
 		}
-		if !locs.ValidatePick(regionID, cityID, "", "") {
+		if !locs.ValidatePick(regionID, cityID, regionText, cityText) {
 			return nil, ErrInvalidLocation
 		}
 	}

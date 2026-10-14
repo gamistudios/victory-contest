@@ -69,6 +69,17 @@ func (h *StudentHandler) AddStudent(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		// Enrollment/location validation from the registration wizard: these
+		// are bad inputs, not server faults (a 500 here surfaced to students
+		// as a generic "Something went wrong" toast).
+		if errors.Is(err, usecase.ErrInvalidLocation) ||
+			errors.Is(err, usecase.ErrUnknownProgram) ||
+			errors.Is(err, usecase.ErrProgramClosed) ||
+			errors.Is(err, usecase.ErrStreamRequired) ||
+			errors.Is(err, usecase.ErrStreamNotAllowed) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

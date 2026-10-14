@@ -219,17 +219,34 @@ func (u *PricingUsecase) Snapshot(p *domain.PaymentRequest, planID, currency, co
 		p.CouponCode = coupon.Code
 	}
 	v := q.Validity
+	// NOTE: p.Amount keeps the student-reported transfer figure (legacy
+	// semantics). The server price lives in FinalAmount; overwriting Amount
+	// here used to make PaymentAmountMismatch compare the quote with itself,
+	// dead-coding the approval guard.
 	p.PlanID, p.Currency, p.FinalAmount, p.ProgramIDs, p.Validity = planID, q.Currency, q.Final, q.ProgramIDs, &v
-	if q.Currency == domain.CurrencyETB {
-		p.Amount = float64(q.Final) / 100
-	}
-	// Plan-based expiry replaces the hardcoded month (days plans only; the
-	// authoritative end is recomputed by RebuildEntitlements on approval).
-	if v.Type == domain.ValidityDays {
-		exp := p.CreatedAt.AddDate(0, 0, v.Days)
-		p.ExpirationDate = &exp
-	}
+	// Plan-based expiry replaces the hardcoded month; the authoritative end
+	// is recomputed by RebuildEntitlements on approval (which reads Validity
+	// first), so this only keeps legacy ExpirationDate readers truthful.
+	p.ExpirationDate = planExpiry(v, p.CreatedAt)
 	return q.Free, nil
+}
+
+// planExpiry derives the legacy ExpirationDate stamp from a plan validity.
+// Lifetime plans return nil; grantsAccess and the AI gate treat a lifetime
+// Validity row as active without an expiry date.
+func planExpiry(v domain.Validity, from time.Time) *time.Time {
+	switch v.Type {
+	case domain.ValidityDays:
+		if v.Days > 0 {
+			e := from.AddDate(0, 0, v.Days)
+			return &e
+		}
+	case domain.ValidityFixedEnd:
+		if t, ok := parseTime(v.EndsAt); ok {
+			return &t
+		}
+	}
+	return nil
 }
 
 // ReleaseCoupon gives back the coupon use reserved by a payment that was
@@ -372,6 +389,7 @@ func (u *PricingUsecase) AdminGrant(studentID, planID, admin string) (*domain.Pa
 		ID: GenerateUniqueId(), UserID: studentID, FullName: admin, BankName: "Admin grant",
 		Status: domain.StatusApproved, CreatedAt: now, UpdatedAt: now,
 		PlanID: planID, ProgramIDs: programs, Validity: &v, Currency: domain.CurrencyETB,
+		ExpirationDate: planExpiry(v, now),
 	}
 	if err := u.payments.Create(pr); err != nil {
 		return nil, err
