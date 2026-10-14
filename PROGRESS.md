@@ -2,6 +2,11 @@
 
 Plan: `PROPOSED-IMPLEMENTATION-PLAN.md` (revision 4). Date: 2026-10-14.
 
+> **Status update (twelfth pass, 2026-10-14): the "not compiled / not run"
+> warnings below are superseded.** The full tree was compiled, unit-tested
+> and built locally, six wiring defects were found and fixed, and results
+> are in the final section. Nothing has been pushed yet, by request.
+
 ## Read this first: verification status
 
 The sandbox had Go 1.22 and **no access to the Go module proxy or npm**, and `go.mod` needs Go 1.24.4 plus AWS/Gin dependencies. So:
@@ -387,3 +392,50 @@ Nothing functional. Remaining items are quality work, not features:
 - Tests (authorisation matrix, coupon race/release, per-program locks, move-subject cascade, rename propagation, promote location, AI gate and `ai_tutor`, question scope filter, payment amount mismatch, Dynamo-backed migration runner). Next, as agreed.
 - Coupon redemption export, catalog service extraction from `AcademyUsecase`, deleting the `Data.tsx` fallbacks, a per-student conditional write for the coupon limit if you run 2+ instances, verifying admin sidebar paths against `App.tsx`.
 - Phase 2 (content scoping): contest assembly and student-side question matching by `Question.Scope`.
+
+---
+
+# Update 2026-10-14 (twelfth pass): full local verification of the Phase 0/1 tree
+
+Everything in this pass was actually **compiled, tested and built** on a machine with the real toolchain (Go 1.24.4 module graph, npm). The earlier "not compiled or run" caveats no longer apply.
+
+## Gates (all green, exit codes read from direct runs, not pipes)
+
+| Gate | Result |
+|---|---|
+| `backend: go build ./...` / `go vet ./...` | pass |
+| `backend: go test ./...` | pass — 7 packages ok; `internal/usecase` re-ran fresh (46s, not cached) after the fixes below |
+| `frontend: tsc -b --force` + `vite build` | pass (build 1m15s) |
+| `admin-page-clean: tsc -b --force` + `vite build` (PWA) | pass |
+
+Not covered: browser E2E against the running stack (Docker not installed here) and anything DynamoDB-backed (unit tests use fakes).
+
+## Compile fixes (commit `d2002f9`)
+
+`ErrStudentNotFound` was declared twice (usecase package didn't build); 23 Go files were not gofmt-clean (6 pre-date this feature branch).
+
+## Wiring defects found by the boundary review — all fixed
+
+1. **Admin pricing/enrollment/locations services 404ed** — the admin axios client is origin-only, so `/pricing-admin`, `/enrollment-admin`, `/locations-admin` missed the `/api` group. Fixed in `pricingServices.ts`; swept every other admin service — all remaining paths already carry `/api`. (commit `ca38197`)
+2. **Payment-approval amount guard was dead code** — `Snapshot` overwrote the student-reported `Amount` with the server quote, so `PaymentAmountMismatch` compared the quote with itself and could never fire. `Amount` now stays the reported figure; the price lives in `FinalAmount`. Also: fixed_end plans now stamp `ExpirationDate` (via new `planExpiry`), and `AdminGrant` rows got an expiry too — previously grant rows had none, so legacy expiry readers missed them. (commit `496653f`)
+3. **"Other" location picks were never validated** — `ForRegistration` passed empty free-texts to `ValidatePick`, so a bogus city under a known region enrolled silently. Now the typed region/city names are validated, and `AddStudent` maps the enrollment/location rejections (`ErrInvalidLocation`, `ErrUnknownProgram`, `ErrProgramClosed`, `ErrStreamRequired`, `ErrStreamNotAllowed`) to 400 instead of 500. (commit `496653f`)
+4. **Revoked payments still granted premium; lifetime rows didn't** — `grantsAccess` and the AI-premium payment scan now skip `Revoked` rows and honour `ValidityLifetime` (a lifetime grant carries no expiry date). (commit `496653f`)
+5. **Free (100%-coupon) orders were blocked in the UI** — `Payment.tsx` required a screenshot unconditionally, forcing a bogus upload on the path the server explicitly approves proof-free. Screenshot now only required when the quote is not free; `img` sent only if picked; the upload label says "not needed — free with coupon"; success copy distinguishes "active now" vs "pending review". (commit `4cf4cb3`)
+6. **Premium-contest 402 showed a raw error toast** — `Contest.tsx` now opens the shared premium sheet for the lock's program (the same call the contest cards use) before redirecting home. (commit `4cf4cb3`)
+
+Bonus fix found while doing #5: the Payment success screen was **unreachable** — `handleSubmit` set `isSuccess` and `resetForm()` reset it in the same batched update, and the screen printed an empty name because `resetForm` also clears `fullName`. Replaced with a submit-time `successInfo` snapshot. (commit `4cf4cb3`)
+
+## Contract checks that passed (no fix needed)
+
+`shared/pricing/api.ts` paths vs `pricing_handler.go`/`enrollment_handler.go` routes; `LockInfo` JSON vs `types/index.ts` lock shape and `Contest.lock`; `respond()` `{enrollments, primary_program_id}` vs `MyPrograms.tsx`; registration payload (`region_id/city_id/region/city`) vs `AddStudent`; `PlanPicker` quote display vs `Quote` JSON; `grantsFor` prefers `Validity`, so the new `ExpirationDate` stamping doesn't double-apply; admin sidebar paths (`/dashboard/pricing|locations|enrolment`) match `App.tsx` — closes the "verify sidebar paths" open item; `/grants` redirect intact.
+
+## Deployment notes (first boot)
+
+- Auto-migrations are **ON by default** on boot (the client's decision recorded in `discussion.txt`): `-001` grade, `-002` enrollments, `-003` seed locations run automatically before the server listens; `AUTO_MIGRATE=off` skips the runner; `go run ./cmd/migrate -status` shows the ledger.
+- `-004` (default price plan) stays **deferred** until `MIGRATE_PRICING_ETB` (santim) is set — no price is invented. `/api/pricing` is empty until it runs or an admin creates a plan.
+- Migration backups go to `MIGRATION_BACKUP_DIR` (default `migration-backups/`) — on container disk unless a volume is mounted.
+- Behaviour changes for QA: second submit → 409 (app now shows "Already submitted"), old `GET isActive` → 405.
+
+## Commits in this verification pass (local only — push withheld per instruction)
+
+`d2002f9` compile + gofmt · `3b3570f` admin Programs tsc fix · `4cf4cb3` frontend defects 5/6 + success screen · `496653f` backend defects 2/3/4 · `ca38197` admin `/api` prefix. (`discussion.txt` deliberately stays untracked.)
