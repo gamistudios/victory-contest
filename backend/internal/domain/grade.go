@@ -20,9 +20,11 @@ func IsValidGrade(g string) bool {
 // LegacyGradeToCurrent maps the wrong values written by the old registration
 // form ("1".."4", where the label said Grade 9..12) to the real grade. It
 // returns ok=false for anything else, including values that are already valid.
-// IMPORTANT: this mapping is only applied by cmd/migrate-grade AFTER the
-// operator has inspected `DISTINCT grade` (plan §4 D1); never at request time,
-// because "1".."4" can never be told apart from a typo there.
+// It is applied by cmd/migrate-grade / migration -001 to stored rows, and by a
+// TRANSITIONAL shim in student_usecase.normalizeLegacyGrade so the still-deployed
+// old frontend can register without 400s during the backend-first deploy window.
+// Both callers only map the four exact legacy codes; everything else stays a
+// validation error. Remove the request-time use once the new frontend is live.
 func LegacyGradeToCurrent(g string) (string, bool) {
 	switch strings.TrimSpace(g) {
 	case "1":

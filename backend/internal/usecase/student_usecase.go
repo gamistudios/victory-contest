@@ -66,8 +66,20 @@ func NewStudentUsecase(repo StudentRepository, paymentRepo PaymentRepository, su
 // enrollments land; until then it stops the "1".."4" form bug from re-appearing.
 var ErrInvalidGrade = errors.New("grade must be one of 9, 10, 11 or 12")
 
+// normalizeLegacyGrade is a transitional deploy-ordering shim: the student
+// frontend currently deployed in production still submits the old form's
+// "1".."4" codes (whose labels read Grade 9..12), so those exact values are
+// mapped instead of rejected. Students keep getting 400 for anything else.
+// Remove this once the new registration/profile flow is fully live.
+func normalizeLegacyGrade(g string) string {
+	if v, ok := domain.LegacyGradeToCurrent(g); ok {
+		return v
+	}
+	return g
+}
+
 func (u *studentUsecase) AddStudent(student domain.Student) error {
-	student.Grade = strings.TrimSpace(student.Grade)
+	student.Grade = normalizeLegacyGrade(strings.TrimSpace(student.Grade))
 	if !domain.IsValidGrade(student.Grade) {
 		return ErrInvalidGrade
 	}
@@ -87,8 +99,8 @@ func (u *studentUsecase) AddStudent(student domain.Student) error {
 }
 func (u *studentUsecase) UpdateStudent(student domain.Student) error {
 	// Empty means "leave unchanged" (the repository skips zero values); a
-	// non-empty grade must be valid.
-	student.Grade = strings.TrimSpace(student.Grade)
+	// non-empty grade must be valid (legacy "1".."4" accepted via shim above).
+	student.Grade = normalizeLegacyGrade(strings.TrimSpace(student.Grade))
 	if student.Grade != "" && !domain.IsValidGrade(student.Grade) {
 		return ErrInvalidGrade
 	}

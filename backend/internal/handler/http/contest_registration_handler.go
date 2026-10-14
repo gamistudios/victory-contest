@@ -29,13 +29,14 @@ func (h *ContestRegistrationHandler) RegisterRoutes(rg *gin.RouterGroup, adminAu
 	// and the id they act on must equal the token subject.
 	rg.POST("/", withStudentAuth(h.studentAuthMw, h.AddContestRegistration)...)
 	rg.GET("/check/:student_id/:contest_id", withStudentAuth(h.studentAuthMw, h.IsStudentRegisteredForContest)...)
-	// isActive changes state (marks the registration active), so it is a POST.
-	// The old GET answers 405 with a hint instead of mutating on a safe verb.
+	// isActive changes state (marks the registration active), so the canonical
+	// verb is POST. The GET alias is a TRANSITIONAL shim: the student frontend
+	// deployed today still calls GET on contest open, and a 405 there would
+	// lock every student out of contests during a backend-first deploy. The
+	// alias runs the exact same guarded handler (student session + id match),
+	// so it adds no access; remove it once the new frontend is live.
 	rg.POST("/isActive/:contest_id/:student_id", withStudentAuth(h.studentAuthMw, h.CheckStudentActiveInContest)...)
-	rg.GET("/isActive/:contest_id/:student_id", func(c *gin.Context) {
-		c.Header("Allow", "POST")
-		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "use POST /contest-registration/isActive/:contest_id/:student_id"})
-	})
+	rg.GET("/isActive/:contest_id/:student_id", withStudentAuth(h.studentAuthMw, h.CheckStudentActiveInContest)...)
 	rg.GET("/contest/:contest_id", h.GetNumberOfRegisterationForContest)
 }
 
