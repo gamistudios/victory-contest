@@ -5,7 +5,7 @@ import { useAsync } from "../hooks/useAsync";
 import { useAcademy } from "../context/AcademyContext";
 import { CardSkeleton, EmptyState, InlineError } from "../components/States";
 import { SubjectTile } from "../components/SubjectTile";
-import { iconFor, LEVEL_SHORT, STREAM_SHORT } from "../lib/theme";
+import { iconFor, levelShort, STREAM_SHORT } from "../lib/theme";
 import { cn } from "@/lib/utils";
 import { BookOpen } from "lucide-react";
 
@@ -31,7 +31,7 @@ export default function Courses() {
             <button key={p.id} role="tab" aria-selected={active} disabled={!p.is_active} onClick={() => set("level", p.id)}
               className={cn("flex w-24 shrink-0 flex-col items-center gap-1.5 rounded-2xl border p-3 transition", active ? "border-brand bg-brand/15" : "border-border bg-card", !p.is_active && "opacity-40")}>
               <Icon className={cn("h-6 w-6", active ? "text-brand-ink" : "text-muted-foreground")} />
-              <span className="text-xs font-bold">{LEVEL_SHORT[p.id]}</span>
+              <span className="text-xs font-bold">{levelShort(progs.data?.programs, p.id)}</span>
               <span className="text-[10px] text-muted-foreground">{p.is_active ? `${p.subjects_count} subjects` : "Soon"}</span>
             </button>
           );

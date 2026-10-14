@@ -20,6 +20,7 @@ import FeedbackIcon from "../assets/comment-add-01-stroke-rounded.svg?react";
 import UpgradeIcon from "../assets/sparkles-stroke-rounded.svg?react";
 import PaymentHistoryIcon from "../assets/document-validation-stroke-rounded.svg?react";
 import { useAuth } from "../context/AuthContext";
+import { isEntitled, useEntitlements } from "@/shared/pricing/api";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
 import { getAiSettings } from "../services/aiService";
 const TopNavigation: React.FC = () => {
@@ -50,7 +51,11 @@ const TopNavigation: React.FC = () => {
       active = false;
     };
   }, []);
-  const aiLocked = aiRequirePremium && !user?.is_premium;
+  // Same rule as the server: entitled to the PRIMARY program (any plan only for unmigrated students).
+  const { data: ents } = useEntitlements();
+  const primary = user?.primary_program_id;
+  const hasAiAccess = primary && ents ? isEntitled(ents.byProgram[primary], ents.grace) : !!user?.is_premium;
+  const aiLocked = aiRequirePremium && !hasAiAccess;
 
   // useEffect(()=>{
   //   const checktgUser
@@ -128,7 +133,7 @@ const TopNavigation: React.FC = () => {
     // sheet the Academy locks use explains what is locked and how to pay.
     if (aiLocked) {
       hapticFeedback("impact", "light");
-      openPremium("ai_practice");
+      openPremium("ai_practice", user?.primary_program_id);
       return;
     }
     navigate("/ai-practice");

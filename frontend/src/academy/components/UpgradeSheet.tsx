@@ -16,6 +16,8 @@ interface Props {
   moduleId?: string;
   referral?: ReferralState | null;
   onUnlocked?: () => void;
+  /** Program the locked module belongs to (per-program access). */
+  programId?: string;
 }
 
 /**
@@ -23,7 +25,7 @@ interface Props {
  * the student behind the referral link, and keeps the invite-to-unlock path that
  * only lessons have. Contest screens use <PremiumSheet> through usePremiumSheet().
  */
-export function UpgradeSheet({ open, onOpenChange, subject = "plan", moduleId, referral, onUnlocked }: Props) {
+export function UpgradeSheet({ open, onOpenChange, subject = "plan", moduleId, referral, onUnlocked, programId }: Props) {
   const { isPremium, student } = useAcademy();
   return (
     <PremiumSheet
@@ -35,6 +37,7 @@ export function UpgradeSheet({ open, onOpenChange, subject = "plan", moduleId, r
       referrerId={student?.id}
       moduleId={moduleId}
       onUnlocked={onUnlocked}
+      programId={programId ?? student?.level_id}
     />
   );
 }

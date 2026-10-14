@@ -12,6 +12,9 @@ type Contest struct {
 	Questions   []string `json:"questions"          dynamodbav:"questions"`
 	Status      string   `json:"status"               dynamodbav:"status"`
 	Type        string   `json:"type"  dynamodbav:"type"`
+	// Scope (optional, Phase 1): which program/stream the contest belongs to.
+	// When set, premium access is decided per program via usecase.Decide.
+	Scope *Scope `json:"scope,omitempty" dynamodbav:"scope,omitempty"`
 }
 
 type ContestAnnouncementRequest struct {

@@ -12,7 +12,7 @@ import {
 import { ListFilter } from "lucide-react";
 import { ContestList } from "@/components/contests/ContestList";
 import { Leaderboard } from "@/components/contests/Leaderboard";
-import { grades, Subjects } from "../questions/Data";
+import { useCatalogLists } from "@/hooks/useCatalogLists";
 
 // Define the filter state type
 interface ContestFilters {
@@ -21,6 +21,7 @@ interface ContestFilters {
 }
 
 export default function ContestPage() {
+  const { grades, Subjects } = useCatalogLists();
   const [filters, setFilters] = useState<ContestFilters>({
     grades: [],
     subjects: [],

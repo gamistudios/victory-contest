@@ -1,7 +1,7 @@
 import { Plus, Target, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LEVEL_SHORT } from "@/academy/lib/theme";
+import { levelShort } from "@/academy/lib/theme";
 import type { Difficulty } from "@/types/academy";
 import { Chip, Field, IconBtn, Panel, PanelTitle, Stepper, inputCls } from "../components/kit";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -35,7 +35,7 @@ export function BasicsTab({ m, set, errors, tree }: TabProps) {
               {tree.map((s) => (
                 <SelectGroup key={s.id}>
                   <SelectLabel>
-                    {s.name} · {LEVEL_SHORT[s.level_id]}
+                    {s.name} · {levelShort(undefined, s.level_id)}
                   </SelectLabel>
                   {s.chapters.map((c) => (
                     <SelectItem key={c.id} value={c.id} className="min-h-11">

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"victory-contest-go/internal/domain"
 )
@@ -122,6 +123,12 @@ func (u *questionUsecase) UpdateQuestion(id string, patch domain.QuestionPatch) 
 	if patch.Chapter != nil {
 		updated.Chapter = *patch.Chapter
 	}
+	if patch.ClearScope {
+		updated.Scope = nil
+	} else if patch.Scope != nil {
+		sc := *patch.Scope
+		updated.Scope = &sc
+	}
 	if patch.MultipleChoice != nil {
 		updated.MultipleChoice = *patch.MultipleChoice
 	}
@@ -174,6 +181,9 @@ func (u *questionUsecase) AddMultipleQuestions(questions []domain.Question) erro
 	for i, q := range questions {
 		if err := validateQuestion(q); err != nil {
 			return fmt.Errorf("question %d: %w", i+1, err)
+		}
+		if q.Scope != nil && (strings.TrimSpace(q.Scope.ProgramID) == "" || strings.TrimSpace(q.Scope.StreamID) == "") {
+			return fmt.Errorf("question %d: %w: scope needs a program_id and a stream_id", i+1, ErrInvalidQuestion)
 		}
 	}
 	err := u.repo.AddMultipleQuestions(questions)

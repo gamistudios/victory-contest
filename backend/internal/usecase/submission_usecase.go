@@ -376,6 +376,9 @@ var (
 	ErrContestNotFound       = errors.New("contest not found")
 	ErrContestHasNoQuestions = errors.New("contest has no questions to grade")
 	ErrNoStudentID           = errors.New("submission is missing student.student_id")
+	// ErrAlreadySubmitted: the student already has a submission for this
+	// contest (D4 interim guard until the Attempt engine in Phase 2).
+	ErrAlreadySubmitted = errors.New("you have already submitted this contest")
 )
 
 // gradeSubmission computes the official score and the authoritative missed
@@ -474,6 +477,13 @@ func coversAll(selection map[string]domain.SubmissionMissedQuestionDto, distinct
 	return true
 }
 
+// SubmissionID is the deterministic submission id for (contest, student). Using
+// it as the primary key lets the repository's attribute_not_exists condition
+// enforce "one submission per student per contest" without a transaction.
+func SubmissionID(contestID, studentID string) string {
+	return strings.TrimSpace(contestID) + "_" + strings.TrimSpace(studentID)
+}
+
 func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (string, float64, error) {
 	// A submission without a student id stores an empty GSI key and becomes
 	// invisible to every per-student query (stats, editorial, badges).
@@ -495,13 +505,22 @@ func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (stri
 		return "", 0, ErrContestHasNoQuestions
 	}
 
+	// D4 interim guard: one submission per (contest, student). The read
+	// catches legacy duplicates; the deterministic id + conditional put in the
+	// repository closes the race between two concurrent submits.
+	if existing, err := u.subRepo.GetSubmissionsByStudentAndContest(submission.ContestID, submission.Student.ID); err != nil {
+		return "", 0, err
+	} else if existing != nil {
+		return "", 0, ErrAlreadySubmitted
+	}
+
 	officialScore, officialMissed := gradeSubmission(contest.Questions, submission)
 	if submission.Score != officialScore {
 		log.Printf("AddSubmission: client score %v ignored for contest=%s student=%s, official score is %v",
 			submission.Score, submission.ContestID, submission.Student.ID, officialScore)
 	}
 
-	encodedID := GenerateUniqueId()
+	encodedID := SubmissionID(submission.ContestID, submission.Student.ID)
 	final_submission := domain.Submission{
 		ID:              encodedID,
 		ContestID:       submission.ContestID,
@@ -887,11 +906,13 @@ func (u *submissionUsecase) earnedBadgeIDs(sub domain.Submission) ([]string, err
 	}
 	mathHighScoreCount := 0
 	for _, s := range subs {
-		contestObj, err := u.conUsecase.GetContestByID(s.ContestID)
-		if err != nil || contestObj == nil {
+		// D6: the contest list is already in memory; the old per-submission
+		// GetContestByID re-read every question for each past submission.
+		contestObj, known := structuredContests[s.ContestID]
+		if !known {
 			continue
 		}
-		if strings.EqualFold(structuredContests[s.ContestID].Subject, "math") {
+		if strings.EqualFold(contestObj.Subject, "math") {
 			tq := int(s.Score) + len(s.MissedQuestions)
 			if tq > 0 {
 				percent := (float64(int(s.Score)) / float64(tq)) * 100

@@ -1,0 +1,271 @@
+{
+ "regions": [
+  {
+   "id": "addis-ababa",
+   "name": "Addis Ababa",
+   "active": true,
+   "sort_order": 1,
+   "cities": [
+    {
+     "id": "addis-ababa",
+     "name": "Addis Ababa",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "afar",
+   "name": "Afar",
+   "active": true,
+   "sort_order": 2,
+   "cities": [
+    {
+     "id": "semera",
+     "name": "Semera",
+     "active": true
+    },
+    {
+     "id": "asaita",
+     "name": "Asaita",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "amhara",
+   "name": "Amhara",
+   "active": true,
+   "sort_order": 3,
+   "cities": [
+    {
+     "id": "bahir-dar",
+     "name": "Bahir Dar",
+     "active": true
+    },
+    {
+     "id": "gondar",
+     "name": "Gondar",
+     "active": true
+    },
+    {
+     "id": "dessie",
+     "name": "Dessie",
+     "active": true
+    },
+    {
+     "id": "debre-markos",
+     "name": "Debre Markos",
+     "active": true
+    },
+    {
+     "id": "debre-birhan",
+     "name": "Debre Birhan",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "benishangul-gumuz",
+   "name": "Benishangul-Gumuz",
+   "active": true,
+   "sort_order": 4,
+   "cities": [
+    {
+     "id": "assosa",
+     "name": "Assosa",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "central-ethiopia",
+   "name": "Central Ethiopia",
+   "active": true,
+   "sort_order": 5,
+   "cities": [
+    {
+     "id": "hosaena",
+     "name": "Hosaena",
+     "active": true
+    },
+    {
+     "id": "wolkite",
+     "name": "Wolkite",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "dire-dawa",
+   "name": "Dire Dawa",
+   "active": true,
+   "sort_order": 6,
+   "cities": [
+    {
+     "id": "dire-dawa",
+     "name": "Dire Dawa",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "gambela",
+   "name": "Gambela",
+   "active": true,
+   "sort_order": 7,
+   "cities": [
+    {
+     "id": "gambela",
+     "name": "Gambela",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "harari",
+   "name": "Harari",
+   "active": true,
+   "sort_order": 8,
+   "cities": [
+    {
+     "id": "harar",
+     "name": "Harar",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "oromia",
+   "name": "Oromia",
+   "active": true,
+   "sort_order": 9,
+   "cities": [
+    {
+     "id": "adama",
+     "name": "Adama",
+     "active": true
+    },
+    {
+     "id": "jimma",
+     "name": "Jimma",
+     "active": true
+    },
+    {
+     "id": "bishoftu",
+     "name": "Bishoftu",
+     "active": true
+    },
+    {
+     "id": "shashemene",
+     "name": "Shashemene",
+     "active": true
+    },
+    {
+     "id": "nekemte",
+     "name": "Nekemte",
+     "active": true
+    },
+    {
+     "id": "ambo",
+     "name": "Ambo",
+     "active": true
+    },
+    {
+     "id": "asella",
+     "name": "Asella",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "sidama",
+   "name": "Sidama",
+   "active": true,
+   "sort_order": 10,
+   "cities": [
+    {
+     "id": "hawassa",
+     "name": "Hawassa",
+     "active": true
+    },
+    {
+     "id": "yirgalem",
+     "name": "Yirgalem",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "somali",
+   "name": "Somali",
+   "active": true,
+   "sort_order": 11,
+   "cities": [
+    {
+     "id": "jijiga",
+     "name": "Jijiga",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "south-ethiopia",
+   "name": "South Ethiopia",
+   "active": true,
+   "sort_order": 12,
+   "cities": [
+    {
+     "id": "arba-minch",
+     "name": "Arba Minch",
+     "active": true
+    },
+    {
+     "id": "sodo",
+     "name": "Sodo",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "south-west-ethiopia",
+   "name": "South West Ethiopia",
+   "active": true,
+   "sort_order": 13,
+   "cities": [
+    {
+     "id": "bonga",
+     "name": "Bonga",
+     "active": true
+    },
+    {
+     "id": "mizan-teferi",
+     "name": "Mizan Teferi",
+     "active": true
+    }
+   ]
+  },
+  {
+   "id": "tigray",
+   "name": "Tigray",
+   "active": true,
+   "sort_order": 14,
+   "cities": [
+    {
+     "id": "mekelle",
+     "name": "Mekelle",
+     "active": true
+    },
+    {
+     "id": "adigrat",
+     "name": "Adigrat",
+     "active": true
+    },
+    {
+     "id": "axum",
+     "name": "Axum",
+     "active": true
+    }
+   ]
+  }
+ ]
+}

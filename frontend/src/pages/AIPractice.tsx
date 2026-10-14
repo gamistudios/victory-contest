@@ -38,6 +38,7 @@ import { Label } from "../components/ui/label";
 import { isPremiumRequiredError, aiExplain, getPracticeSubjects, getBankPracticeQuestions } from "../services/aiService";
 import { toast } from "sonner";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
+import { useAuth } from "../context/AuthContext";
 import { useTelegram } from "../hooks/useTelegram";
 import { Input } from "../components/ui/input";
 import MarkdownMessage from "../components/chat/MarkdownMessage";
@@ -91,6 +92,7 @@ export function AIPracticePage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const { showBackButton, hideBackButton } = useTelegram();
   const { open: openPremium } = usePremiumSheet();
+  const { user: authUser } = useAuth();
 
   // --- Question bank ---
   // Practice now draws from the stored question bank (subjects that already
@@ -160,7 +162,7 @@ export function AIPracticePage() {
         // premium: surface the upgrade prompt and drop the pending slot.
         setAiMessages((prev) => prev.filter((m) => m.content !== `__pending:${pendingId}__`));
         setAiPremiumLocked(true);
-        openPremium("ai_practice");
+        openPremium("ai_practice", authUser?.primary_program_id);
       } else {
         // Other failure: remove the pending marker and keep the student turn
         // visible so they can retry.
@@ -250,7 +252,7 @@ export function AIPracticePage() {
     } catch (err) {
       if (isPremiumRequiredError(err)) {
         // Backend 403: the admin switched /api/ai to premium-only.
-        openPremium("ai_practice");
+        openPremium("ai_practice", authUser?.primary_program_id);
       } else {
         toast.error("Failed to load practice questions. Please try again.", {
           style: {
@@ -477,7 +479,7 @@ export function AIPracticePage() {
                     <Button
                       size="sm"
                       className="bg-yellow-fix-500 hover:bg-yellow-fix-600 text-white"
-                      onClick={() => openPremium("ai_practice")}
+                      onClick={() => openPremium("ai_practice", authUser?.primary_program_id)}
                     >
                       Get Premium
                     </Button>

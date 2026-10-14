@@ -151,7 +151,7 @@ export default function ModulePage() {
         <button onClick={() => goto(next)} disabled={!next} aria-label="Next lesson" className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted disabled:opacity-30"><ChevronRight className="h-5 w-5" />{next?.is_locked && <Lock className="absolute right-1 top-1 h-3 w-3 text-yellow-700" />}</button>
       </div>
 
-      <UpgradeSheet open={upgrade.open} onOpenChange={(o) => setUpgrade((u) => ({ ...u, open: o }))} moduleId={m.id} subject={upgrade.subject} referral={referral} onUnlocked={reload} />
+      <UpgradeSheet open={upgrade.open} onOpenChange={(o) => setUpgrade((u) => ({ ...u, open: o }))} moduleId={m.id} programId={m.level_id} subject={upgrade.subject} referral={referral} onUnlocked={reload} />
     </div>
   );
 }

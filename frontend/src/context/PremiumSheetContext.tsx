@@ -5,7 +5,7 @@ import { useAuth } from "./AuthContext";
 
 interface Ctx {
   /** Open the app-wide premium sheet naming `subject` as the blocked thing. */
-  open: (subject: PremiumSubject) => void;
+  open: (subject: PremiumSubject, programId?: string) => void;
 }
 
 const PremiumSheetContext = createContext<Ctx | null>(null);
@@ -19,8 +19,9 @@ const PremiumSheetContext = createContext<Ctx | null>(null);
 export function PremiumSheetProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [subject, setSubject] = useState<PremiumSubject | null>(null);
+  const [programId, setProgramId] = useState<string | undefined>(undefined);
 
-  const open = useCallback((s: PremiumSubject) => setSubject(s), []);
+  const open = useCallback((s: PremiumSubject, pid?: string) => { setProgramId(pid || undefined); setSubject(s); }, []);
   const close = useCallback(() => setSubject(null), []);
   const value = useMemo(() => ({ open }), [open]);
 
@@ -32,6 +33,7 @@ export function PremiumSheetProvider({ children }: { children: ReactNode }) {
         onOpenChange={(o) => { if (!o) close(); }}
         subject={subject ?? "plan"}
         isPremium={!!user?.is_premium}
+        programId={programId}
       />
     </PremiumSheetContext.Provider>
   );

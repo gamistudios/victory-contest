@@ -214,6 +214,7 @@ export interface Student {
   defaultScoreRange?: string; // Stores the student's permanent score range selection
   badge?: string[];
   is_premium?: boolean;
+  primary_program_id?: string;
   phoneNumber?: string;
   read_notifications?: { [key: string]: { id: string; is_deleted: boolean } };
 }
@@ -244,6 +245,10 @@ export interface Contest {
   active_contestant: Student[];
   questions: Question[];
   type: "free" | "premium";
+  /** Optional program scope; premium contests are unlocked per program. */
+  scope?: { program_id: string; stream_id: string; subject_id?: string; chapter_id?: string };
+  /** Present only when the server says this student is locked out. */
+  lock?: { state: "locked"; reason: "premium" | "referral"; program_id?: string };
   status: string;
   performance_trend?: Array<{
     month: string;

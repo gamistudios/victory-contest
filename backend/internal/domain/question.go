@@ -16,6 +16,9 @@ type Question struct {
 	// additive and optional, so legacy rows (no attribute) unmarshal as nil and
 	// grading (1-based index into MultipleChoice) is unaffected.
 	OptionImages []string `json:"option_images"        dynamodbav:"option_images"`
+	// Scope (optional, Phase 1): program/stream/subject/chapter this question belongs to.
+	// Legacy rows have none and keep matching by the free-text grade/subject/chapter.
+	Scope *Scope `json:"scope,omitempty" dynamodbav:"scope,omitempty"`
 }
 
 // QuestionPatch carries the fields provided by PATCH /question/:id. A nil
@@ -34,6 +37,9 @@ type QuestionPatch struct {
 	// OptionImages, when non-nil, fully replaces the stored per-option image
 	// URLs. Empty slice = clear all option images; nil = leave unchanged.
 	OptionImages *[]string `json:"option_images"`
+	// Scope replaces the stored scope when non-nil; ClearScope removes it.
+	Scope      *Scope `json:"scope"`
+	ClearScope bool   `json:"clear_scope"`
 }
 
 type AiPracticeSetting struct {

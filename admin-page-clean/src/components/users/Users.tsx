@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 
 // Your services and data
 import { getAllStudents } from "@/services/studentServices";
+import { getAdminCatalog, type AdminCatalog } from "@/services/catalogServices";
+import { UserAccessSheet } from "./UserAccessSheet";
 
 // Shadcn/ui & Lucide Icons
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -37,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search,
   Info,
+  ShieldCheck,
   AlertTriangle,
   ChevronsLeft,
   ChevronLeft,
@@ -50,13 +53,14 @@ type Status = "pending" | "success" | "error";
 interface Filters {
   search: string;
   grade: string;
+  program: string;
+  stream: string;
+  region: string;
   city: string;
-  school: string;
+  payment: string;
 }
 
-const grades = ["Grade 12", "Grade 11", "Grade 10", "Default"];
-
-const cities = ["Adama", "Addis Ababa", "Dire Dewa", "Bishoftu", "Default"];
+const ALL = "all";
 
 // GET /api/student/ derives is_premium server-side from the student's
 // unexpired approved payments; the list row carries no payment object, so any
@@ -76,10 +80,18 @@ export default function UserListPage() {
   const [status, setStatus] = useState<Status>("pending");
   const [filters, setFilters] = useState<Filters>({
     search: "",
-    grade: "default",
-    city: "default",
-    school: "default",
+    grade: ALL,
+    program: ALL,
+    stream: ALL,
+    region: ALL,
+    city: ALL,
+    payment: ALL,
   });
+  const [catalog, setCatalog] = useState<AdminCatalog | null>(null);
+  const [accessFor, setAccessFor] = useState<Student | null>(null);
+  useEffect(() => {
+    getAdminCatalog().then(setCatalog).catch(() => setCatalog(null));
+  }, []);
 
   // Data fetching
   useEffect(() => {
@@ -99,24 +111,44 @@ export default function UserListPage() {
 
   // Handlers for updating filters
   const handleFilterChange = (filterName: keyof Filters, value: string) => {
-    setFilters((prev) => ({ ...prev, [filterName]: value }));
+    setFilters((prev) => {
+      const next = { ...prev, [filterName]: value };
+      if (filterName === "region") next.city = ALL; // cities depend on the region
+      if (filterName === "program") next.stream = ALL;
+      return next;
+    });
+    setPageIndex(0);
   };
+
+  // Options come from the catalog (programs, streams, locations), never hardcoded.
+  const gradeOptions = useMemo(() => {
+    const g = new Set<string>();
+    students.forEach((s) => s.grade != null && g.add(String(s.grade)));
+    return [...g].sort((a, b) => Number(a) - Number(b));
+  }, [students]);
+  const programOptions = useMemo(() => (catalog?.programs ?? []).filter((p) => p.is_active), [catalog]);
+  const streamOptions = useMemo(() => {
+    const p = programOptions.find((x) => x.id === filters.program);
+    return (catalog?.streams ?? []).filter((s) => (p ? (p.available_streams ?? []).includes(s.id) : true));
+  }, [catalog, programOptions, filters.program]);
+  const regionOptions = catalog?.locations?.regions ?? [];
+  const cityOptions = regionOptions.find((r) => r.id === filters.region)?.cities ?? regionOptions.flatMap((r) => r.cities);
 
   // Memoized filtering for performance
   const filteredStudents = useMemo(() => {
     return (
       students
-        .filter(
-          (student) =>
-            filters.grade === "default" ||
-            student.grade.toString().toLowerCase() === filters.grade
-        )
-        .filter(
-          (student) =>
-            filters.city === "default" ||
-            (student.city ?? "").toLowerCase() === filters.city
-        )
-        // .filter(student => filters.school === 'default' || student.school.toLowerCase() === filters.school) // Add school to your Student type if needed
+        .filter((student) => filters.grade === ALL || String(student.grade) === filters.grade)
+        .filter((student) => {
+          if (filters.program === ALL) return true;
+          const enrolled = (student.enrollments ?? []).filter((e) => e.program_id === filters.program);
+          const inProgram = student.primary_program_id === filters.program || enrolled.length > 0;
+          if (!inProgram) return false;
+          return filters.stream === ALL || enrolled.some((e) => e.stream_id === filters.stream);
+        })
+        .filter((student) => filters.region === ALL || student.region_id === filters.region)
+        .filter((student) => filters.city === ALL || student.city_id === filters.city)
+        .filter((student) => filters.payment === ALL || (filters.payment === "paid") === !!student.is_premium)
         .filter((student) =>
           student.name.toLowerCase().includes(filters.search.toLowerCase())
         )
@@ -199,6 +231,15 @@ export default function UserListPage() {
             <Badge variant={payment.variant}>{payment.label}</Badge>
           </TableCell>
           <TableCell className="text-right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 sm:h-9 sm:w-9"
+              aria-label={`Manage ${student.name}'s access`}
+              onClick={() => setAccessFor(student)}
+            >
+              <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+            </Button>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -248,34 +289,31 @@ export default function UserListPage() {
                 onChange={(e) => handleFilterChange("search", e.target.value)}
               />
             </div>
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-              {[
-                {
-                  name: "grade",
-                  placeholder: "Filter by grade",
-                  options: grades,
-                },
-                {
-                  name: "city",
-                  placeholder: "Filter by city",
-                  options: cities,
-                },
-                // { name: 'school', placeholder: 'Filter by school', options: schools },
-              ].map((filter) => (
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+              {(
+                [
+                  { name: "program", placeholder: "Program", options: programOptions.map((p) => ({ value: p.id, label: p.name })) },
+                  { name: "stream", placeholder: "Stream", options: streamOptions.map((s) => ({ value: s.id, label: s.name })) },
+                  { name: "grade", placeholder: "Grade", options: gradeOptions.map((g) => ({ value: g, label: `Grade ${g}` })) },
+                  { name: "region", placeholder: "Region", options: regionOptions.map((r) => ({ value: r.id, label: r.name })) },
+                  { name: "city", placeholder: "City", options: cityOptions.map((c) => ({ value: c.id, label: c.name })) },
+                  { name: "payment", placeholder: "Payment", options: [{ value: "paid", label: "Paid" }, { value: "unpaid", label: "Unpaid" }] },
+                ] as { name: keyof Filters; placeholder: string; options: { value: string; label: string }[] }[]
+              ).map((filter) => (
                 <Select
                   key={filter.name}
-                  onValueChange={(value) =>
-                    handleFilterChange(filter.name as keyof Filters, value)
-                  }
+                  value={filters[filter.name]}
+                  onValueChange={(value) => handleFilterChange(filter.name, value)}
                 >
-                  <SelectTrigger className="w-full sm:w-48">
+                  <SelectTrigger className="w-full sm:w-40">
                     <SelectValue placeholder={filter.placeholder} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
+                      <SelectItem value={ALL}>All {filter.placeholder.toLowerCase()}s</SelectItem>
                       {filter.options.map((option) => (
-                        <SelectItem key={option} value={option.toLowerCase()}>
-                          {option}
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectGroup>
@@ -297,7 +335,7 @@ export default function UserListPage() {
                     Gender
                   </TableHead>
                   <TableHead>Payment</TableHead>
-                  <TableHead className="text-right">Info</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>{renderTableContent()}</TableBody>
@@ -378,6 +416,12 @@ export default function UserListPage() {
           </div>
         </CardContent>
       </Card>
+      <UserAccessSheet
+        student={accessFor}
+        catalog={catalog}
+        onOpenChange={(o) => !o && setAccessFor(null)}
+        onChanged={() => getAllStudents().then(setStudents).catch(() => undefined)}
+      />
     </div>
   );
 }

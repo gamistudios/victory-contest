@@ -11,6 +11,8 @@ import (
 
 type ContestRegistrationHandler struct {
 	usecase usecase.ContestRegistrationUsecase
+	// studentAuthMw (D5) is wired by NewRouter; nil in handler unit tests.
+	studentAuthMw gin.HandlerFunc
 }
 
 func NewContestRegistrationHandler(u usecase.ContestRegistrationUsecase) *ContestRegistrationHandler {
@@ -23,9 +25,17 @@ func (h *ContestRegistrationHandler) RegisterRoutes(rg *gin.RouterGroup, adminAu
 	auth := rg.Group("", adminAuth...)
 	auth.PUT("/:id", h.UpdateContestRegistration)
 	auth.DELETE("/:id", h.DeleteContestRegistration)
-	rg.POST("/", h.AddContestRegistration)
-	rg.GET("/check/:student_id/:contest_id", h.IsStudentRegisteredForContest)
-	rg.GET("/isActive/:contest_id/:student_id", h.CheckStudentActiveInContest)
+	// D5: all student-facing registration routes require a student session,
+	// and the id they act on must equal the token subject.
+	rg.POST("/", withStudentAuth(h.studentAuthMw, h.AddContestRegistration)...)
+	rg.GET("/check/:student_id/:contest_id", withStudentAuth(h.studentAuthMw, h.IsStudentRegisteredForContest)...)
+	// isActive changes state (marks the registration active), so it is a POST.
+	// The old GET answers 405 with a hint instead of mutating on a safe verb.
+	rg.POST("/isActive/:contest_id/:student_id", withStudentAuth(h.studentAuthMw, h.CheckStudentActiveInContest)...)
+	rg.GET("/isActive/:contest_id/:student_id", func(c *gin.Context) {
+		c.Header("Allow", "POST")
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "use POST /contest-registration/isActive/:contest_id/:student_id"})
+	})
 	rg.GET("/contest/:contest_id", h.GetNumberOfRegisterationForContest)
 }
 
@@ -33,6 +43,10 @@ func (h *ContestRegistrationHandler) AddContestRegistration(c *gin.Context) {
 	var registration domain.ContestRegistrationDto
 	if err := c.ShouldBindJSON(&registration); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !requireMatchingStudent(c, registration.StudentID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "student_id does not match the authenticated student"})
 		return
 	}
 	id, err := h.usecase.AddContestRegistration(registration)
@@ -76,6 +90,10 @@ func (h *ContestRegistrationHandler) DeleteContestRegistration(c *gin.Context) {
 func (h *ContestRegistrationHandler) IsStudentRegisteredForContest(c *gin.Context) {
 	studentID := c.Param("student_id")
 	contestID := c.Param("contest_id")
+	if !requireMatchingStudent(c, studentID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "student_id does not match the authenticated student"})
+		return
+	}
 	isRegistered, err := h.usecase.CheckRegistrationsByContestAndStudent(contestID, studentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -85,6 +103,10 @@ func (h *ContestRegistrationHandler) IsStudentRegisteredForContest(c *gin.Contex
 }
 func (h *ContestRegistrationHandler) CheckStudentActiveInContest(c *gin.Context) {
 	conId, studId := c.Param("contest_id"), c.Param("student_id")
+	if !requireMatchingStudent(c, studId) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "student_id does not match the authenticated student"})
+		return
+	}
 	isActive, err := h.usecase.CheckStudentActiveInContest(conId, studId)
 	if err != nil {
 		// Distinct mapping: "already active" is a conflict (unchanged 409 body

@@ -80,7 +80,7 @@ const ContestComponent: React.FC = () => {
     const fetchAndSetupContest = async () => {
       try {
         // Check if user is already active in the contest
-        await api.get(`/contest-registration/isActive/${conId}/${user?.id}`);
+        await api.post(`/contest-registration/isActive/${conId}/${user?.id}`);
 
         const contestData = await getContestById(conId);
         if (cancelled) return;
@@ -352,8 +352,17 @@ const ContestComponent: React.FC = () => {
       }, 10000);
 
       setContestEnded(true);
-    } catch {
-      // Optionally handle error
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 409) {
+        toast.info("Already submitted", {
+          description: "You have already submitted this contest. Only your first submission counts.",
+          position: "bottom-right",
+        });
+        hideMainButton();
+        setContestEnded(true);
+        return;
+      }
       toast.error("Submission failed!", {
         description: "Failed to submit your contest answers. Please try again.",
         icon: <XCircle className="w-6 h-6 text-red-500" />,

@@ -5,7 +5,7 @@ import { ColumnDef, Row } from "@tanstack/react-table";
 import { PaymentRequest } from "../../types/payment";
 import { Button } from "@/components/ui/button";
 import { notifyUser } from "../../services/paymentServices";
-import { BellRing, CheckCircle, XCircle, Eye, RotateCcw } from "lucide-react";
+import { BellRing, CheckCircle, XCircle, Eye, RotateCcw, ShieldOff } from "lucide-react";
 
 import {
   AlertDialog,
@@ -35,6 +35,7 @@ interface PendingActionsHandlers {
 }
 interface ActionHandlerForUndo {
   onPend: (payment: PaymentRequest) => Promise<void>;
+  onRevoke?: (payment: PaymentRequest) => Promise<void>;
 }
 // --- Cell Components for Modals and Dialogs ---
 
@@ -336,6 +337,29 @@ export const getApprovedColumns = (handlers: ActionHandlerForUndo) => {
               >
                 <RotateCcw className="mr-2 h-4 w-4" /> Undo
               </Button>
+              {handlers.onRevoke && (
+                <Button
+                  disabled={loading}
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive"
+                  title="Revoke access granted by this payment (keeps the record)"
+                  onClick={async () => {
+                    if (!window.confirm(`Revoke access from ${payment.fullName}'s payment?`)) return;
+                    try {
+                      setloading(true);
+                      await handlers.onRevoke!(payment);
+                      toast.success("Payment revoked; entitlements rebuilt");
+                    } catch {
+                      toast.error("Could not revoke this payment");
+                    } finally {
+                      setloading(false);
+                    }
+                  }}
+                >
+                  <ShieldOff className="mr-2 h-4 w-4" /> Revoke
+                </Button>
+              )}
             </div>
             <AlertDialog open={isRejecting} onOpenChange={setIsRejecting}>
               <AlertDialogContent className="max-h-[85vh] max-w-[calc(100vw-2rem)] overflow-y-auto">

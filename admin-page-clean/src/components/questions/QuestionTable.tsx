@@ -28,6 +28,8 @@ import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getAdminCatalog, type AdminCatalog } from "@/services/catalogServices";
+import type { Scope } from "@/types/models";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,6 +81,7 @@ export default function QuestionTable({
 }: QuestionTableProps) {
   const [pageIndex, setPageIndex] = React.useState(0);
   const [pageSize, setPageSize] = React.useState(10);
+  const catalog = useCatalogOnce();
 
   const pageCount = Math.ceil(questions.length / pageSize);
   const selectable = Boolean(onToggleSelected && onToggleSelectedMany);
@@ -129,6 +132,7 @@ export default function QuestionTable({
               <TableHead>Subject</TableHead>
               <TableHead>Grade</TableHead>
               <TableHead>Chapter</TableHead>
+              <TableHead>Scope</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -155,6 +159,9 @@ export default function QuestionTable({
                 <TableCell>{question.subject}</TableCell>
                 <TableCell>{question.grade}</TableCell>
                 <TableCell>{question.chapter}</TableCell>
+                <TableCell>
+                  <ScopeBadge scope={question.scope} catalog={catalog} />
+                </TableCell>
                 <TableCell className="text-right">
                   <QuestionActions
                     question={question}
@@ -188,6 +195,7 @@ export function QuestionActions({
   onQuestionDeleted,
 }: QuestionActionsProps) {
   const navigate = useNavigate();
+  const catalog = useCatalogOnce();
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [alertOpen, setAlertOpen] = React.useState(false);
@@ -315,6 +323,7 @@ export function QuestionActions({
             <Badge variant="outline">{question.subject}</Badge>
             <Badge variant="outline">Grade {question.grade}</Badge>
             <Badge variant="outline">{question.chapter}</Badge>
+            <ScopeBadge scope={question.scope} catalog={catalog} />
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-6">
@@ -435,4 +444,22 @@ export function DataTablePagination({
       </div>
     </div>
   );
+}
+
+
+/** Program + stream label for a question's optional scope ("Legacy" when none). */
+function useCatalogOnce(): AdminCatalog | null {
+  const [c, setC] = React.useState<AdminCatalog | null>(null);
+  React.useEffect(() => {
+    getAdminCatalog().then(setC).catch(() => setC(null));
+  }, []);
+  return c;
+}
+
+function ScopeBadge({ scope, catalog }: { scope?: Scope; catalog: AdminCatalog | null }) {
+  if (!scope) return <span className="text-xs text-muted-foreground">Legacy</span>;
+  const prog = catalog?.programs.find((p) => p.id === scope.program_id);
+  const stream = catalog?.streams.find((s) => s.id === scope.stream_id);
+  const label = `${prog?.short_code || prog?.name || scope.program_id} · ${stream?.name || scope.stream_id}`;
+  return <Badge variant="secondary" className="whitespace-nowrap">{label}</Badge>;
 }

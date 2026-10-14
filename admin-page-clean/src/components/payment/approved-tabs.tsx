@@ -6,6 +6,7 @@ import {
   pendPaymentRequest,
 } from "../../services/paymentServices";
 import { PaymentRequest } from "../../types/payment";
+import { revokePayment } from "../../services/pricingServices";
 
 export function ApprovedPaymentsTab() {
   const [payments, setPayments] = useState<PaymentRequest[]>([]);
@@ -27,10 +28,17 @@ export function ApprovedPaymentsTab() {
     setPayments((prev) => prev.filter((p) => p.id !== payment.id));
   };
 
+  // Revoke keeps the payment row but removes the access it granted (server rebuilds entitlements).
+  const onRevoke = async (payment: PaymentRequest) => {
+    await revokePayment(payment.id);
+    setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+  };
+
   const columns = useMemo(
     () =>
       getApprovedColumns({
         onPend: onPend,
+        onRevoke: onRevoke,
       }),
     []
   );

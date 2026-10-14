@@ -21,6 +21,8 @@ import { Upload, CheckCircle, Loader2, HelpCircle, Send, Copy } from "lucide-rea
 import { useTelegram } from "../hooks/useTelegram";
 import { toast } from "sonner";
 import { sendPaymentInfo, getPaymentSettings } from "../services/paymentServices";
+import PlanPicker from "../shared/pricing/PlanPicker";
+import { withPlan, type Quote } from "../shared/pricing/api";
 import {
   Drawer,
   DrawerContent,
@@ -33,7 +35,7 @@ import { createInvoice } from "../services/telegramServices";
 import { getActiveBanks } from "../services/bankServices";
 import { isAbortedRequest } from "../services/api";
 import { Bank } from "../types";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 interface FormErrors {
   fullName?: string;
@@ -46,6 +48,8 @@ const Payment: FC = () => {
   const [fullName, setFullName] = useState<string>("");
   const [bankName, setBankName] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
+  const [qs] = useSearchParams();
+  const [planSel, setPlanSel] = useState<{ planId: string; quote: Quote; coupon: string } | null>(null);
   const [billScreenshot, setBillScreenshot] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -182,7 +186,7 @@ const Payment: FC = () => {
     if (!fullName.trim()) newErrors.fullName = "Full name is required.";
     if (!bankName) newErrors.bankName = "Please select a payment method.";
     const parsedAmount = Number(amount);
-    if (!amount.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0)
+    if (!planSel && (!amount.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0))
       newErrors.amount = "Enter the transferred amount in ETB (greater than 0).";
     if (!billScreenshot)
       newErrors.billScreenshot = "A bill screenshot is required.";
@@ -203,7 +207,10 @@ const Payment: FC = () => {
       formData.append("user_id", user.id.toString());
       formData.append("fullName", fullName);
       formData.append("bankName", bankName);
-      formData.append("amount", amount.trim());
+      // With a plan the server derives the price; `amount` is only the
+      // student's stated transfer for the legacy no-plan flow.
+      formData.append("amount", planSel ? String(planSel.quote.final / 100) : amount.trim());
+      if (planSel) withPlan(formData, planSel.planId, "ETB", planSel.coupon);
       formData.append("img", billScreenshot!);
 
       await sendPaymentInfo(formData);
@@ -481,6 +488,10 @@ const Payment: FC = () => {
                 )}
               </div>
             )}
+            <PlanPicker initialPlanId={qs.get("plan") ?? undefined} initialCoupon={qs.get("coupon") ?? undefined} onSelect={(planId, quote, coupon) => {
+              setPlanSel({ planId, quote, coupon });
+              setAmount(String(quote.final / 100));
+            }} />
             <div className="space-y-2">
               <Label htmlFor="amount">Amount Paid (ETB)</Label>
               <Input
@@ -490,6 +501,7 @@ const Payment: FC = () => {
                 min="1"
                 placeholder="e.g. 300"
                 value={amount}
+                readOnly={!!planSel}
                 onChange={(e) => setAmount(e.target.value)}
               />
               {errors.amount && (

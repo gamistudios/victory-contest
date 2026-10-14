@@ -20,6 +20,22 @@ type Student struct {
 	ReadNotifications map[string]ReadNotificationModel `dynamodbav:"read_notifications"    json:"read_notifications"`
 	DefaultScoreRange string                           `dynamodbav:"defaultScoreRange" json:"defaultScoreRange"`
 	CreatedAt         time.Time                        `dynamodbav:"created_at"    json:"created_at"`
+	// Phase 1 (all optional; legacy rows read as empty).
+	PrimaryProgramID string       `dynamodbav:"primary_program_id,omitempty" json:"primary_program_id,omitempty"`
+	Enrollments      []Enrollment `dynamodbav:"enrollments,omitempty"        json:"enrollments,omitempty"`
+	RegionID         string       `dynamodbav:"region_id,omitempty"          json:"region_id,omitempty"`
+	CityID           string       `dynamodbav:"city_id,omitempty"            json:"city_id,omitempty"`
+	// StreamID is a registration-time input only (never stored on the row): the stream chosen for PrimaryProgramID.
+	StreamID string `dynamodbav:"-" json:"stream_id,omitempty"`
+}
+
+// Enrollment ties a student to one program (and stream) - plan §5.2.
+type Enrollment struct {
+	ProgramID  string `json:"program_id"  dynamodbav:"program_id"`
+	StreamID   string `json:"stream_id"   dynamodbav:"stream_id"` // "common" for common-only programs
+	EnrolledAt string `json:"enrolled_at" dynamodbav:"enrolled_at"`
+	Source     string `json:"source"      dynamodbav:"source"`    // self | admin | payment
+	Confirmed  bool   `json:"confirmed"   dynamodbav:"confirmed"` // false for migrated rows whose stream was auto-defaulted
 }
 
 type ReadNotificationModel struct {

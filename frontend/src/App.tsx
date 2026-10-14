@@ -1,3 +1,4 @@
+import MyPrograms from "./pages/MyPrograms";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { useTelegram } from "./hooks/useTelegram";
 import Layout from "./components/Layout";
@@ -69,6 +70,7 @@ function App() {
             <Route path="ai-practice" element={<AIPracticePage />} />
             <Route path="register" element={<RegistrationForm />} />
             <Route path="payment" element={<Payment />} />
+            <Route path="programs" element={<MyPrograms />} />
             <Route
               path="payment-history"
               element={<UserPaymentHistoryPage />}

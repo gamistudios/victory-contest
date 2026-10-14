@@ -83,3 +83,16 @@ export interface ReferralState {
   current: number;
   unlocked: boolean;
 }
+
+/**
+ * A premium contest is locked when the server attached a `lock` (it decides per
+ * program from the student's entitlements) or, as a fallback for unscoped
+ * contests, when the student has no active plan at all.
+ */
+export function isContestLocked(
+  contest: { type?: string; lock?: unknown },
+  hasAnyPlan: boolean | undefined,
+): boolean {
+  if (contest.type !== "premium") return false;
+  return !!contest.lock || !hasAnyPlan;
+}

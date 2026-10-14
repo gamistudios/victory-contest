@@ -7,6 +7,7 @@ import { getLeaderboardByContest } from "../services/contestApi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { isContestLocked } from "@/lib/premium";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
 import { PremiumUpgradeButton } from "./ContestCard";
 import { safePercent } from "../lib/utils";
@@ -102,9 +103,9 @@ export default function LeaderboardModal({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {selectedContest.type === "premium" && !userInfo?.is_premium ? (
+              {isContestLocked(selectedContest, userInfo?.is_premium) ? (
                 <PremiumUpgradeButton
-                  onClick={() => openPremium("premium_contest")}
+                  onClick={() => openPremium("premium_contest", selectedContest.scope?.program_id ?? selectedContest.lock?.program_id)}
                   locked
                   label="Editorial"
                   loading={modalLoading}

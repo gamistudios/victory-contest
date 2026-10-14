@@ -43,6 +43,64 @@ type AcademyProgram struct {
 	TargetExamYear    string   `json:"target_exam_year,omitempty"`
 	TotalModulesCount int      `json:"total_modules_count"`
 	IsActive          bool     `json:"is_active"`
+	// Phase 1 - programs are data (plan §5.1). All optional. Behaviour is
+	// decided by Features / AvailableStreams, NEVER by Kind or ID.
+	Kind                string   `json:"kind,omitempty"`  // label/preset: school_grade|entrance_exam|remedial|freshman|exit_exam|training|custom
+	Group               string   `json:"group,omitempty"` // UI grouping
+	Features            []string `json:"features,omitempty"`
+	Grade               string   `json:"grade,omitempty"` // "9".."12"; derives Student.Grade
+	SortOrder           int      `json:"sort_order"`
+	OpenForRegistration bool     `json:"open_for_registration"`
+}
+
+// Program feature flags.
+const (
+	FeatureLectures    = "lectures"
+	FeatureAssessments = "assessments"
+	FeatureLeaderboard = "leaderboard"
+	FeatureAITutor     = "ai_tutor"
+	FeatureHabits      = "habits"
+)
+
+// ValidProgramFeatures is the closed set accepted by the admin API.
+var ValidProgramFeatures = []string{FeatureLectures, FeatureAssessments, FeatureLeaderboard, FeatureAITutor, FeatureHabits}
+
+// ValidProgramKinds is the closed set of preset labels.
+var ValidProgramKinds = []string{"school_grade", "entrance_exam", "remedial", "freshman", "exit_exam", "training", "custom"}
+
+// HasFeature reports whether the program enables the feature.
+func (p AcademyProgram) HasFeature(f string) bool {
+	for _, x := range p.Features {
+		if x == f {
+			return true
+		}
+	}
+	return false
+}
+
+// NeedsStreamChoice is true when a student must pick natural/social: the
+// program offers at least one stream other than "common".
+func (p AcademyProgram) NeedsStreamChoice() bool {
+	for _, s := range p.AvailableStreams {
+		if s != StreamCommon {
+			return true
+		}
+	}
+	return false
+}
+
+// AllowsStream reports whether streamID can be enrolled in (common is always
+// allowed as the shared stream).
+func (p AcademyProgram) AllowsStream(streamID string) bool {
+	if streamID == StreamCommon && !p.NeedsStreamChoice() {
+		return true
+	}
+	for _, s := range p.AvailableStreams {
+		if s == streamID {
+			return true
+		}
+	}
+	return false
 }
 
 type AcademyStream struct {
@@ -252,6 +310,9 @@ type AcademyFlashcardProgress struct {
 // AcademyStudentState is the persisted per-student learning state (one
 // document per student, optimistic-locked through Version).
 type AcademyStudentState struct {
+	// Runtime-only (never persisted): per-program entitlement set.
+	AccessSet     bool            `json:"-" dynamodbav:"-"`
+	ProgramAccess map[string]bool `json:"-" dynamodbav:"-"`
 	StudentID         string                              `json:"student_id"`
 	LevelID           string                              `json:"level_id"`
 	StreamID          string                              `json:"stream_id"`

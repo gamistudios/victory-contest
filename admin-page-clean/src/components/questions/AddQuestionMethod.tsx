@@ -6,7 +6,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { grades, Subjects } from "./Data";
+import { ScopePicker } from "@/components/common/ScopePicker";
+import type { Scope } from "@/types/models";
+import { useCatalogLists } from "@/hooks/useCatalogLists";
 import { Question } from "../../types/models";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -173,6 +175,7 @@ function OptionImagePreview({
 }
 
 export function AddQuestionManual(): JSX.Element {
+  const { grades, Subjects } = useCatalogLists();
   const [searchParams] = useSearchParams();
 
   const isEditing = !!searchParams.get("edit");
@@ -180,6 +183,7 @@ export function AddQuestionManual(): JSX.Element {
     const qStr = searchParams.get("question");
     return qStr ? (JSON.parse(qStr) as Question) : null;
   }, [searchParams]);
+  const [scope, setScope] = useState<Scope | undefined>(questionToEdit?.scope);
 
   const initialState: FormState = {
     question_text: questionToEdit?.question_text ?? "",
@@ -258,6 +262,8 @@ export function AddQuestionManual(): JSX.Element {
           subject: validationResult.data.subject,
           chapter: validationResult.data.chapter,
           explanation: validationResult.data.explanation ?? "",
+          // null clears a previously stored scope; undefined leaves it alone.
+          scope: scope ?? (questionToEdit?.scope ? null : undefined),
         };
         if (validationResult.data.question_image instanceof File) {
           patch.question_image = validationResult.data.question_image;
@@ -288,6 +294,7 @@ export function AddQuestionManual(): JSX.Element {
           ...validationResult.data,
           answer: parseInt(validationResult.data.answer, 10),
           option_images: state.option_images,
+          scope,
         };
         const promise = addQuestion(input);
         toast.promise(promise, {
@@ -502,6 +509,11 @@ export function AddQuestionManual(): JSX.Element {
                 </div>
                 ))}
               </div>
+              <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+                <Label>Program scope (optional)</Label>
+                <p className="text-xs text-muted-foreground">Ties the question to a program, stream, subject and chapter from the catalog. Leave empty to keep using the grade, subject and chapter above.</p>
+                <ScopePicker value={scope} onChange={setScope} disabled={isLoading} depth="chapter" />
+              </div>
               <div className="space-y-2">
                 <Label className="capitalize">Chapter</Label>
                 <Input
@@ -573,6 +585,8 @@ export function EnhancedUploadQuestions() {
   // which handles any document layout; unchecking falls back to the offline
   // deterministic parser.
   const [useAI, setUseAI] = useState(true);
+  // Optional scope applied to every uploaded question that has none of its own.
+  const [bulkScope, setBulkScope] = useState<Scope | undefined>(undefined);
 
   const handleFileSelect = async (selectedFile: File | null) => {
     if (!selectedFile || isFileProcessing) return;
@@ -648,7 +662,10 @@ export function EnhancedUploadQuestions() {
       return;
     }
     setIsSubmitting(true);
-    const promise = addMultipleQuestions(questions);
+    const payload = bulkScope
+      ? questions.map((q) => (q.scope ? q : { ...q, scope: bulkScope }))
+      : questions;
+    const promise = addMultipleQuestions(payload);
 
     toast.promise(promise, {
       loading: "Submitting questions to the database...",
@@ -706,6 +723,19 @@ export function EnhancedUploadQuestions() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Program scope for this upload (optional)</Label>
+            <ScopePicker
+              value={bulkScope}
+              onChange={setBulkScope}
+              disabled={isFileProcessing || isSubmitting}
+              depth="chapter"
+            />
+            <p className="text-xs text-muted-foreground">
+              Applied to every question below that has no scope of its own.
+              Grade, subject and chapter are still read from the document.
+            </p>
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"

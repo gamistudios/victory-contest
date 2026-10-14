@@ -153,6 +153,16 @@ export const adminCreateSubject = async (body: Partial<Subject> & { name: string
 export const adminSetProgramActive = async (id: LevelId, is_active: boolean): Promise<Program> =>
   (await api.patch(`/api/academy/admin/programs/${id}`, { is_active })).data.program;
 
+export type ProgramInput = Partial<Program> & { name: string };
+export const adminCreateProgram = async (body: ProgramInput): Promise<Program> =>
+  (await api.post("/api/academy/admin/programs", body)).data.program;
+export const adminUpdateProgram = async (id: string, body: ProgramInput): Promise<Program> =>
+  (await api.put(`/api/academy/admin/programs/${id}`, body)).data.program;
+export const adminDeleteProgram = async (id: string): Promise<Program> =>
+  (await api.delete(`/api/academy/admin/programs/${id}`)).data.program;
+export const adminMoveSubject = async (id: string, program_id: string, stream_id: string): Promise<Subject> =>
+  (await api.post(`/api/academy/admin/subjects/${id}/move`, { program_id, stream_id })).data.subject;
+
 export const adminGenerateDrafts = async (body: {
   module_id: string;
   kinds: AiDraftKind[];

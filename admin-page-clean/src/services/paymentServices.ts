@@ -60,11 +60,29 @@ export const notifyUsers = async (
   };
 };
 
+export interface AmountMismatch {
+  expected_etb: number;
+  reported_etb: number;
+}
+
+/** Returns the mismatch details when the server refuses (409 amount_mismatch); pass force=true to approve anyway. */
 export const approvePaymentRequest = async (
-  payment: PaymentRequest
-): Promise<{ success: boolean }> => {
-  await api.post(`/api/payment/update`, payment);
-  return { success: true };
+  payment: PaymentRequest,
+  force = false
+): Promise<{ success: boolean; mismatch?: AmountMismatch }> => {
+  try {
+    await api.post(`/api/payment/update${force ? "?force=true" : ""}`, payment);
+    return { success: true };
+  } catch (e: any) {
+    const d = e?.response?.data;
+    if (e?.response?.status === 409 && d?.code === "amount_mismatch") {
+      return {
+        success: false,
+        mismatch: { expected_etb: d.expected_etb, reported_etb: d.reported_etb },
+      };
+    }
+    throw e;
+  }
 };
 
 // Simulate rejecting a payment

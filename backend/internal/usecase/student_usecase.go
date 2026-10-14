@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
 	"victory-contest-go/internal/domain"
 )
@@ -45,17 +46,52 @@ type studentUsecase struct {
 	paymentRepo    PaymentRepository
 	submissionRepo SubmissionRepository
 	contestRepo    ContestRepository
+	enroll         *EnrollmentUsecase // optional (Phase 1)
+}
+
+// WithEnrollment lets registration carry program/stream/location ids.
+func WithEnrollment(su StudentUsecase, e *EnrollmentUsecase) StudentUsecase {
+	if impl, ok := su.(*studentUsecase); ok {
+		impl.enroll = e
+	}
+	return su
 }
 
 func NewStudentUsecase(repo StudentRepository, paymentRepo PaymentRepository, submissionRepo SubmissionRepository, contestRepo ContestRepository) StudentUsecase {
 	return &studentUsecase{repo: repo, paymentRepo: paymentRepo, submissionRepo: submissionRepo, contestRepo: contestRepo}
 }
 
+// ErrInvalidGrade is returned when a registration/update carries a grade outside
+// domain.AllowedGrades (D1). Temporary: replaced by Catalog.ValidateScope once
+// enrollments land; until then it stops the "1".."4" form bug from re-appearing.
+var ErrInvalidGrade = errors.New("grade must be one of 9, 10, 11 or 12")
+
 func (u *studentUsecase) AddStudent(student domain.Student) error {
+	student.Grade = strings.TrimSpace(student.Grade)
+	if !domain.IsValidGrade(student.Grade) {
+		return ErrInvalidGrade
+	}
 	student.CreatedAt = time.Now().In(time.Local)
+	// Enrollments are server-owned: never trust a client-supplied list.
+	student.Enrollments = nil
+	if u.enroll != nil && student.PrimaryProgramID != "" {
+		es, err := u.enroll.ForRegistration(student.PrimaryProgramID, firstStream(student), student.RegionID, student.CityID)
+		if err != nil {
+			return err
+		}
+		student.Enrollments = es
+	} else {
+		student.PrimaryProgramID = "" // legacy clients: no enrollment until they pick one
+	}
 	return u.repo.AddStudent(student)
 }
 func (u *studentUsecase) UpdateStudent(student domain.Student) error {
+	// Empty means "leave unchanged" (the repository skips zero values); a
+	// non-empty grade must be valid.
+	student.Grade = strings.TrimSpace(student.Grade)
+	if student.Grade != "" && !domain.IsValidGrade(student.Grade) {
+		return ErrInvalidGrade
+	}
 	return u.repo.UpdateStudent(student)
 }
 
@@ -484,3 +520,7 @@ func CalculatePoints(submissions []domain.Submission) int64 {
 	}
 	return totalPoints
 }
+
+// firstStream: registration sends the chosen stream in the same field the
+// legacy form used for the track (empty for common-only programs).
+func firstStream(st domain.Student) string { return st.StreamID }

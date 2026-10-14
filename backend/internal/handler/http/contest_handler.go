@@ -17,6 +17,62 @@ import (
 type ContestHandler struct {
 	usecase             usecase.ContestUsecase
 	notificationService usecase.NotificationUsecase
+	pricing             *usecase.PricingUsecase // optional: premium gate (D2)
+	jwtSecret           []byte
+}
+
+// premiumContest: contests have no Scope yet (Phase 2), so the interim gate
+// keys off the contest type.
+func premiumContest(ctype string) bool {
+	t := strings.ToLower(strings.TrimSpace(ctype))
+	return t == "premium" || t == "paid"
+}
+
+// denyPremium enforces D2 on the server. Admins (admin cookie) always pass;
+// students need a valid session AND a live (or in-grace) entitlement.
+// Returns true when it wrote the response.
+func (h *ContestHandler) denyPremium(c *gin.Context, ctype string, scope *domain.Scope) bool {
+	if h.pricing == nil || !premiumContest(ctype) {
+		return false
+	}
+	if tok, err := c.Cookie("token"); err == nil && tok != "" {
+		if claims, ok := parseJWTClaims(tok, h.jwtSecret); ok && claims.Role == "" {
+			return false
+		}
+	}
+	tok := studentSessionToken(c)
+	claims, ok := parseJWTClaims(tok, h.jwtSecret)
+	if tok == "" || !ok || claims.Role != StudentRole {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return true
+	}
+	if !h.studentLocked(claims.UserID, ctype, scope) {
+		return false
+	}
+	pid := ""
+	if scope != nil {
+		pid = scope.ProgramID
+	}
+	c.JSON(http.StatusPaymentRequired, gin.H{"error": "premium content", "lock": usecase.LockFor(usecase.LockedPremium, pid)})
+	return true
+}
+
+// studentLocked applies the single access function (usecase.Decide) when the
+// contest carries a Scope; contests without one fall back to "any active
+// entitlement" (legacy contests created before scopes existed).
+func (h *ContestHandler) studentLocked(studentID, ctype string, scope *domain.Scope) bool {
+	if !premiumContest(ctype) {
+		return false
+	}
+	if scope == nil || scope.ProgramID == "" {
+		return !h.pricing.HasAnyAccess(studentID)
+	}
+	acc, err := h.pricing.AccessFor(studentID, false)
+	if err != nil {
+		return true // fail closed
+	}
+	d := usecase.Decide(acc, usecase.Resource{Scope: *scope, Access: "premium", Published: true}, time.Now(), domain.DefaultGraceDays)
+	return d != usecase.Allowed
 }
 
 func NewContestHandler(u usecase.ContestUsecase, notificationService usecase.NotificationUsecase) *ContestHandler {
@@ -239,6 +295,30 @@ func (h *ContestHandler) GetAllContests(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	// Student sessions get a per-contest `lock` object (uniform with the
+	// academy) so the app can show the paywall instead of failing on open.
+	if h.pricing != nil {
+		if tok := studentSessionToken(c); tok != "" {
+			if claims, ok := parseJWTClaims(tok, h.jwtSecret); ok && claims.Role == StudentRole {
+				out := make([]gin.H, 0, len(contests))
+				for _, ct := range contests {
+					raw, _ := json.Marshal(ct)
+					row := gin.H{}
+					_ = json.Unmarshal(raw, &row)
+					if h.studentLocked(claims.UserID, ct.Type, ct.Scope) {
+						pid := ""
+						if ct.Scope != nil {
+							pid = ct.Scope.ProgramID
+						}
+						row["lock"] = usecase.LockFor(usecase.LockedPremium, pid)
+					}
+					out = append(out, row)
+				}
+				c.JSON(http.StatusOK, gin.H{"contests": out})
+				return
+			}
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"contests": contests})
 }
 
@@ -256,6 +336,9 @@ func (h *ContestHandler) GetContestByID(c *gin.Context) {
 	// fields. Admins keep full access via the admin-gated /api/question
 	// routes; internal usecase callers (statistics, scoring, editorial) are
 	// untouched because only this HTTP response is sanitized.
+	if contest != nil && h.denyPremium(c, contest.Type, contest.Scope) {
+		return
+	}
 	if contest != nil {
 		c.JSON(http.StatusOK, gin.H{"contest": publicContestPayload(contest, usecase.ContestHasEnded(contest.EndTime))})
 		return

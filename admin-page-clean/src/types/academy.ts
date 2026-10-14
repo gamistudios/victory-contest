@@ -13,16 +13,9 @@
 
 /* ----------------------------- taxonomy ----------------------------- */
 
-export type LevelId =
-  | "grade-9"
-  | "grade-10"
-  | "grade-11"
-  | "grade-12"
-  | "remedial"
-  | "exit-exam"
-  | "other-programs";
+export type LevelId = string; // program id (data-driven)
 
-export type StreamId = "natural-science" | "social-science" | "common";
+export type StreamId = string; // stream id (data-driven; "common" is always allowed)
 
 export type Difficulty =
   | "Beginner"
@@ -66,6 +59,12 @@ export interface Program {
   target_exam_year?: string;
   total_modules_count?: number;
   is_active: boolean;
+  kind?: string;
+  group?: string;
+  features?: string[];
+  grade?: string;
+  sort_order?: number;
+  open_for_registration?: boolean;
 }
 
 export interface Stream {

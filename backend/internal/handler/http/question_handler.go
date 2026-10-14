@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -135,6 +136,12 @@ func (h *QuestionHandler) AddQuestion(c *gin.Context) {
 	question.Subject = c.PostForm("subject")
 	question.Grade = c.PostForm("grade")
 	question.Chapter = c.PostForm("chapter")
+	sc, _, serr := parseScopeForm(c.PostForm("scope"))
+	if serr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": serr.Error()})
+		return
+	}
+	question.Scope = sc
 	question.MultipleChoice = c.PostFormArray("multiple_choice")
 	answerStr := c.PostForm("answer")
 	question.Answer, err = strconv.Atoi(answerStr)
@@ -356,6 +363,14 @@ func (h *QuestionHandler) UpdateQuestion(c *gin.Context) {
 		setForm("subject", &patch.Subject)
 		setForm("grade", &patch.Grade)
 		setForm("chapter", &patch.Chapter)
+		if raw, ok := c.GetPostForm("scope"); ok {
+			sc, clear, serr := parseScopeForm(raw)
+			if serr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": serr.Error()})
+				return
+			}
+			patch.Scope, patch.ClearScope = sc, clear
+		}
 		if _, ok := c.GetPostForm("multiple_choice"); ok {
 			mc := c.PostFormArray("multiple_choice")
 			patch.MultipleChoice = &mc
@@ -534,6 +549,7 @@ func (h *QuestionHandler) GetAllQuestions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	questions = filterQuestionsByScope(c, questions)
 	// Opt-in pagination via ?page / ?page_size; untouched full list when absent
 	// (storage-level paging is a follow-up, see pagination.go).
 	resp := gin.H{"questions": questions}
@@ -552,4 +568,59 @@ func (h *QuestionHandler) GetQuestionByID(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"question": question})
+}
+
+// parseScopeForm reads the optional "scope" form field: empty = not provided,
+// "none" = clear the stored scope, otherwise a JSON Scope with program and stream.
+func parseScopeForm(raw string) (sc *domain.Scope, clear bool, err error) {
+	raw = strings.TrimSpace(raw)
+	switch raw {
+	case "":
+		return nil, false, nil
+	case "none", "null":
+		return nil, true, nil
+	}
+	var v domain.Scope
+	if jerr := json.Unmarshal([]byte(raw), &v); jerr != nil || v.ProgramID == "" || v.StreamID == "" {
+		return nil, false, errors.New("scope needs a program_id and a stream_id")
+	}
+	return &v, false, nil
+}
+
+
+// filterQuestionsByScope applies the optional ?program_id, ?stream_id,
+// ?subject_id, ?chapter_id and ?scoped=none|any filters. Without any of them
+// the list is returned untouched. Questions with no scope only match
+// ?scoped=none (or no filter at all); common-stream questions match every
+// stream of their program (domain.Scope.Matches).
+func filterQuestionsByScope(c *gin.Context, in []domain.Question) []domain.Question {
+	f := domain.ScopeFilter{
+		SubjectID: strings.TrimSpace(c.Query("subject_id")),
+		ChapterID: strings.TrimSpace(c.Query("chapter_id")),
+	}
+	if v := strings.TrimSpace(c.Query("program_id")); v != "" {
+		f.ProgramIDs = []string{v}
+	}
+	if v := strings.TrimSpace(c.Query("stream_id")); v != "" {
+		f.StreamIDs = []string{v}
+	}
+	scoped := strings.TrimSpace(c.Query("scoped"))
+	hasFilter := len(f.ProgramIDs) > 0 || len(f.StreamIDs) > 0 || f.SubjectID != "" || f.ChapterID != ""
+	if !hasFilter && scoped == "" {
+		return in
+	}
+	out := make([]domain.Question, 0, len(in))
+	for _, q := range in {
+		switch {
+		case scoped == "none":
+			if q.Scope == nil {
+				out = append(out, q)
+			}
+		case q.Scope == nil:
+			// unscoped rows never match a scope filter
+		case q.Scope.Matches(f):
+			out = append(out, q)
+		}
+	}
+	return out
 }

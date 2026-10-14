@@ -74,6 +74,15 @@ var Tables = []Table{
 	// learning-state document per student. See repository/academy_dynamo.go.
 	{Name: "academy_content"},
 	{Name: "academy_students"},
+	// Phase 1 (plan §5.2, §5.12): single-row location lists + pricing.
+	{Name: "reference_data"},
+	// Versioned data-migration ledger (internal/migrations).
+	{Name: "schema_migrations"},
+	{Name: "price_plans"},
+	{Name: "coupons"},
+	{Name: "entitlements", GSIs: []GSI{
+		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},
+	}},
 	{Name: "submissions", GSIs: []GSI{
 		{Name: "contest_id-index", Partition: "contest_id", PartType: types.ScalarAttributeTypeS},
 		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},

@@ -18,6 +18,7 @@ import { useContestTimer, ContestStatus } from "../hooks/useContestTimer";
 import LeaderboardModal from "./LeaderboardModal";
 import { formatDistanceStrict } from "date-fns";
 import { useAuth } from "../context/AuthContext";
+import { isContestLocked } from "@/lib/premium";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
 
 const ExpandableDescription = ({ text }: { text: string }) => {
@@ -190,9 +191,9 @@ export default function ContestCard({ contest }: { contest: Contest }) {
         </div>
 
         <div className="">
-          {contest.type === "premium" && !userInfo?.is_premium ? (
+          {isContestLocked(contest, userInfo?.is_premium) ? (
             <PremiumUpgradeButton
-              onClick={() => openPremium("premium_contest")}
+              onClick={() => openPremium("premium_contest", contest.scope?.program_id ?? contest.lock?.program_id)}
               fullWidth={true}
               priceHint="200/mo"
             />

@@ -1,3 +1,4 @@
+import type { Scope } from "@/types/models";
 import { Question } from "@/types/models";
 import api from "./api";
 
@@ -22,6 +23,8 @@ export interface AddQuestionInput {
   question_image?: File;
   explanation_image?: File;
   option_images?: Array<File | string | null>;
+  /** Optional scope; sent as a JSON string field. */
+  scope?: Scope;
 }
 
 /** Presence-aware patch: omitted fields keep their stored values
@@ -33,6 +36,8 @@ export interface UpdateQuestionInput {
   grade?: string;
   subject?: string;
   chapter?: string;
+  /** undefined = keep, null = clear, object = replace. */
+  scope?: Scope | null;
   explanation?: string;
   /** A string is sent verbatim as the Cloudinary URL in the JSON branch;
    *  a File forces the multipart branch where the backend uploads it. */
@@ -63,6 +68,7 @@ export async function addQuestion(
   formData.append("subject", input.subject);
   formData.append("grade", input.grade);
   formData.append("chapter", input.chapter);
+  if (input.scope) formData.append("scope", JSON.stringify(input.scope));
   formData.append("answer", String(input.answer));
   if (input.explanation !== undefined && input.explanation !== null) {
     formData.append("explanation", input.explanation);
@@ -228,6 +234,7 @@ export async function updateQuestion(
     if (patch.subject !== undefined) formData.append("subject", patch.subject);
     if (patch.grade !== undefined) formData.append("grade", patch.grade);
     if (patch.chapter !== undefined) formData.append("chapter", patch.chapter);
+    if (patch.scope !== undefined) formData.append("scope", patch.scope ? JSON.stringify(patch.scope) : "none");
     if (patch.answer !== undefined)
       formData.append("answer", String(patch.answer));
     if (patch.multiple_choice !== undefined) {
@@ -284,6 +291,10 @@ export async function updateQuestion(
   if (patch.grade !== undefined) body.grade = patch.grade;
   if (patch.subject !== undefined) body.subject = patch.subject;
   if (patch.chapter !== undefined) body.chapter = patch.chapter;
+  if (patch.scope !== undefined) {
+    if (patch.scope) body.scope = patch.scope;
+    else body.clear_scope = true;
+  }
   if (patch.explanation !== undefined) body.explanation = patch.explanation;
   if (typeof patch.question_image === "string")
     body.question_image = patch.question_image;

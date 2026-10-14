@@ -55,3 +55,11 @@ export const STREAM_SHORT: Record<string, string> = {
 export const fmtMinutes = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ""}`.trim() : `${m}m`);
 export const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 export const fmtBytes = (b: number) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.round(b / 1e3)} KB`);
+
+/** Data-driven labels: prefer the program's own short_code, fall back to the legacy map / id. */
+export const levelShort = (programs: { id: string; short_code?: string; name?: string }[] | undefined, id: string): string => {
+  const p = programs?.find((x) => x.id === id);
+  return p?.short_code || p?.name || LEVEL_SHORT[id] || id;
+};
+export const streamShort = (streams: { id: string; name?: string }[] | undefined, id: string): string =>
+  streams?.find((x) => x.id === id)?.name ?? STREAM_SHORT[id] ?? id;

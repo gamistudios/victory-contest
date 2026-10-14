@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { grades, Subjects } from '@/components/questions/Data';
+import { ScopePicker } from '@/components/common/ScopePicker';
+import { useCatalogLists } from "@/hooks/useCatalogLists";
 
 
 interface UpdateContestDialogProps {
@@ -24,6 +25,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
   contest,
   onUpdate,
 }) => {
+  const { grades, Subjects } = useCatalogLists();
   const [formData, setFormData] = useState<Partial<Contest>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [timeError, setTimeError] = useState<string>('');
@@ -78,6 +80,7 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
         grade: contest.grade || '',
         prize: contest.prize || '',
         type: contest.type || 'free',
+        scope: contest.scope,
       });
     }
   }, [open, contest]);
@@ -169,6 +172,12 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
                 placeholder="Contest title"
               />
             </div>
+
+            <ScopePicker
+              value={formData.scope}
+              onChange={(scope) => setFormData((f) => ({ ...f, scope }))}
+              depth="stream"
+            />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">

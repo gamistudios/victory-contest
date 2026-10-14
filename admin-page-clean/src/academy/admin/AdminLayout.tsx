@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { BarChart3, Library, LayoutDashboard, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
+import { BarChart3, GraduationCap, Library, LayoutDashboard, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
 import { adminGetDrafts } from "@/services/academy/academyApi";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ const ITEMS: NavItem[] = [
   { to: `${ADMIN_BASE}/ai-review`, label: "AI review", icon: Sparkles, badge: true, match: (p) => p.startsWith(`${ADMIN_BASE}/ai-review`) },
   { to: `${ADMIN_BASE}/analytics`, label: "Analytics", icon: BarChart3, match: (p) => p.startsWith(`${ADMIN_BASE}/analytics`) },
   { to: `${ADMIN_BASE}/access`, label: "Access & programs", icon: ShieldCheck, match: (p) => p.startsWith(`${ADMIN_BASE}/access`) },
+  { to: `${ADMIN_BASE}/programs`, label: "Programs", icon: GraduationCap, match: (p) => p.startsWith(`${ADMIN_BASE}/programs`) },
 ];
 
 function usePendingCount(pathname: string) {

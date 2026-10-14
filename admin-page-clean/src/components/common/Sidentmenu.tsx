@@ -11,6 +11,9 @@ import {
   BrainCircuit,
   CreditCard,
   GraduationCap,
+  Tag,
+  MapPin,
+  KeyRound,
 } from "lucide-react";
 import React from "react";
 export interface NavItem {
@@ -191,6 +194,9 @@ export const menuList: NavGroup[] = [
         path: "/dashboard/settings/payment",
         icon: CreditCard,
       },
+      { id: 21, title: "Pricing & Coupons", path: "/dashboard/pricing", icon: Tag },
+      { id: 22, title: "Locations", path: "/dashboard/locations", icon: MapPin },
+      { id: 23, title: "Bulk Enrolment", path: "/dashboard/enrolment", icon: KeyRound },
     ],
   },
 ];

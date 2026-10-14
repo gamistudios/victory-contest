@@ -17,6 +17,7 @@ import {
 } from "../lib/utils";
 import { ArticleListForHome } from "../components/article/ArticleList";
 import { useAuth } from "../context/AuthContext";
+import { isContestLocked } from "@/lib/premium";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
 import ErrorState from "../components/ErrorState";
 import { isAbortedRequest } from "../services/api";
@@ -203,9 +204,9 @@ const Home: React.FC = () => {
                       </div>
                     </div>
 
-                    {contest.type === "premium" && !userInfo?.is_premium ? (
+                    {isContestLocked(contest, userInfo?.is_premium) ? (
                       <PremiumUpgradeButton
-                        onClick={() => openPremium("premium_contest")}
+                        onClick={() => openPremium("premium_contest", contest.scope?.program_id ?? contest.lock?.program_id)}
                         locked
                         label="Pro"
                         loading={false}

@@ -24,7 +24,17 @@ export function PendingPaymentsTab() {
 
   const handleApprove = async (payment: PaymentRequest) => {
     payment.status = "Approved";
-    await approvePaymentRequest(payment);
+    let res = await approvePaymentRequest(payment);
+    if (!res.success && res.mismatch) {
+      const ok = window.confirm(
+        `The student reported ${res.mismatch.reported_etb} ETB but the plan price is ${res.mismatch.expected_etb} ETB.\n\nApprove anyway?`
+      );
+      if (!ok) {
+        payment.status = "Pending";
+        return;
+      }
+      res = await approvePaymentRequest(payment, true);
+    }
     setPayments((prev) => prev.filter((p) => p.id !== payment.id));
   };
 

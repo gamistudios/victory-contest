@@ -1,5 +1,5 @@
 import { Check, Gift, ShieldCheck, Share2, Sparkles, Users } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { PREMIUM_PERKS, PREMIUM_PITCH, type PremiumSubject, type ReferralState } from "@/lib/premium";
 import { getBotUsername } from "@/services/telegramServices";
 import { useTelegram } from "@/hooks/useTelegram";
+import PlanPicker from "@/shared/pricing/PlanPicker";
+import { inGrace, isEntitled, useEntitlements, type Quote } from "@/shared/pricing/api";
 
 /** Invite-to-unlock rail. Local so shared/ never reaches into a feature folder. */
 function InviteProgress({ value }: { value: number }) {
@@ -39,6 +41,12 @@ interface Props {
   /** Module the referral unlocks, so the deep link lands on it. */
   moduleId?: string;
   onUnlocked?: () => void;
+  /**
+   * The program the blocked thing belongs to. When set, "already premium" means
+   * a live entitlement for THAT program (a Grade 12 plan does not open Training)
+   * and the plan list is filtered to plans that cover it.
+   */
+  programId?: string;
 }
 
 /**
@@ -46,7 +54,7 @@ interface Props {
  * alike: what is locked, what Premium gives, how to pay, and where the backend
  * allows it, how to unlock this item for free by inviting friends.
  */
-export function PremiumSheet({ open, onOpenChange, subject, isPremium, referral, referrerId, moduleId, onUnlocked }: Props) {
+export function PremiumSheet({ open, onOpenChange, subject, isPremium: anyPlan, referral, referrerId, moduleId, onUnlocked, programId }: Props) {
   const { hapticFeedback } = useTelegram();
   const navigate = useNavigate();
   // The sheet stays mounted while it slides out. Remembering the subject it was
@@ -55,12 +63,20 @@ export function PremiumSheet({ open, onOpenChange, subject, isPremium, referral,
   const lastSubject = useRef<PremiumSubject>(subject);
   if (open) lastSubject.current = subject;
   const pitch = PREMIUM_PITCH[open ? subject : lastSubject.current];
+  const { data: ents } = useEntitlements();
+  const ent = programId ? ents?.byProgram[programId] : undefined;
+  // Per-program when we know the program (and entitlements loaded); otherwise the legacy "any plan" flag.
+  const isPremium = programId && ents ? isEntitled(ent, ents.grace) : anyPlan;
+  const grace = programId && ents ? inGrace(ent, ents.grace) : false;
   const invite = !isPremium && !!referral?.enabled && !referral.unlocked;
+  const [sel, setSel] = useState<{ planId: string; quote: Quote; coupon: string } | null>(null);
 
   const pay = () => {
     hapticFeedback("impact", "medium");
     onOpenChange(false);
-    navigate("/payment");
+    const q = new URLSearchParams();
+    if (sel) { q.set("plan", sel.planId); if (sel.coupon) q.set("coupon", sel.coupon); }
+    navigate(q.size ? `/payment?${q}` : "/payment");
   };
 
   const share = async () => {
@@ -145,21 +161,34 @@ export function PremiumSheet({ open, onOpenChange, subject, isPremium, referral,
             </div>
           )}
 
+          {grace && (
+            <p className="rounded-2xl border border-yellow-600/30 bg-yellow-100 px-3 py-2 text-xs font-semibold text-yellow-700" role="status">
+              Your plan has ended. You still have a few days of grace access — renew to keep studying without interruption.
+            </p>
+          )}
+
+          {(!isPremium || grace) && (
+            <section aria-label="Choose a plan" className="space-y-2">
+              <h3 className="text-sm font-extrabold">{grace ? "Renew your plan" : "Choose a plan"}</h3>
+              <PlanPicker programId={programId} onSelect={(planId, quote, coupon) => setSel({ planId, quote, coupon })} />
+            </section>
+          )}
+
           {!isPremium && (
             <p className="flex items-center justify-center gap-1.5 px-2 text-center text-[11px] text-muted-foreground">
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0" /> Bank transfer or Telegram Stars — Premium unlocks as soon as your payment is approved.
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0" /> Pay by bank transfer — access unlocks as soon as your payment is approved.
             </p>
           )}
         </div>
 
         <div className="shrink-0 border-t border-border px-4 py-3 pb-safe">
-          {isPremium ? (
+          {isPremium && !grace ? (
             <Button className="h-12 w-full rounded-xl bg-blue-fix-600 text-base font-bold text-white" onClick={() => onOpenChange(false)}>
               <Check className="h-5 w-5" /> Keep studying
             </Button>
           ) : (
             <Button className="h-12 w-full rounded-xl bg-gradient-to-r from-yellow-fix-600 to-orange-fix-700 text-base font-extrabold text-white hover:opacity-90" onClick={pay}>
-              <Sparkles className="h-5 w-5" /> Upgrade to Premium
+              <Sparkles className="h-5 w-5" /> {sel ? (sel.quote.free ? "Claim for free" : `Continue · ${(sel.quote.final / 100).toLocaleString()} ETB`) : grace ? "Renew" : "Upgrade to Premium"}
             </Button>
           )}
         </div>

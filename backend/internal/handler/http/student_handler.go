@@ -65,6 +65,10 @@ func (h *StudentHandler) AddStudent(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 			return
 		}
+		if errors.Is(err, usecase.ErrInvalidGrade) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -87,6 +91,10 @@ func (h *StudentHandler) UpdateStudent(c *gin.Context) {
 	err := h.usecase.UpdateStudent(student)
 	if err != nil {
 		log.Printf("update student %s: %v", id, err)
+		if errors.Is(err, usecase.ErrInvalidGrade) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

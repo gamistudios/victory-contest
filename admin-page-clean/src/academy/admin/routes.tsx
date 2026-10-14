@@ -6,6 +6,7 @@ import ModuleEditor from "./ModuleEditor";
 import AiReview from "./AiReview";
 import Analytics from "./Analytics";
 import AccessPrograms from "./AccessPrograms";
+import Programs from "./Programs";
 
 /** Mounted under `/dashboard/academy` inside DashboardLayout (see App.tsx). */
 export const adminRoutes: RouteObject[] = [
@@ -19,6 +20,7 @@ export const adminRoutes: RouteObject[] = [
       { path: "ai-review", element: <AiReview /> },
       { path: "analytics", element: <Analytics /> },
       { path: "access", element: <AccessPrograms /> },
+      { path: "programs", element: <Programs /> },
     ],
   },
 ];

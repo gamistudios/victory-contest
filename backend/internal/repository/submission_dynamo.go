@@ -36,8 +36,15 @@ func (r *SubmissionDynamoRepository) AddSubmission(submission domain.Submission)
 	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: &r.tableName,
 		Item:      item,
+		// Ids are deterministic (usecase.SubmissionID) so a second submit for
+		// the same (contest, student) fails here even under a race (D4).
+		ConditionExpression: aws.String("attribute_not_exists(id)"),
 	})
 	if err != nil {
+		var ccf *types.ConditionalCheckFailedException
+		if errors.As(err, &ccf) {
+			return "", usecase.ErrAlreadySubmitted
+		}
 		return "", err
 	}
 	return submission.ID, nil

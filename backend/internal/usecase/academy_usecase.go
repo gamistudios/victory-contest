@@ -78,6 +78,10 @@ type academyProfile struct {
 }
 
 type AcademyUsecase struct {
+	premiumResolver func(studentID string) bool // optional: entitlement-based premium (Phase 1)
+	programResolver func(studentID string) map[string]bool // optional: entitled program ids (per-program locks)
+	studentRepo     StudentRepository // optional: location rename propagation
+	locStore        LocationStore                // optional: admin-managed locations
 	repo     AcademyRepository
 	students StudentUsecase
 	ai       AcademyTextGenerator
@@ -123,10 +127,19 @@ func academyContains(list []string, v string) bool {
 }
 
 var (
-	academyProgramOrder = []string{"grade-9", "grade-10", "grade-11", "grade-12", "remedial", "exit-exam", "other-programs"}
 	academyStreamOrder  = []string{"natural-science", "social-science", "common"}
 	academyDifficulties = []string{"Beginner", "Intermediate", "Advanced", "Easy", "Medium", "Hard"}
 )
+
+// academyProgramRank orders programs by their data-driven SortOrder (plan §5.1);
+// programs without one fall back to the legacy hardcoded order so existing
+// databases keep their ordering until the v2 seed has run.
+func academyProgramRank(p domain.AcademyProgram) int {
+	if p.SortOrder > 0 {
+		return p.SortOrder
+	}
+	return 1000 // unseeded programs sort after seeded ones (stable, by creation order)
+}
 
 func academyIndexOf(list []string, v string) int {
 	for i, x := range list {
@@ -300,14 +313,18 @@ func buildAcademySnapshot(docs []AcademyContentDoc) *academySnapshot {
 	}
 
 	sort.SliceStable(s.programs, func(i, j int) bool {
-		return academyIndexOf(academyProgramOrder, s.programs[i].ID) < academyIndexOf(academyProgramOrder, s.programs[j].ID)
+		return academyProgramRank(s.programs[i]) < academyProgramRank(s.programs[j])
 	})
 	sort.SliceStable(s.streams, func(i, j int) bool {
 		return academyIndexOf(academyStreamOrder, s.streams[i].ID) < academyIndexOf(academyStreamOrder, s.streams[j].ID)
 	})
+	programRank := make(map[string]int, len(s.programs))
+	for i, p := range s.programs {
+		programRank[p.ID] = i
+	}
 	sort.SliceStable(s.subjects, func(i, j int) bool {
 		a, b := s.subjects[i], s.subjects[j]
-		if x, y := academyIndexOf(academyProgramOrder, a.LevelID), academyIndexOf(academyProgramOrder, b.LevelID); x != y {
+		if x, y := programRank[a.LevelID], programRank[b.LevelID]; x != y {
 			return x < y
 		}
 		if x, y := academyIndexOf(academyStreamOrder, a.StreamID), academyIndexOf(academyStreamOrder, b.StreamID); x != y {
@@ -377,16 +394,27 @@ func (u *AcademyUsecase) invalidate() {
 
 /* ------------------------------ student identity ------------------------------ */
 
-var academyDigits = regexp.MustCompile(`\d+`)
-
-func academyLevelFromGrade(grade string) string {
-	if n := academyDigits.FindString(grade); n != "" {
-		switch n {
-		case "9", "10", "11", "12":
-			return "grade-" + n
+// academyInitialLevel picks the first Academy level for a student without a
+// stored state: primary program, else first enrollment, else a valid grade.
+func academyInitialLevel(st *domain.Student) (level, stream string) {
+	if st == nil {
+		return "", "common"
+	}
+	for _, e := range st.Enrollments {
+		if e.ProgramID == st.PrimaryProgramID {
+			return e.ProgramID, e.StreamID
 		}
 	}
-	return "grade-12"
+	if len(st.Enrollments) > 0 {
+		return st.Enrollments[0].ProgramID, st.Enrollments[0].StreamID
+	}
+	if st.PrimaryProgramID != "" {
+		return st.PrimaryProgramID, "common"
+	}
+	if domain.IsValidGrade(st.Grade) {
+		return "grade-" + st.Grade, "common"
+	}
+	return "", "common"
 }
 
 // profile resolves the contest-side student record (name, grade, premium).
@@ -407,6 +435,9 @@ func (u *AcademyUsecase) profile(tid string) (*domain.Student, bool, error) {
 		return nil, false, acErr(503, "could not load your profile, please retry")
 	}
 	premium := st != nil && st.IsPremium
+	if u.premiumResolver != nil {
+		premium = u.premiumResolver(tid)
+	}
 	u.profMu.Lock()
 	u.profiles[tid] = academyProfile{student: st, premium: premium, at: time.Now()}
 	u.profMu.Unlock()
@@ -414,14 +445,14 @@ func (u *AcademyUsecase) profile(tid string) (*domain.Student, bool, error) {
 }
 
 func (u *AcademyUsecase) freshState(tid string, st *domain.Student) *domain.AcademyStudentState {
-	grade := ""
-	if st != nil {
-		grade = st.Grade
+	level, stream := academyInitialLevel(st)
+	if snap, err := u.snapshot(); err == nil {
+		stream = academyStreamFromEnrollment(snap, stream)
 	}
 	return &domain.AcademyStudentState{
 		StudentID:   tid,
-		LevelID:     academyLevelFromGrade(grade),
-		StreamID:    "natural-science",
+		LevelID:     level,
+		StreamID:    stream,
 		TargetScore: 80,
 		CreatedAt:   academyNow(),
 	}
@@ -454,6 +485,10 @@ func (u *AcademyUsecase) loadState(tid string, st *domain.Student) (*domain.Acad
 		state = u.freshState(tid, st)
 	}
 	normalizeAcademyState(state)
+	if u.programResolver != nil {
+		state.AccessSet = true
+		state.ProgramAccess = u.programResolver(tid)
+	}
 	return state, nil
 }
 
@@ -566,6 +601,10 @@ func academyReferralUnlocked(m *domain.AcademyModule, state *domain.AcademyStude
 
 func academyLocks(snap *academySnapshot, m *domain.AcademyModule, premium bool, state *domain.AcademyStudentState) map[string]bool {
 	unlocked := academyReferralUnlocked(m, state)
+	if state != nil && state.AccessSet {
+		// Plan §5.3: entitlement must cover the module's own program.
+		premium = state.ProgramAccess[m.LevelID]
+	}
 	locks := make(map[string]bool, len(domain.AcademyResourceKeys))
 	for _, k := range domain.AcademyResourceKeys {
 		locks[k] = !premium && !unlocked && academyResourceAccess(snap, m, k) == domain.AcademyAccessPremium
@@ -822,6 +861,29 @@ func (u *AcademyUsecase) UpdateMe(tid, levelID, streamID string) (*domain.Academ
 	}
 	if streamID != "" && snap.streamByID(streamID) == nil {
 		return nil, acErr(400, "stream_id is invalid")
+	}
+	// D8: students may only switch between programs they are enrolled in; the
+	// stream always comes from the enrollment, never from the request.
+	if levelID != "" {
+		st, _, perr := u.profile(tid)
+		if perr != nil {
+			return nil, perr
+		}
+		if st != nil && len(st.Enrollments) > 0 {
+			var found *domain.Enrollment
+			for i := range st.Enrollments {
+				if st.Enrollments[i].ProgramID == levelID {
+					found = &st.Enrollments[i]
+					break
+				}
+			}
+			if found == nil {
+				return nil, acErr(403, "you are not enrolled in this program")
+			}
+			if found.StreamID != "" {
+				streamID = academyStreamFromEnrollment(snap, found.StreamID)
+			}
+		}
 	}
 	state, err := u.mutateState(tid, func(s *domain.AcademyStudentState) error {
 		if levelID != "" {
@@ -1565,3 +1627,18 @@ func academyAtoi(s string, def int) int {
 }
 
 var _ = fmt.Sprintf // keep fmt for error formatting helpers in sibling files
+
+// academyStreamFromEnrollment maps an enrollment stream id (natural, social,
+// common) to the academy stream id that exists in the snapshot.
+func academyStreamFromEnrollment(snap *academySnapshot, id string) string {
+	if snap.streamByID(id) != nil {
+		return id
+	}
+	switch id {
+	case "natural":
+		return "natural-science"
+	case "social":
+		return "social-science"
+	}
+	return id
+}

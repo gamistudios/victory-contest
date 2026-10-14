@@ -316,3 +316,28 @@ func (r *dynamoDBPaymentRepository) ListExpired(now time.Time) ([]domain.Payment
 	normalizeReasons(payments)
 	return payments, nil
 }
+
+// SetRevoked implements usecase.PaymentRepository.
+func (r *dynamoDBPaymentRepository) SetRevoked(id string, revoked bool) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	_, err := r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:                aws.String(r.tableName),
+		Key:                      map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: id}},
+		UpdateExpression:         aws.String("SET #r = :r, #u = :u"),
+		ConditionExpression:      aws.String("attribute_exists(#id)"),
+		ExpressionAttributeNames: map[string]string{"#r": "revoked", "#u": "updated_at", "#id": "id"},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":r": &types.AttributeValueMemberBOOL{Value: revoked},
+			":u": &types.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339Nano)},
+		},
+	})
+	if err != nil {
+		var ccf *types.ConditionalCheckFailedException
+		if errors.As(err, &ccf) {
+			return usecase.ErrPaymentNotFound
+		}
+		return fmt.Errorf("failed to revoke payment: %w", err)
+	}
+	return nil
+}

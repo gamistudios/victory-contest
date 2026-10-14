@@ -13,16 +13,9 @@
 
 /* ----------------------------- taxonomy ----------------------------- */
 
-export type LevelId =
-  | "grade-9"
-  | "grade-10"
-  | "grade-11"
-  | "grade-12"
-  | "remedial"
-  | "exit-exam"
-  | "other-programs";
+export type LevelId = string; // program id (data-driven, from /api/catalog)
 
-export type StreamId = "natural-science" | "social-science" | "common";
+export type StreamId = string; // stream id (data-driven; "common" always exists)
 
 export type Difficulty =
   | "Beginner"

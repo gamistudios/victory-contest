@@ -11,6 +11,9 @@ import AddContest from "./components/contests/AddContest";
 import Login from "./components/auth/Login";
 import RootLayout from "./components/RootLoyout";
 import RouteError from "./components/RouteError";
+import Pricing from "./pages/Pricing";
+import Locations from "./pages/Locations";
+import BulkEnrolment from "./pages/BulkEnrolment";
 import Register from "./components/auth/Register";
 import ApproveAdmin from "./components/ApproveAdmin";
 import { NotificationProvider } from "./context/NotificationContext";
@@ -64,6 +67,10 @@ const router = createBrowserRouter(
           { path: "ai", element: <AiManagement /> },
           { path: "settings/payment", element: <PaymentManagementPage /> },
           { path: "academy", children: academyAdminRoutes },
+          { path: "pricing", element: <Pricing /> },
+          { path: "locations", element: <Locations /> },
+          { path: "enrolment", element: <BulkEnrolment /> },
+          { path: "grants", element: <Navigate to="/dashboard/enrolment" replace /> },
           // Without these, a mistyped URL rendered the sidebar and an empty
           // content area with nothing to explain it.
           { path: "*", element: <Navigate to="/dashboard" replace /> },

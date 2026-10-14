@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Library } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState, InlineError } from "@/academy/components/States";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useAsync } from "@/academy/hooks/useAsync";
-import { LEVEL_SHORT } from "@/academy/lib/theme";
+import { levelShort, streamShort } from "@/academy/lib/theme";
 import {
   adminDeleteChapter,
   adminDeleteModule,
@@ -20,12 +20,12 @@ import {
 import type { LevelId } from "@/types/academy";
 import { Chip, ConfirmDialog, PageTitle, Segmented, errMsg } from "./components/kit";
 import { SubjectCard } from "./tree/SubjectCard";
-import { ChapterForm, LEVELS, SubjectForm } from "./tree/forms";
+import { ChapterForm, MoveSubjectSheet, SubjectForm, streamsOf } from "./tree/forms";
 import type { TreeChapter, TreeModule, TreeSubject } from "./tree/types";
 import type { ChapterActions } from "./tree/ChapterBlock";
 import type { ModuleRowActions } from "./tree/ModuleRow";
 
-type StreamFilter = "all" | "natural-science" | "social-science";
+type StreamFilter = string; // "all" or any stream id offered by the selected program
 
 function swap<T>(arr: T[], i: number, j: number): T[] {
   if (j < 0 || j >= arr.length) return arr;
@@ -45,7 +45,22 @@ export default function ContentTree() {
   const [delModule, setDelModule] = useState<TreeModule | null>(null);
   const [delChapter, setDelChapter] = useState<TreeChapter | null>(null);
 
-  const subjects = useMemo(() => (data?.tree ?? []).filter((s) => stream === "all" || s.stream_id === stream || s.stream_id === "common"), [data, stream]);
+  const programs = data?.programs ?? [];
+  const streams = data?.streams ?? [];
+  const activePrograms = useMemo(() => [...programs].filter((p) => p.is_active).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)), [programs]);
+  const streamTabs = useMemo(() => streamsOf(programs, level), [programs, level]);
+  const [moveTarget, setMoveTarget] = useState<TreeSubject | null>(null);
+
+  // If the remembered level is not a live program (data-driven now), jump to the first one.
+  useEffect(() => {
+    if (activePrograms.length && !activePrograms.some((p) => p.id === level)) setLevel(activePrograms[0].id);
+  }, [activePrograms, level]);
+  // Reset the stream tab when the program does not offer it.
+  useEffect(() => {
+    if (stream !== "all" && !streamTabs.includes(stream)) setStream("all");
+  }, [streamTabs, stream]);
+
+  const subjects = useMemo(() => (data?.tree ?? []).filter((s) => stream === "all" || s.stream_id === stream), [data, stream]);
 
   /** Apply an optimistic change to the local tree. */
   const patch = (fn: (tree: TreeSubject[]) => TreeSubject[]) =>
@@ -161,9 +176,9 @@ export default function ContentTree() {
 
       <div className="sticky top-14 z-20 -mx-4 mb-4 space-y-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur lg:top-14 lg:-mx-6 lg:px-6">
         <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide" role="group" aria-label="Level">
-          {LEVELS.map((l) => (
-            <Chip key={l} active={level === l} onClick={() => setLevel(l)}>
-              {LEVEL_SHORT[l]}
+          {activePrograms.map((p) => (
+            <Chip key={p.id} active={level === p.id} onClick={() => setLevel(p.id)}>
+              {levelShort(programs, p.id)}
             </Chip>
           ))}
         </div>
@@ -173,8 +188,7 @@ export default function ContentTree() {
           onChange={setStream}
           className="max-w-md"
           options={[
-            { value: "natural-science", label: "Natural" },
-            { value: "social-science", label: "Social" },
+            ...streamTabs.map((id) => ({ value: id, label: streamShort(streams, id) })),
             { value: "all", label: "All" },
           ]}
         />
@@ -199,6 +213,9 @@ export default function ContentTree() {
               open={open.has(s.id)}
               onToggle={() => toggle(s.id)}
               onAddChapter={() => setChapterForm({ subject: s, chapter: null })}
+              onMove={() => setMoveTarget(s)}
+              programs={programs}
+              streams={streams}
               chapterActions={chapterActions}
               moduleActions={moduleActions}
             />
@@ -210,7 +227,20 @@ export default function ContentTree() {
         open={subjectForm}
         onOpenChange={setSubjectForm}
         defaultLevel={level}
+        programs={programs}
+        streams={streams}
         onCreated={(l) => {
+          if (l !== level) setLevel(l);
+          else refresh();
+        }}
+      />
+      <MoveSubjectSheet
+        open={moveTarget !== null}
+        onOpenChange={(o) => !o && setMoveTarget(null)}
+        subject={moveTarget}
+        programs={programs}
+        streams={streams}
+        onMoved={(l) => {
           if (l !== level) setLevel(l);
           else refresh();
         }}

@@ -59,6 +59,13 @@ func NewContestUsecase(repo ContestRepository, qRepo QuestionRepository) Contest
 	return &contestUsecase{contestRepo: repo, questionRepo: qRepo}
 }
 
+// questionBatchGetter is the optional batch-read capability of a
+// QuestionRepository. It is a separate interface (not a method on
+// QuestionRepository) so existing fakes keep compiling.
+type questionBatchGetter interface {
+	GetByIDs(ids []string) ([]domain.Question, error)
+}
+
 func (u *contestUsecase) GetAllContests() ([]domain.Contest, error) {
 	return u.contestRepo.GetAllContests()
 }
@@ -73,7 +80,15 @@ func (u *contestUsecase) GetContestByID(id string) (*domain.ContestTypeWithQuest
 
 	// Debug logging
 
-	questions, err := u.questionRepo.GetAllQuestions()
+	// D6: hydrate only the contest's own questions. Repositories that can
+	// batch-get by id (DynamoDB) do so; any other implementation (test fakes)
+	// falls back to the old full read, so behaviour is unchanged.
+	var questions []domain.Question
+	if bg, ok := u.questionRepo.(questionBatchGetter); ok {
+		questions, err = bg.GetByIDs(contest.Questions)
+	} else {
+		questions, err = u.questionRepo.GetAllQuestions()
+	}
 	if err != nil {
 		return nil, err
 	}

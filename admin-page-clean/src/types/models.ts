@@ -13,6 +13,10 @@ export interface Student {
   imgurl?: string;
   /** Derived server-side from the student's unexpired approved payments. */
   is_premium?: boolean;
+  primary_program_id?: string;
+  enrollments?: { program_id: string; stream_id: string; confirmed?: boolean }[];
+  region_id?: string;
+  city_id?: string;
   contests: Contest[];
 }
 export interface Admin {
@@ -35,6 +39,8 @@ export interface Contest {
   submissions?: Submission[];
   grade: string;
   subject: string;
+  /** Optional program/stream scope; premium access is then checked per program. */
+  scope?: Scope;
   prize: string;
   status: string;
   type: "free" | "premium";
@@ -68,6 +74,8 @@ export interface Question {
   /** Aligned with multiple_choice: entry i is a Cloudinary URL for the photo
    *  of option i, or "" when that option is text-only. */
   option_images?: string[];
+  /** Optional program/stream/subject/chapter; legacy questions have none. */
+  scope?: Scope;
 }
 
 export interface Submission {
@@ -82,4 +90,11 @@ export interface Submission {
   score: number;
   missed_questions: Question[];
   time_spend?: string;
+}
+
+export interface Scope {
+  program_id: string;
+  stream_id: string;
+  subject_id?: string;
+  chapter_id?: string;
 }

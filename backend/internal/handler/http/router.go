@@ -5,12 +5,15 @@ import (
 	"net/http"
 	"net/url"
 	"victory-contest-go/internal/awsconfig"
+	"victory-contest-go/internal/domain"
+	"victory-contest-go/internal/migrations"
 	"victory-contest-go/internal/repository"
 	"victory-contest-go/internal/schema"
 	"victory-contest-go/internal/usecase"
 
 	"log"
 	"os"
+	"time"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -44,6 +47,9 @@ type Server struct {
 	imageHandler               *ImageHandler
 	contestStatisticsHandler   *ContestStatisticsHandler
 	academyHandler             *AcademyHandler
+	catalogHandler             *CatalogHandler
+	pricingHandler             *PricingHandler
+	enrollmentHandler          *EnrollmentHandler
 	jwtSecret                  string
 	aiRequestsPerMinute        int
 }
@@ -161,6 +167,61 @@ func NewServer() *Server {
 	if err := academyUsecase.SeedIfEmpty(); err != nil {
 		log.Printf("academy seed incomplete (retried on next boot): %v", err)
 	}
+	// Phase 1: additive program catalogue (Entrance Exam, Freshman, Training +
+	// feature flags/groups/order on existing programs). Idempotent, never
+	// overwrites admin edits.
+	if err := academyUsecase.SeedProgramsV2(); err != nil {
+		log.Printf("academy program seed v2 incomplete (retried on next boot): %v", err)
+	}
+
+	// Versioned data migrations (internal/migrations): every pending one runs
+	// once, in id order, after the schema and the program seed above (the
+	// enrollment migration needs the grade-<n> programs). Best-effort: a
+	// failure is logged, stops later migrations and is retried on next boot.
+	// Disable with AUTO_MIGRATE=off.
+	if migrations.Enabled(os.Getenv) {
+		migCtx, migCancel := context.WithTimeout(context.Background(), 20*time.Minute)
+		if applied, err := migrations.RunPending(migCtx, ddb, migrations.Registry(), migrations.Env{BackupDir: os.Getenv("MIGRATION_BACKUP_DIR")}); err != nil {
+			log.Printf("data migration incomplete (applied %v): %v", applied, err)
+		} else if len(applied) > 0 {
+			log.Printf("data migrations applied: %v", applied)
+		}
+		migCancel()
+	} else {
+		log.Println("AUTO_MIGRATE=off - data migrations skipped")
+	}
+
+	// Phase 1: pricing, entitlements and enrollments (plan §5.2, §5.12).
+	programList := func() ([]domain.AcademyProgram, error) {
+		v, err := academyUsecase.Catalog()
+		if err != nil {
+			return nil, err
+		}
+		return v.Programs, nil
+	}
+	pricingUsecase := usecase.NewPricingUsecase(
+		repository.NewPricePlanDynamoRepository(ddb, "price_plans"),
+		repository.NewCouponDynamoRepository(ddb, "coupons"),
+		repository.NewEntitlementDynamoRepository(ddb, "entitlements"),
+		paymentRepo,
+		func() []string {
+			ps, err := programList()
+			if err != nil {
+				return nil
+			}
+			ids := make([]string, 0, len(ps))
+			for _, p := range ps {
+				ids = append(ids, p.ID)
+			}
+			return ids
+		})
+	paymentUsecase = usecase.WithPricing(paymentUsecase, pricingUsecase)
+	academyUsecase.SetLocationStore(repository.NewLocationDynamoStore(ddb, "reference_data"))
+	academyUsecase.SetPremiumResolver(pricingUsecase.HasAnyAccess)
+	academyUsecase.SetProgramResolver(pricingUsecase.EntitledPrograms)
+	academyUsecase.SetStudentRepo(studentRepo)
+	enrollmentUsecase := usecase.NewEnrollmentUsecase(studentRepo, programList).WithLocations(academyUsecase.Locations)
+	studentUsecase = usecase.WithEnrollment(studentUsecase, enrollmentUsecase)
 
 	// --- Initialize Contest Statistics Use Case ---
 	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil)
@@ -186,7 +247,24 @@ func NewServer() *Server {
 		feedbackResponseHandler:    NewFeedbackResponseHandler(feedbackResponseUsecase, notificationUsecase),
 		paymentHandler:             NewPaymentHandler(paymentUsecase, *imgRepo),
 		paymentSettingsHandler:     NewPaymentSettingsHandler(paymentSettingsUsecase),
-		aiHandler:                  NewAiHandler(aiUsecase, aiSettingsUsecase, jwtSecret),
+		aiHandler:                  NewAiHandler(aiUsecase, entitlementAiAccess{aiSettingsUsecase, pricingUsecase, func(id string) string {
+			if st, err := studentRepo.GetStudentByID(id); err == nil && st != nil {
+				return st.PrimaryProgramID
+			}
+			return ""
+		}, func(programID string) bool {
+			// A program without the ai_tutor feature never offers AI, paid or not.
+			progs, _, err := academyUsecase.Programs()
+			if err != nil {
+				return true // fail open on a read error; entitlement still applies
+			}
+			for _, p := range progs {
+				if p.ID == programID {
+					return p.HasFeature(domain.FeatureAITutor)
+				}
+			}
+			return true
+		}}, jwtSecret),
 		aiAdminHandler:             NewAiAdminHandler(aiProviderUsecase, aiSettingsUsecase),
 		telegramHandler:            NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")).withBotName(botUserName),
 		pageViewHandler:            NewPageViewHandler(pageViewUsecase),
@@ -194,6 +272,9 @@ func NewServer() *Server {
 		imageHandler:               NewImageHandler(imgRepo),
 		contestStatisticsHandler:   NewContestStatisticsHandler(contestStatisticsUsecase),
 		academyHandler:             NewAcademyHandler(academyUsecase),
+		catalogHandler:             NewCatalogHandler(academyUsecase),
+		pricingHandler:             NewPricingHandler(pricingUsecase, paymentUsecase),
+		enrollmentHandler:          NewEnrollmentHandler(enrollmentUsecase),
 		jwtSecret:                  jwtSecret,
 		aiRequestsPerMinute:        aiRequestsPerMinute,
 	}
@@ -207,7 +288,13 @@ func NewServer() *Server {
 	server.studentHandler.studentAuthMw = studentAuthMw
 	server.submissionHandler.studentAuthMw = studentAuthMw
 	server.paymentHandler.studentAuthMw = studentAuthMw
+	server.pricingHandler.studentAuth = studentAuthMw
+	server.enrollmentHandler.studentAuth = studentAuthMw
+	server.contestHandler.pricing = pricingUsecase
+	server.contestHandler.jwtSecret = []byte(jwtSecret)
 	server.telegramHandler.studentAuthMw = studentAuthMw
+	server.submissionHandler.studentOwnerMw = studentOwnerOrAdminAuth([]byte(jwtSecret), "student_id")
+	server.contestRegistrationHandler.studentAuthMw = studentAuthMw
 	server.studentHandler.studentEditMw = studentSelfOrAdminAuth([]byte(jwtSecret))
 	return server
 }
@@ -331,6 +418,10 @@ func (s *Server) NewRouter() *gin.Engine {
 	// Image routes
 	s.imageHandler.RegisterRoutes(api.Group("/images"), adminAuthMw)
 	s.contestStatisticsHandler.RegisterRoutes(api.Group("/statistics"), adminAuthMw)
+	s.catalogHandler.RegisterRoutes(api.Group("/catalog"))
+	s.catalogHandler.RegisterAdminRoutes(api.Group("/locations-admin", adminAuthMw))
+	s.pricingHandler.RegisterRoutes(api, adminAuthMw)
+	s.enrollmentHandler.RegisterRoutes(api, adminAuthMw)
 	// Victory Academy (Learn): student routes need the student session JWT,
 	// /admin routes the admin cookie; AI routes share the Gemini rate limiter.
 	s.academyHandler.RegisterRoutes(api.Group("/academy"), studentAuth([]byte(s.jwtSecret)), adminAuthMw,
@@ -399,4 +490,31 @@ func serveStatic(c *gin.Context, staticRoot, reqPath string) {
 	}
 	c.Header("Cache-Control", "no-cache")
 	c.File(filepath.Join(staticRoot, "index.html"))
+}
+
+// entitlementAiAccess makes the AI premium gate follow entitlements. A student
+// with a primary program needs a live or in-grace entitlement for THAT program
+// (a Grade 12 plan does not unlock AI for a Training student). Students with no
+// primary program yet (not migrated) fall back to "any active plan".
+type entitlementAiAccess struct {
+	usecase.AiSettingsUsecase
+	pricing *usecase.PricingUsecase
+	primary func(studentID string) string
+	// hasAI reports whether the program offers the ai_tutor feature.
+	hasAI func(programID string) bool
+}
+
+func (e entitlementAiAccess) IsPremiumStudent(studentID string) bool {
+	if studentID == "" {
+		return false
+	}
+	if e.primary != nil {
+		if pid := e.primary(studentID); pid != "" {
+			if e.hasAI != nil && !e.hasAI(pid) {
+				return false
+			}
+			return e.pricing.EntitledPrograms(studentID)[pid]
+		}
+	}
+	return e.pricing.HasAnyAccess(studentID)
 }

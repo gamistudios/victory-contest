@@ -1,12 +1,13 @@
-import { ChevronDown, FolderPlus } from "lucide-react";
+import { ChevronDown, FolderPlus, MoveRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { iconFor, LEVEL_SHORT, STREAM_SHORT, toneFor } from "@/academy/lib/theme";
+import { iconFor, levelShort, streamShort, toneFor } from "@/academy/lib/theme";
 import { cn } from "@/lib/utils";
 import { ChapterBlock, type ChapterActions } from "./ChapterBlock";
 import type { ModuleRowActions } from "./ModuleRow";
+import type { Program, Stream } from "@/types/academy";
 import type { TreeSubject } from "./types";
 
-export function SubjectCard({ subject, open, onToggle, onAddChapter, chapterActions, moduleActions }: { subject: TreeSubject; open: boolean; onToggle: () => void; onAddChapter: () => void; chapterActions: ChapterActions; moduleActions: ModuleRowActions }) {
+export function SubjectCard({ subject, open, onToggle, onAddChapter, onMove, programs, streams, chapterActions, moduleActions }: { subject: TreeSubject; open: boolean; onToggle: () => void; onAddChapter: () => void; onMove: () => void; programs: Program[]; streams: Stream[]; chapterActions: ChapterActions; moduleActions: ModuleRowActions }) {
   const tone = toneFor(subject.color_theme);
   const Icon = iconFor(subject.icon_name);
   const mods = subject.chapters.reduce((n, c) => n + c.modules.length, 0);
@@ -21,8 +22,8 @@ export function SubjectCard({ subject, open, onToggle, onAddChapter, chapterActi
         <span className="min-w-0 flex-1">
           <span className="block truncate text-base font-extrabold text-foreground">{subject.name}</span>
           <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
-            <span className={cn("rounded-full px-2 py-0.5", tone.soft)}>{LEVEL_SHORT[subject.level_id]}</span>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{STREAM_SHORT[subject.stream_id]}</span>
+            <span className={cn("rounded-full px-2 py-0.5", tone.soft)}>{levelShort(programs, subject.level_id)}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{streamShort(streams, subject.stream_id)}</span>
             <span className="text-muted-foreground">
               {subject.chapters.length} ch · {published}/{mods} live
             </span>
@@ -35,9 +36,14 @@ export function SubjectCard({ subject, open, onToggle, onAddChapter, chapterActi
           {subject.chapters.map((c, i) => (
             <ChapterBlock key={c.id} chapter={c} index={i} count={subject.chapters.length} chapterActions={chapterActions} moduleActions={moduleActions} />
           ))}
-          <Button variant="outline" className="h-11 w-full border-dashed" onClick={onAddChapter}>
-            <FolderPlus className="h-4 w-4" aria-hidden /> Add chapter
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="h-11 flex-1 border-dashed" onClick={onAddChapter}>
+              <FolderPlus className="h-4 w-4" aria-hidden /> Add chapter
+            </Button>
+            <Button variant="outline" className="h-11 flex-1" onClick={onMove}>
+              <MoveRight className="h-4 w-4" aria-hidden /> Move subject
+            </Button>
+          </div>
         </div>
       )}
     </section>

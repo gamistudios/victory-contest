@@ -13,7 +13,8 @@ import { UpgradeSheet } from "../components/UpgradeSheet";
 import { ProgressRing } from "../components/ProgressRing";
 import { SectionTitle } from "../components/PageHeader";
 import { SubjectTile } from "../components/SubjectTile";
-import { LEVEL_SHORT, STREAM_SHORT, iconFor, toneFor, fmtMinutes } from "../lib/theme";
+import { levelShort, streamShort, iconFor, toneFor, fmtMinutes } from "../lib/theme";
+import { useCatalog } from "@/shared/scope/catalog";
 import { cn } from "@/lib/utils";
 import { useTelegram } from "@/hooks/useTelegram";
 
@@ -21,6 +22,7 @@ const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 export default function Home() {
   const { data, loading, error, reload } = useAsync(getDashboard, []);
+  const { catalog } = useCatalog();
   const { isPremium, refreshStudent, studentError } = useAcademy();
   const navigate = useNavigate();
   const { hapticFeedback } = useTelegram();
@@ -126,7 +128,7 @@ export default function Home() {
       <section>
         <SectionTitle action={
           <button onClick={() => setPick(true)} className="inline-flex h-9 items-center gap-1 rounded-full bg-muted px-3 text-xs font-bold">
-            {LEVEL_SHORT[d.student.level_id]} · {STREAM_SHORT[d.student.stream_id]} <ChevronDown className="h-3.5 w-3.5" />
+            {levelShort(catalog?.programs, d.student.level_id)} · {streamShort(catalog?.streams, d.student.stream_id)} <ChevronDown className="h-3.5 w-3.5" />
           </button>
         }>My subjects</SectionTitle>
         <div className="grid grid-cols-2 gap-3">
@@ -182,7 +184,7 @@ function ProgramSheet({ open, onOpenChange, level, stream, onSaved }: { open: bo
             {(data?.programs ?? []).filter((p) => p.is_active).map((p) => (
               <button key={p.id} onClick={() => { setL(p.id); setS(p.available_streams.includes("common") ? "common" : p.available_streams.includes(s) ? s : p.available_streams[0]); }}
                 className={cn("flex h-14 items-center justify-center rounded-xl border text-sm font-bold", l === p.id ? "border-brand bg-brand/15 text-brand-ink" : "border-border bg-card")}>
-                {LEVEL_SHORT[p.id]}
+                {levelShort(data?.programs, p.id)}
               </button>
             ))}
           </div>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 	"victory-contest-go/internal/awsconfig"
 	"victory-contest-go/internal/domain"
 
@@ -221,4 +222,69 @@ func (r *QuestionDynamoRepository) AddMultipleQuestions(questions []domain.Quest
 	}
 
 	return nil
+}
+
+// GetByIDs hydrates the given question ids with BatchGetItem (100 keys per
+// call, unprocessed keys retried with a small backoff) instead of scanning the
+// whole table (D6). Missing ids are silently skipped; the result order is the
+// order of ids (duplicates collapsed) so callers keep the contest's ordering.
+func (r *QuestionDynamoRepository) GetByIDs(ids []string) ([]domain.Question, error) {
+	if len(ids) == 0 {
+		return []domain.Question{}, nil
+	}
+	seen := make(map[string]struct{}, len(ids))
+	unique := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+
+	found := make(map[string]domain.Question, len(unique))
+	for start := 0; start < len(unique); start += 100 {
+		end := start + 100
+		if end > len(unique) {
+			end = len(unique)
+		}
+		keys := make([]map[string]types.AttributeValue, 0, end-start)
+		for _, id := range unique[start:end] {
+			keys = append(keys, map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: id}})
+		}
+		pending := map[string]types.KeysAndAttributes{r.tableName: {Keys: keys}}
+		for attempt := 0; len(pending) > 0; attempt++ {
+			if attempt > 5 {
+				return nil, errors.New("question batch get: unprocessed keys after retries")
+			}
+			if attempt > 0 {
+				time.Sleep(time.Duration(50*(1<<attempt)) * time.Millisecond)
+			}
+			ctx, cancel := awsconfig.CallCtx(context.Background())
+			out, err := r.db.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{RequestItems: pending})
+			cancel()
+			if err != nil {
+				return nil, err
+			}
+			for _, item := range out.Responses[r.tableName] {
+				var q domain.Question
+				if err := attributevalue.UnmarshalMap(item, &q); err != nil {
+					return nil, err
+				}
+				found[q.ID] = q
+			}
+			pending = out.UnprocessedKeys
+		}
+	}
+
+	result := make([]domain.Question, 0, len(found))
+	for _, id := range unique {
+		if q, ok := found[id]; ok {
+			result = append(result, q)
+		}
+	}
+	return result, nil
 }

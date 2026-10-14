@@ -69,6 +69,21 @@ func (h *PaymentHandler) UpdatePaymentStatus(c *gin.Context) {
 	}
 	paymentId, status, reason := payment.ID, payment.Status, payment.RejectionReason
 	paymentStatus := domain.PaymentStatus(status)
+	// Approving a plan payment whose reported transfer differs from the
+	// server-priced amount needs an explicit ?force=true from the admin.
+	if paymentStatus == domain.StatusApproved && c.Query("force") != "true" {
+		if stored, gerr := h.usecase.GetPaymentById(paymentId); gerr == nil && stored != nil {
+			if exp, rep, bad := usecase.PaymentAmountMismatch(stored); bad {
+				c.JSON(http.StatusConflict, gin.H{
+					"error":        "reported amount does not match the plan price",
+					"code":         "amount_mismatch",
+					"expected_etb": exp,
+					"reported_etb": rep,
+				})
+				return
+			}
+		}
+	}
 	err := h.usecase.UpdatePaymentStatus(paymentId, paymentStatus, reason)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -101,40 +116,49 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 	var amount float64
 	if raw := strings.TrimSpace(c.Request.PostFormValue("amount")); raw != "" {
 		parsed, err := strconv.ParseFloat(raw, 64)
-		if err != nil || parsed <= 0 {
+		planFlow := strings.TrimSpace(c.Request.PostFormValue("plan_id")) != ""
+		if err != nil || parsed < 0 || (parsed == 0 && !planFlow) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid 'amount'. Must be a positive number (ETB)."})
 			return
 		}
 		amount = parsed
 	}
 
+	// A 100%-coupon plan purchase needs no proof (the usecase verifies the
+	// quote is really free and rejects it otherwise).
+	freePlanClaim := strings.TrimSpace(c.Request.PostFormValue("plan_id")) != "" &&
+		strings.TrimSpace(c.Request.PostFormValue("coupon_code")) != "" && amount == 0
+	var img_url string
 	file, err := c.FormFile("img")
-	if err != nil {
+	if err != nil && !freePlanClaim {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bill screenshot ('img' field) is required"})
 		return
 	}
-	// Size/type guard before the upload (README §9 #50).
-	if err := validateImageUpload(file); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	if err == nil {
+		// Size/type guard before the upload (README §9 #50).
+		if err := validateImageUpload(file); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 
-	openedFile, openErr := file.Open()
-	if openErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to open uploaded file"})
-		return
-	}
-	defer openedFile.Close()
-	img_url, uploadErr := h.imgRepo.UploadImage(openedFile, "payments")
-	if uploadErr != nil {
-		// A payment without its screenshot is unauditable; fail instead of
-		// storing an empty URL (previously the error was discarded).
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload bill screenshot: " + uploadErr.Error()})
-		return
-	}
-	if img_url == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "bill screenshot upload returned no URL"})
-		return
+		openedFile, openErr := file.Open()
+		if openErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to open uploaded file"})
+			return
+		}
+		defer openedFile.Close()
+		var uploadErr error
+		img_url, uploadErr = h.imgRepo.UploadImage(openedFile, "payments")
+		if uploadErr != nil {
+			// A payment without its screenshot is unauditable; fail instead of
+			// storing an empty URL (previously the error was discarded).
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload bill screenshot: " + uploadErr.Error()})
+			return
+		}
+		if img_url == "" {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "bill screenshot upload returned no URL"})
+			return
+		}
 	}
 
 	now := time.Now().UTC()
@@ -150,9 +174,25 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		RejectionReason:   "",
+		// Phase 1: only the plan reference is trusted from the client; the
+		// usecase re-derives price, validity and programs server-side.
+		PlanID:     strings.TrimSpace(c.Request.PostFormValue("plan_id")),
+		CouponCode: strings.TrimSpace(c.Request.PostFormValue("coupon_code")),
+		Currency:   strings.ToUpper(strings.TrimSpace(c.Request.PostFormValue("currency"))),
 	}
 
 	if err := h.usecase.AddPayment(payment); err != nil {
+		if errors.Is(err, usecase.ErrPlanNotFound) || errors.Is(err, usecase.ErrCouponNotFound) ||
+			errors.Is(err, usecase.ErrNoPriceForCurrency) || errors.Is(err, usecase.ErrCouponInvalid) ||
+			errors.Is(err, usecase.ErrCouponExpired) || errors.Is(err, usecase.ErrCouponCurrency) ||
+			errors.Is(err, usecase.ErrProofRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, usecase.ErrCouponExhausted) || errors.Is(err, usecase.ErrCouponStudentLimit) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

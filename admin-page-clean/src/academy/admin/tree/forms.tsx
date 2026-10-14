@@ -3,23 +3,28 @@ import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { adminCreateChapter, adminCreateSubject, adminUpdateChapter } from "@/services/academy/academyApi";
-import { LEVEL_SHORT, TONES, TONE_NAMES, iconFor } from "@/academy/lib/theme";
+import { adminCreateChapter, adminCreateSubject, adminMoveSubject, adminUpdateChapter } from "@/services/academy/academyApi";
+import { TONES, TONE_NAMES, iconFor, levelShort, streamShort } from "@/academy/lib/theme";
 import { cn } from "@/lib/utils";
-import type { LevelId, StreamId } from "@/types/academy";
+import type { LevelId, Program, Stream, StreamId } from "@/types/academy";
 import { Chip, Field, FormSheet, Segmented, errMsg, inputCls, areaCls } from "../components/kit";
 import type { TreeChapter } from "./types";
 
-export const LEVELS = Object.keys(LEVEL_SHORT) as LevelId[];
+/** Streams a program offers, always including "common" (plan §5.1). */
+export const streamsOf = (programs: Program[], level: LevelId): StreamId[] => {
+  const p = programs.find((x) => x.id === level);
+  const list = (p?.available_streams ?? []).filter((x) => x !== "common");
+  return [...list, "common"];
+};
 const ICON_NAMES = ["BookOpen", "Calculator", "Atom", "FlaskConical", "Dna", "Globe", "Landmark", "TrendingUp", "Cpu", "Compass", "GraduationCap", "Target"];
 
 /* ------------------------------- subject ------------------------------- */
 
-export function SubjectForm({ open, onOpenChange, defaultLevel, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; defaultLevel: LevelId; onCreated: (level: LevelId) => void }) {
+export function SubjectForm({ open, onOpenChange, defaultLevel, onCreated, programs, streams }: { open: boolean; onOpenChange: (o: boolean) => void; defaultLevel: LevelId; onCreated: (level: LevelId) => void; programs: Program[]; streams: Stream[] }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [level, setLevel] = useState<LevelId>(defaultLevel);
-  const [stream, setStream] = useState<StreamId>("natural-science");
+  const [stream, setStream] = useState<StreamId>("common");
   const [color, setColor] = useState("blue");
   const [icon, setIcon] = useState("BookOpen");
   const [desc, setDesc] = useState("");
@@ -33,8 +38,13 @@ export function SubjectForm({ open, onOpenChange, defaultLevel, onCreated }: { o
       setDesc("");
       setErr(undefined);
       setLevel(defaultLevel);
+      setStream(streamsOf(programs, defaultLevel)[0] ?? "common");
     }
-  }, [open, defaultLevel]);
+  }, [open, defaultLevel, programs]);
+  const allowed = streamsOf(programs, level);
+  useEffect(() => {
+    if (!allowed.includes(stream)) setStream(allowed[0] ?? "common");
+  }, [level, allowed, stream]);
 
   const submit = async () => {
     if (name.trim().length < 2) return setErr("Name must be at least 2 characters");
@@ -85,9 +95,9 @@ export function SubjectForm({ open, onOpenChange, defaultLevel, onCreated }: { o
         </div>
         <Field label="Level">
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-hide" role="group" aria-label="Level">
-            {LEVELS.map((l) => (
-              <Chip key={l} active={level === l} onClick={() => setLevel(l)}>
-                {LEVEL_SHORT[l]}
+            {programs.filter((p) => p.is_active).map((p) => (
+              <Chip key={p.id} active={level === p.id} onClick={() => setLevel(p.id)}>
+                {levelShort(programs, p.id)}
               </Chip>
             ))}
           </div>
@@ -97,11 +107,7 @@ export function SubjectForm({ open, onOpenChange, defaultLevel, onCreated }: { o
             label="Stream"
             value={stream}
             onChange={setStream}
-            options={[
-              { value: "natural-science", label: "Natural" },
-              { value: "social-science", label: "Social" },
-              { value: "common", label: "Common" },
-            ]}
+            options={allowed.map((id) => ({ value: id, label: streamShort(streams, id) }))}
           />
         </Field>
         <Field label="Colour">
@@ -204,6 +210,76 @@ export function ChapterForm({ open, onOpenChange, subjectId, subjectName, chapte
           <Switch id="ch-prem" checked={premium} onCheckedChange={setPremium} />
         </div>
       </form>
+    </FormSheet>
+  );
+}
+
+/* ------------------------------ move subject ------------------------------ */
+
+export function MoveSubjectSheet({ open, onOpenChange, subject, programs, streams, onMoved }: { open: boolean; onOpenChange: (o: boolean) => void; subject: { id: string; name: string; level_id: LevelId; stream_id: StreamId } | null; programs: Program[]; streams: Stream[]; onMoved: (level: LevelId) => void }) {
+  const [level, setLevel] = useState<LevelId>("");
+  const [stream, setStream] = useState<StreamId>("common");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open && subject) {
+      setLevel(subject.level_id);
+      setStream(subject.stream_id);
+    }
+  }, [open, subject]);
+
+  const allowed = streamsOf(programs, level);
+  useEffect(() => {
+    if (level && !allowed.includes(stream)) setStream(allowed[0] ?? "common");
+  }, [level, allowed, stream]);
+
+  const same = subject && subject.level_id === level && subject.stream_id === stream;
+  const submit = async () => {
+    if (!subject || same) return;
+    setBusy(true);
+    try {
+      await adminMoveSubject(subject.id, level, stream);
+      toast.success(`"${subject.name}" moved to ${levelShort(programs, level)} · ${streamShort(streams, stream)}`);
+      onOpenChange(false);
+      onMoved(level);
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <FormSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Move subject"
+      description={subject ? `All modules under "${subject.name}" follow it to the new program and stream.` : undefined}
+      footer={
+        <>
+          <Button variant="outline" className="h-11 flex-1" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button className="h-11 flex-1" onClick={submit} disabled={busy || !!same}>
+            {busy ? "Moving…" : "Move"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Program">
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-hide" role="group" aria-label="Program">
+            {programs.filter((p) => p.is_active || p.id === subject?.level_id).map((p) => (
+              <Chip key={p.id} active={level === p.id} onClick={() => setLevel(p.id)}>
+                {levelShort(programs, p.id)}
+              </Chip>
+            ))}
+          </div>
+        </Field>
+        <Field label="Stream">
+          <Segmented<StreamId> label="Stream" value={stream} onChange={setStream} options={allowed.map((id) => ({ value: id, label: streamShort(streams, id) }))} />
+        </Field>
+      </div>
     </FormSheet>
   );
 }

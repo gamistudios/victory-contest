@@ -9,7 +9,7 @@ import { CalendarIcon } from "lucide-react";
 import { addContest } from "@/services/contestServices";
 import Questions from "./Questions";
 import { type Question, type Contest, APIContest } from "../../types/models";
-import { grades, Subjects } from "../questions/Data"; // Your constants
+import { useCatalogLists } from "@/hooks/useCatalogLists";
 import { cn } from "@/lib/utils"; // From shadcn/ui
 
 // Shadcn/ui Components
@@ -37,6 +37,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ScopePicker } from "@/components/common/ScopePicker";
+import type { Scope } from "../../types/models";
 
 // Define action types for the reducer
 type Action =
@@ -46,6 +48,7 @@ type Action =
       field: "start_time" | "end_time";
       value: dayjs.Dayjs | null;
     }
+  | { type: "SET_SCOPE"; value: Scope | undefined }
   | { type: "RESET_FORM" };
 
 // Reducer function to manage contest state
@@ -53,6 +56,8 @@ const contestReducer = (state: Contest, action: Action): Contest => {
   switch (action.type) {
     case "UPDATE_FIELD":
       return { ...state, [action.field]: action.value };
+    case "SET_SCOPE":
+      return { ...state, scope: action.value };
     case "SET_TIME": {
       if (!state.start_time || !action.value) {
         toast.error("Please select a date first.");
@@ -89,6 +94,7 @@ const initialState: Contest = {
 };
 
 export default function AddContest() {
+  const { grades, Subjects } = useCatalogLists();
   const [contest, dispatch] = React.useReducer(contestReducer, initialState);
   const [selectedQuestions, setSelectedQuestions] = React.useState<Question[]>(
     []
@@ -275,6 +281,13 @@ export default function AddContest() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <ScopePicker
+                value={contest.scope}
+                onChange={(scope: Scope | undefined) => dispatch({ type: "SET_SCOPE", value: scope })}
+                disabled={isLoading}
+                depth="stream"
+              />
 
               <div className="space-y-2">
                 <Label>Contest Type</Label>

@@ -138,6 +138,8 @@ type PaymentRepository interface {
 	ListByUser(userID string) ([]domain.PaymentRequest, error)
 	ListExpired(now time.Time) ([]domain.PaymentRequest, error)
 	ListAll() ([]domain.PaymentRequest, error)
+	// SetRevoked flips the revoked flag (Phase 1 refund/fraud handling).
+	SetRevoked(id string, revoked bool) error
 }
 
 type PageViewRepository interface {

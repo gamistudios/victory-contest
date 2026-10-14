@@ -14,6 +14,10 @@ type SubmissionHandler struct {
 	// studentAuthMw is wired by NewRouter; when set, POST / requires a
 	// student token whose Telegram id equals student.student_id (S2).
 	studentAuthMw gin.HandlerFunc
+	// studentOwnerMw (D5) guards the per-student read routes that carry
+	// :student_id in the path: a student may only read their own data, the
+	// admin cookie keeps access. Nil in handler unit tests (ungated).
+	studentOwnerMw gin.HandlerFunc
 }
 
 func NewSubmissionHandler(u usecase.SubmissionUsecase) *SubmissionHandler {
@@ -32,9 +36,10 @@ func (h *SubmissionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin
 	rg.POST("/", withStudentAuth(h.studentAuthMw, h.AddSubmission)...)
 	rg.GET("/leaderboard", h.GetLeaderboardByTimeFrame)
 	rg.GET("/rank/:conId", h.GetRankForContest)
-	rg.GET("/editorial/:student_id", h.GetStudentEditorial)
-	rg.GET("/statistics-profile/:student_id", h.GetStudentProfileStatistics)
-	rg.GET("/statistics/:student_id", h.GetStudentStatistics)
+	// D5: per-student reads are owner-or-admin only (was open to anyone).
+	rg.GET("/editorial/:student_id", withStudentAuth(h.studentOwnerMw, h.GetStudentEditorial)...)
+	rg.GET("/statistics-profile/:student_id", withStudentAuth(h.studentOwnerMw, h.GetStudentProfileStatistics)...)
+	rg.GET("/statistics/:student_id", withStudentAuth(h.studentOwnerMw, h.GetStudentStatistics)...)
 }
 
 func (h *SubmissionHandler) AddSubmission(c *gin.Context) {
@@ -58,6 +63,8 @@ func (h *SubmissionHandler) AddSubmission(c *gin.Context) {
 		switch {
 		case errors.Is(err, usecase.ErrContestNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case errors.Is(err, usecase.ErrAlreadySubmitted):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "code": "already_submitted"})
 		case errors.Is(err, usecase.ErrContestHasNoQuestions):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		case errors.Is(err, usecase.ErrNoStudentID):
@@ -116,10 +123,10 @@ func (h *SubmissionHandler) GetSubmissionByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"submission": submission})
 }
 
-// DeleteSubmission serves DELETE /api/submission/:id. 404 when the row does
+// DeleteSubmission serves DELETE /api/submission/:id (admin-only, behind adminAuth). 404 when the row does
 // not exist (the repository delete is conditional, so no double-read), 200
-// {"message":"success"} after a successful delete. No auth yet — this codebase
-// has no auth middleware (tracked in README #6), matching the other delete
+// {"message":"success"} after a successful delete. Admin-only: the route sits behind
+// adminAuth (see RegisterRoutes), like the other delete
 // endpoints.
 func (h *SubmissionHandler) DeleteSubmission(c *gin.Context) {
 	id := c.Param("id")

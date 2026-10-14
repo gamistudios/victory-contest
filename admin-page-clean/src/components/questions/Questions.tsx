@@ -38,8 +38,9 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
-import { grades, Subjects } from "./Data";
+import { useCatalogLists } from "@/hooks/useCatalogLists";
 import QuestionTable from "./QuestionTable";
+import { getAdminCatalog, type AdminCatalog } from "@/services/catalogServices";
 
 // Your existing table component
 
@@ -50,15 +51,21 @@ type Status = "pending" | "success" | "error";
 interface Filters {
   subjects: string[];
   grades: string[];
+  programs: string[]; // program ids, or "__none" for questions without a scope
+  streams: string[];
 }
+const NO_SCOPE = "__none";
+const emptyFilters: Filters = { subjects: [], grades: [], programs: [], streams: [] };
 
 export default function QuestionsPage() {
+  const { grades, Subjects } = useCatalogLists();
   const [questions, setQuestions] = React.useState<Question[]>([]);
   const [status, setStatus] = React.useState<Status>("pending");
-  const [filters, setFilters] = React.useState<Filters>({
-    subjects: [],
-    grades: [],
-  });
+  const [filters, setFilters] = React.useState<Filters>(emptyFilters);
+  const [catalog, setCatalog] = React.useState<AdminCatalog | null>(null);
+  React.useEffect(() => {
+    getAdminCatalog().then(setCatalog).catch(() => setCatalog(null));
+  }, []);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
     () => new Set()
   );
@@ -136,7 +143,18 @@ export default function QuestionsPage() {
         filters.grades.length === 0 ||
         filters.grades.some((g) => gradeKeys(question.grade).includes(g));
 
-      return subjectMatch && gradeMatch;
+      const sc = question.scope;
+      const programMatch =
+        filters.programs.length === 0 ||
+        (sc
+          ? filters.programs.includes(sc.program_id)
+          : filters.programs.includes(NO_SCOPE));
+      // common-stream questions match every stream filter of their program
+      const streamMatch =
+        filters.streams.length === 0 ||
+        (!!sc && (sc.stream_id === "common" || filters.streams.includes(sc.stream_id)));
+
+      return subjectMatch && gradeMatch && programMatch && streamMatch;
     });
   }, [questions, filters]);
 
@@ -370,7 +388,7 @@ export default function QuestionsPage() {
                     <AlertDialogTitle>Delete all questions?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This permanently removes every stored question
-                      ({filteredQuestions.length} shown{filters.subjects.length || filters.grades.length ? " after filters" : " total"}). This cannot be undone.
+                      ({filteredQuestions.length} shown{filters.subjects.length || filters.grades.length || filters.programs.length || filters.streams.length ? " after filters" : " total"}). This cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -450,11 +468,73 @@ export default function QuestionsPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-1">
+                    <ListFilter className="h-3.5 w-3.5" />
+                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                      Program{" "}
+                      {filters.programs.length > 0 && `(${filters.programs.length})`}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto"
+                >
+                  <DropdownMenuLabel>Filter by Program</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {(catalog?.programs ?? []).map((p) => (
+                    <DropdownMenuCheckboxItem
+                      key={p.id}
+                      checked={filters.programs.includes(p.id)}
+                      onCheckedChange={() => handleFilterChange("programs", p.id)}
+                    >
+                      {p.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuCheckboxItem
+                    checked={filters.programs.includes(NO_SCOPE)}
+                    onCheckedChange={() => handleFilterChange("programs", NO_SCOPE)}
+                  >
+                    No scope (legacy)
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-1">
+                    <ListFilter className="h-3.5 w-3.5" />
+                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                      Stream{" "}
+                      {filters.streams.length > 0 && `(${filters.streams.length})`}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto"
+                >
+                  <DropdownMenuLabel>Filter by Stream</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {(catalog?.streams ?? []).map((st) => (
+                    <DropdownMenuCheckboxItem
+                      key={st.id}
+                      checked={filters.streams.includes(st.id)}
+                      onCheckedChange={() => handleFilterChange("streams", st.id)}
+                    >
+                      {st.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               {/* Clear Filters Button */}
-              {(filters.subjects.length > 0 || filters.grades.length > 0) && (
+              {(filters.subjects.length > 0 || filters.grades.length > 0 || filters.programs.length > 0 || filters.streams.length > 0) && (
                 <Button
                   variant="ghost"
-                  onClick={() => setFilters({ subjects: [], grades: [] })}
+                  onClick={() => setFilters(emptyFilters)}
                 >
                   Clear filters
                 </Button>

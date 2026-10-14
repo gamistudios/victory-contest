@@ -19,6 +19,7 @@ import TimeIcon from "../assets/time-01-stroke-rounded.svg?react";
 import CheckMarkIcon from "../assets/checkmark-circle-03-stroke-rounded.svg?react";
 import CollapseText from "../components/ui/Collapse";
 import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
 import { badges } from "../lib/data";
 
 interface AchievementStyle {
@@ -276,6 +277,7 @@ const Profile = () => {
   }
   return (
     <div className="p-4 max-w-4xl mx-auto">
+      <Link to="/programs" className="block mb-4 rounded-xl border border-blue-100 bg-card px-4 py-3 text-sm font-medium text-blue-600 shadow-sm">My programs &amp; access →</Link>
       <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <div className="flex items-center justify-between mb-6 relative">
           <div className="flex items-center space-x-4">

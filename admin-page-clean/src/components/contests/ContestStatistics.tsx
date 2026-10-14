@@ -1,3 +1,4 @@
+import { useCatalogLists } from "@/hooks/useCatalogLists";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { 
@@ -83,6 +84,7 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
   const [cities, setCities] = useState<string[]>([]);
   const [schools, setSchools] = useState<string[]>([]);
   const [grades, setGrades] = useState<string[]>([]);
+  const catalogLists = useCatalogLists();
 
   // Create filters object
   const filters: StatisticsFilters = {
@@ -119,11 +121,13 @@ export default function ContestStatistics({ contestId }: ContestStatisticsProps)
         if (student.student_grade) uniqueGrades.add(student.student_grade);
       });
 
+      catalogLists.cities.forEach((c) => uniqueCities.add(c)); // managed locations first, free-text entries stay filterable
       setCities(Array.from(uniqueCities).sort());
       setSchools(Array.from(uniqueSchools).sort());
+      if (catalogLists.ready) catalogLists.grades.forEach((g) => uniqueGrades.add(g));
       setGrades(Array.from(uniqueGrades).sort());
     }
-  }, [studentPerformances]);
+  }, [studentPerformances, catalogLists.cities, catalogLists.grades, catalogLists.ready]);
 
   // Refetch statistics when filters change
   useEffect(() => {

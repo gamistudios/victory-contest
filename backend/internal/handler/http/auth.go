@@ -150,3 +150,34 @@ func withStudentAuth(mw gin.HandlerFunc, h gin.HandlerFunc) gin.HandlersChain {
 	}
 	return gin.HandlersChain{mw, h}
 }
+
+
+// studentOwnerOrAdminAuth gates per-student READ routes (editorial, statistics)
+// that carry the student id in the path (D5 / IDOR fix). A valid student
+// session must carry the same id as the path param named paramName (403
+// otherwise); the admin panel keeps access through its admin cookie. Anything
+// else is 401. Unlike studentSelfOrAdminAuth the param name is configurable.
+func studentOwnerOrAdminAuth(jwtSecret []byte, paramName string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if tokenString := studentSessionToken(c); tokenString != "" {
+			claims, ok := parseJWTClaims(tokenString, jwtSecret)
+			if ok && claims.Role == StudentRole {
+				if claims.UserID != strings.TrimSpace(c.Param(paramName)) {
+					c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "can only access your own data"})
+					return
+				}
+				c.Set(StudentUserIDContextKey, claims.UserID)
+				c.Next()
+				return
+			}
+		}
+		if tok, err := c.Cookie("token"); err == nil && tok != "" {
+			if claims, ok := parseJWTClaims(tok, jwtSecret); ok && claims.Role == "" {
+				c.Set(AdminEmailContextKey, claims.UserID)
+				c.Next()
+				return
+			}
+		}
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	}
+}

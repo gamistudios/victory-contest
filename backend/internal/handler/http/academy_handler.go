@@ -417,6 +417,54 @@ func (h *AcademyHandler) RegisterRoutes(rg *gin.RouterGroup, studentMw, adminMw 
 		}
 		academyWrite(c, 201, gin.H{"subject": s})
 	})
+	ad.POST("/programs", func(c *gin.Context) {
+		var b domain.AcademyProgram
+		if !academyBind(c, &b) {
+			return
+		}
+		p, err := h.uc.AdminCreateProgram(b)
+		if err != nil {
+			academyFail(c, err)
+			return
+		}
+		academyWrite(c, 201, gin.H{"program": p})
+	})
+	ad.PUT("/programs/:id", func(c *gin.Context) {
+		var b domain.AcademyProgram
+		if !academyBind(c, &b) {
+			return
+		}
+		p, err := h.uc.AdminUpdateProgram(c.Param("id"), b)
+		if err != nil {
+			academyFail(c, err)
+			return
+		}
+		academyWrite(c, 200, gin.H{"program": p})
+	})
+	ad.DELETE("/programs/:id", func(c *gin.Context) {
+		// Soft delete: deactivates (content and enrollments are kept).
+		p, err := h.uc.AdminSetProgramActive(c.Param("id"), false)
+		if err != nil {
+			academyFail(c, err)
+			return
+		}
+		academyWrite(c, 200, gin.H{"program": p})
+	})
+	ad.POST("/subjects/:id/move", func(c *gin.Context) {
+		var b struct {
+			ProgramID string `json:"program_id"`
+			StreamID  string `json:"stream_id"`
+		}
+		if !academyBind(c, &b) {
+			return
+		}
+		s, err := h.uc.AdminMoveSubject(c.Param("id"), b.ProgramID, b.StreamID)
+		if err != nil {
+			academyFail(c, err)
+			return
+		}
+		academyWrite(c, 200, gin.H{"subject": s})
+	})
 	ad.PATCH("/programs/:id", func(c *gin.Context) {
 		var b struct {
 			IsActive *bool `json:"is_active"`

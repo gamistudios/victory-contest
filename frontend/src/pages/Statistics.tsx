@@ -596,7 +596,7 @@ const Statistics: React.FC = () => {
                   <div className="mt-3">
                     {!user?.is_premium ? (
                       <Button
-                        onClick={() => openPremium("ai_recommendations")}
+                        onClick={() => openPremium("ai_recommendations", user?.primary_program_id)}
                         className="w-full bg-gradient-to-r from-orange-300 to-red-400 hover:from-orange-fix-600 hover:to-red-fix-600 text-white border-0"
                       >
                         <Lock className="w-4 h-4 mr-2 " />
