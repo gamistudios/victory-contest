@@ -11,11 +11,13 @@ import { submitContestResult } from "../services/contestApi";
 import { Button } from "../components/ui/button";
 import { useContestTimer } from "../hooks/useContestTimer";
 import ScreenshotProtection from "../components/ScreenProtection";
+import { usePremiumSheet } from "../context/PremiumSheetContext";
 import axios from "axios";
 
 const ContestComponent: React.FC = () => {
   const { hapticFeedback, hideMainButton, showConfirm } = useTelegram();
   const navigate = useNavigate();
+  const { open: openPremium } = usePremiumSheet();
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -111,6 +113,17 @@ const ContestComponent: React.FC = () => {
         // full-reload) must not toast "Request aborted" and redirect home;
         // the `cancelled` guard still prevents the dead pass setting state.
         if (isAbortedRequest(err)) return;
+        // 402 = the server-side premium gate (contest_handler.go denyPremium).
+        // Open the same upgrade sheet the contest cards use, with the lock's
+        // program id, instead of toasting the raw "premium content" error.
+        if (axios.isAxiosError(err) && err.response?.status === 402) {
+          const lock = (err.response.data as
+            | { lock?: { program_id?: string } }
+            | undefined)?.lock;
+          openPremium("premium_contest", lock?.program_id);
+          navigate("/");
+          return;
+        }
         let apiError: string;
         if (axios.isAxiosError(err)) {
           apiError =
@@ -142,7 +155,7 @@ const ContestComponent: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [user, conId, navigate]);
+  }, [user, conId, navigate, openPremium]);
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);

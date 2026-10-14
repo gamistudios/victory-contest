@@ -53,7 +53,10 @@ const Payment: FC = () => {
   const [billScreenshot, setBillScreenshot] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  // Snapshot taken at submit time: resetForm() clears fullName, and a
+  // free-coupon order is approved server-side (no review), so the success
+  // screen needs its own name + copy chosen before the form resets.
+  const [successInfo, setSuccessInfo] = useState<{ name: string; free: boolean } | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [banks, setBanks] = useState<Bank[]>([]);
   const [banksLoading, setBanksLoading] = useState<boolean>(true);
@@ -150,10 +153,10 @@ const Payment: FC = () => {
   }, [imagePreviewUrl]);
 
   useEffect(() => {
-    if (isSuccess) {
+    if (successInfo) {
       showBackButton(() => navigate(-1));
     }
-  }, [isSuccess, showBackButton, navigate]);
+  }, [successInfo, showBackButton, navigate]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -188,7 +191,9 @@ const Payment: FC = () => {
     const parsedAmount = Number(amount);
     if (!planSel && (!amount.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0))
       newErrors.amount = "Enter the transferred amount in ETB (greater than 0).";
-    if (!billScreenshot)
+    // A 100% coupon makes the order free: the server auto-approves it and
+    // requires no proof, so demanding a screenshot here would block the flow.
+    if (!billScreenshot && planSel?.quote.free !== true)
       newErrors.billScreenshot = "A bill screenshot is required.";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -211,16 +216,21 @@ const Payment: FC = () => {
       // student's stated transfer for the legacy no-plan flow.
       formData.append("amount", planSel ? String(planSel.quote.final / 100) : amount.trim());
       if (planSel) withPlan(formData, planSel.planId, "ETB", planSel.coupon);
-      formData.append("img", billScreenshot!);
+      if (billScreenshot) formData.append("img", billScreenshot);
 
       await sendPaymentInfo(formData);
-      toast.success("Payment submitted! It is pending review.", {
+      const free = planSel?.quote.free === true;
+      setSuccessInfo({ name: fullName.trim(), free });
+      toast.success(
+        free
+          ? "Done! The coupon covered the full price, so your premium is active now."
+          : "Payment submitted! It is pending review.",
+        {
         style: {
           backgroundColor: "hsl(var(--green-100))",
           color: "hsl(var(--green-800))",
         },
       });
-      setIsSuccess(true);
       resetForm();
     } catch (err) {
       const apiError = err as {
@@ -256,7 +266,6 @@ const Payment: FC = () => {
     }
     setImagePreviewUrl("");
     setErrors({});
-    setIsSuccess(false);
   };
   const handlePayWithTG = async () => {
     if (!allowStars) {
@@ -326,16 +335,19 @@ const Payment: FC = () => {
       });
     }
   };
-  if (isSuccess) {
+  if (successInfo) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 font-sans">
         <Card className="w-full max-w-lg text-center">
           <CardContent className="p-6 pt-6">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Payment Submitted!</h2>
+            <h2 className="text-2xl font-bold mb-2">
+              {successInfo.free ? "Order Confirmed!" : "Payment Submitted!"}
+            </h2>
             <p className="text-muted-foreground mb-6">
-              Thank you, {fullName}. Your payment information has been received
-              and is pending review.
+              {successInfo.free
+                ? `Thank you, ${successInfo.name}. The coupon covered the full price, so your premium is active now.`
+                : `Thank you, ${successInfo.name}. Your payment information has been received and is pending review.`}
             </p>
           </CardContent>
         </Card>
@@ -509,7 +521,9 @@ const Payment: FC = () => {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="billScreenshot">Bill Screenshot</Label>
+              <Label htmlFor="billScreenshot">
+                Bill Screenshot{planSel?.quote.free ? " (not needed — free with coupon)" : ""}
+              </Label>
               <div className="relative">
                 <Label
                   htmlFor="billScreenshot"
