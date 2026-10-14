@@ -439,3 +439,38 @@ Bonus fix found while doing #5: the Payment success screen was **unreachable** �
 ## Commits in this verification pass (local only — push withheld per instruction)
 
 `d2002f9` compile + gofmt · `3b3570f` admin Programs tsc fix · `4cf4cb3` frontend defects 5/6 + success screen · `496653f` backend defects 2/3/4 · `ca38197` admin `/api` prefix. (`discussion.txt` deliberately stays untracked.)
+
+# Update 2026-10-14 (thirteenth pass): whole-birr money, deploy shims, and the location-promote write bug
+
+Everything since the twelfth pass, recorded additively. All gates re-run green on the real toolchain.
+
+## Fixes and changes
+
+1. **Transitional compat shims for a backend-first deploy** — the deployed old frontend keeps working against the new backend: legacy grade values, the old contest-registration response shape, and the previous `student_usecase` surface are handled side-by-side with the new contract. Only needed because the backend must deploy before the new frontends (Vercel auto-deploys the frontends on push, so old UI + new API is a real state). (commit `0a09ea3`)
+2. **Boot-migration environment variables documented** — `AUTO_MIGRATE`, `MIGRATION_BACKUP_DIR`, `MIGRATE_PRICING_ETB` and the rest of the phase 0/1 knobs recorded in both `.env.example` files with their defaults and what happens when they are unset. (commit `dc34cbc`)
+3. **All money is whole ETB birr end to end** — the `santim` (1/100-birr) sub-unit is gone: no `*100`/`/100` conversions left in `pricing`, `payment`, the pricing migration or `cmd/migrate-pricing`; percent discounts round half-up on whole birr; `PaymentAmountMismatch` compares whole birr with no unit translation; `PlanPicker`/`PremiumSheet`/`Payment` and admin `Pricing` display and accept integers only (`step={1}`). The plan doc, README and both `.env.example` files say birr. (`MIGRATE_PRICING_ETB` is now a whole-birr value, e.g. `299`.) (commit `5e6785c`)
+4. **This file's own format** — the previous pass's rewrite of this log into a single current-state document was wrong and has been reverted; the append-only dated-pass format is the handoff artifact. Future passes append, never replace. (commit `b99cf4e`)
+5. **Promoting a location silently updated nobody — "Promoted. 0 students updated."** — the real cause was in the repository, not the matching logic: the live `student` table is keyed on `id` (HASH) + `telegram_id` (RANGE), and `UpdateStudent` put *every* non-zero marshalled field into the `UpdateExpression` SET clause, `telegram_id` included. DynamoDB rejects that entire write ("Cannot update attribute telegram_id. This attribute is part of the key"), `PromoteLocation` logged each failure and continued, so all 12 "Addis abeba" students stayed free-text forever while the admin saw a success toast. Key attributes are now excluded from SET and used only to target the row via the already schema-aware `fullKeyFor`. Expression building is extracted into `studentPatchExpression` so it is unit-testable. Same patch shape fixes location **rename propagation**, which failed identically. (commit `750b6a7`)
+6. **Boot data migrations could not write a single row** — the server logs showed 148 repetitions of `migrations: update <id> failed: ... The provided key element does not match the schema` and `data migration incomplete (applied []): 20261014-001-grade-9-12`. `grade.go` and `enrollments.go` hardcoded an `{id}`-only `UpdateItem` key, which is a partial key on the composite prod table, so the migration never recorded and retried (and failed) on every boot. Both now resolve the table's key schema once (`keyNames`, a DescribeTable) and lift the complete key off the raw item they just scanned (`fullKey`), so no key-shape assumption survives anywhere in the student write path. (commit `750b6a7`)
+7. **A silent zero can no longer look like success** — `PromoteLocation` returns the count of matched students it could *not* write, `POST /api/locations-admin/promote` returns it as `failed`, and the admin Locations page shows an error toast with that number instead of "Promoted. N students updated." (commit `750b6a7`)
+
+## Gates
+
+| Gate | Result |
+|---|---|
+| `backend: go build ./...` / `go vet ./...` | pass |
+| `backend: go test ./...` | pass — 7 packages ok |
+| `admin-page-clean: tsc -b --force` + `vite build` (PWA) | pass |
+
+## Tests added for the above
+
+- `repository/student_patch_expression_test.go` — the SET clause never contains a key attribute, promote's region/city fields are all still written, untouched fields stay untouched, and an `id`-only table keeps its old behaviour.
+- `migrations/util_test.go` — `fullKey` lifts both key attributes and fails loudly on a row missing one.
+- `repository/student_promote_prod_key_local_test.go` and `migrations/prod_key_local_test.go` — integration tests on the **production key shape** (`id` + `telegram_id`), proving the promote patch persists `region_id`/`city_id`/spelling without rewriting the key, that an id-only patch (the enrollment flows) still reaches the right row, and that the grade and enrollment migrations actually write. These follow the existing `AWS_ENDPOINT_URL_DYNAMODB` convention (skipped without a local endpoint); they were run and passed against `dynalite`.
+
+## Still open
+
+- The promote fix and the migration fix are in the tree but **not yet deployed**, so production still returns `updated: 0` and `-001` is still unrecorded in the live `schema_migrations` ledger. Nothing was written to production DynamoDB to verify any of this — the read-only `describe-table` was the only live call. Once this backend boots, `-001`/`-002` retry themselves and the 148 legacy grades plus the enrollment backfill apply on first boot (backups to `MIGRATION_BACKUP_DIR`, container disk unless a volume is mounted).
+- Browser E2E of the Locations promote flow against the running stack (needs Docker; the assertions above are repository-level).
+- Older `TestLocalDynamo*` cases in `internal/repository` still fail on a fresh dynalite because they assume tables that `cmd/setup-tables` creates (contests, registrations, feedback, payments, submissions). Pre-existing, unrelated to this pass.
+- Unchanged from earlier passes: the deferred `-004` default price plan (needs `MIGRATE_PRICING_ETB`), the AI practice loop and chat vision (parked for client sign-off), and the markdown/KaTeX rendering plan.
