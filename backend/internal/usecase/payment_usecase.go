@@ -212,7 +212,7 @@ func NewPaymentUsecases(payRepo PaymentRepository) PaymentUsecase {
 
 // PaymentAmountMismatch compares what the student reported transferring
 // (PaymentRequest.Amount, ETB) with what the server priced the plan at
-// (FinalAmount, santim). It only applies to plan-based ETB payments that
+// (FinalAmount, whole ETB). It only applies to plan-based ETB payments that
 // reported an amount; legacy rows, free plans and other currencies return
 // ok=false (nothing to compare). Used before an admin approves, so a short
 // transfer is caught instead of silently granting access.
@@ -223,9 +223,10 @@ func PaymentAmountMismatch(pay *domain.PaymentRequest) (expectedETB, reportedETB
 	if pay.Currency != "" && pay.Currency != domain.CurrencyETB {
 		return 0, 0, false
 	}
-	expectedETB = float64(pay.FinalAmount) / 100
+	// Both sides are ETB now (FinalAmount is whole birr): no unit conversion.
+	expectedETB = float64(pay.FinalAmount)
 	reportedETB = pay.Amount
-	// half a santim of tolerance for float rounding
+	// Small tolerance for the float representation of the reported amount.
 	d := expectedETB - reportedETB
 	if d < 0 {
 		d = -d

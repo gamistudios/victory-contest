@@ -18,7 +18,8 @@ const emptyCoupon = (): svc.Coupon => ({
   code: "", kind: "percent", value: 10, plan_ids: [], program_ids: [],
   max_redemptions: 0, per_student_limit: 1, starts_at: "", ends_at: "", is_active: true,
 });
-const birr = (santim: number) => (santim / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
+// All money is whole ETB birr (integers; no sub-units).
+const birr = (etbAmount: number) => etbAmount.toLocaleString(undefined, { maximumFractionDigits: 0 });
 const toggle = <T,>(l: T[], v: T) => (l.includes(v) ? l.filter((x) => x !== v) : [...l, v]);
 const etbOf = (p: svc.PricePlan) => p.prices.find((m) => m.currency === "ETB")?.amount ?? 0;
 
@@ -141,8 +142,8 @@ export default function Pricing() {
               )}
             </Field>
             <Field label="Price (ETB)">
-              <input className={inputCls} type="number" min={0} value={etbOf(plan) / 100}
-                onChange={(e) => setPlan({ ...plan, prices: [{ currency: "ETB", amount: Math.round(Number(e.target.value) * 100) }, ...plan.prices.filter((m) => m.currency !== "ETB")] })} />
+              <input className={inputCls} type="number" min={0} step={1} value={etbOf(plan)}
+                onChange={(e) => setPlan({ ...plan, prices: [{ currency: "ETB", amount: Math.round(Number(e.target.value)) }, ...plan.prices.filter((m) => m.currency !== "ETB")] })} />
             </Field>
             <Field label="Validity">
               <Segmented label="Validity" value={plan.validity.type} onChange={(v) => setPlan({ ...plan, validity: v === "days" ? { type: "days", days: 30 } : v === "lifetime" ? { type: "lifetime" } : { type: "fixed_end", ends_at: "" } })}
@@ -168,8 +169,8 @@ export default function Pricing() {
             <Field label="Code"><input className={inputCls} value={coupon.code} onChange={(e) => setCoupon({ ...coupon, code: e.target.value.toUpperCase() })} placeholder="WELCOME20" /></Field>
             <Field label="Type"><Segmented label="Coupon type" value={coupon.kind} onChange={(v) => setCoupon({ ...coupon, kind: v })} options={[{ value: "percent", label: "Percent" }, { value: "fixed", label: "Fixed (ETB)" }]} /></Field>
             <Field label={coupon.kind === "fixed" ? "Amount off (ETB)" : "Percent off"} hint={coupon.kind === "percent" ? "100 makes the plan free." : undefined}>
-              <input className={inputCls} type="number" min={0} value={coupon.kind === "fixed" ? coupon.value / 100 : coupon.value}
-                onChange={(e) => setCoupon({ ...coupon, value: coupon.kind === "fixed" ? Math.round(Number(e.target.value) * 100) : Number(e.target.value) })} />
+              <input className={inputCls} type="number" min={0} step={1} value={coupon.value}
+                onChange={(e) => setCoupon({ ...coupon, value: coupon.kind === "fixed" ? Math.round(Number(e.target.value)) : Number(e.target.value) })} />
             </Field>
             <Field label="Valid for plans" hint="None selected = every plan.">
               <div className="flex flex-wrap gap-2">

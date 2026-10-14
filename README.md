@@ -36,7 +36,7 @@ Migration ids look like `YYYYMMDD-NNN-name` (`20261014-001-grade-9-12`). To add 
 | `20261014-001-grade-9-12` | student grade `1-4` -> `9-12` |
 | `20261014-002-student-enrollments` | legacy students get a `grade-<n>` enrollment (grades 11/12 -> `natural`, 9/10 -> `common`) |
 | `20261014-003-seed-locations` | store the region/city seed in `reference_data` (never overwrites) |
-| `20261014-004-default-price-plan` | seed an "All access" plan **only when `MIGRATE_PRICING_ETB` is set** (santim; otherwise deferred, not recorded) |
+| `20261014-004-default-price-plan` | seed an "All access" plan **only when `MIGRATE_PRICING_ETB` is set** (whole ETB birr; otherwise deferred, not recorded) |
 
 Environment: `AUTO_MIGRATE=off` disables the runner; `MIGRATE_PRICING_ETB` (and optional `MIGRATE_PRICING_DAYS`, default 30) seeds the default plan; `MIGRATION_BACKUP_DIR` (default `migration-backups`) receives the JSON backup written before a data migration changes rows. The container disk is usually ephemeral: mount a volume there if you want to keep the backups.
 

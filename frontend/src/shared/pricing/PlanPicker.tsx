@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { listPlans, quotePlan, type PricePlan, type Quote } from "./api";
 
-const birr = (santim: number) => (santim / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+// All money is whole ETB birr (server-priced integers; no sub-units).
+const birr = (etbAmount: number) => etbAmount.toLocaleString(undefined, { maximumFractionDigits: 0 });
 const etb = (p: PricePlan) => p.sale?.prices.find((m) => m.currency === "ETB")?.amount ?? p.prices.find((m) => m.currency === "ETB")?.amount ?? 0;
 const validityLabel = (p: PricePlan) =>
   p.validity.type === "lifetime" ? "Lifetime" : p.validity.type === "days" ? `${p.validity.days} days` : p.validity.ends_at ? `Until ${new Date(p.validity.ends_at).toLocaleDateString()}` : "";

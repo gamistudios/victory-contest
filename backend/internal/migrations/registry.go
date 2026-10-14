@@ -37,7 +37,7 @@ func Registry() []Migration {
 				}
 				if !set {
 					// No price configured: defer (not recorded, not blocking).
-					return Result{Summary: "MIGRATE_PRICING_ETB not set; set it (santim) to seed the default plan", Deferred: true}, nil
+					return Result{Summary: "MIGRATE_PRICING_ETB not set; set it (whole ETB) to seed the default plan", Deferred: true}, nil
 				}
 				return MigratePricing(ctx, env, o)
 			},

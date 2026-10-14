@@ -22,7 +22,7 @@ type PaymentRequest struct {
 	PlanID      string    `json:"plan_id,omitempty"       dynamodbav:"plan_id,omitempty"`
 	CouponCode  string    `json:"coupon_code,omitempty"   dynamodbav:"coupon_code,omitempty"`
 	Currency    string    `json:"currency,omitempty"      dynamodbav:"currency,omitempty"`
-	FinalAmount int64     `json:"final_amount,omitempty"  dynamodbav:"final_amount,omitempty"` // minor units of Currency
+	FinalAmount int64     `json:"final_amount,omitempty"  dynamodbav:"final_amount,omitempty"` // server-priced amount in whole units of Currency (ETB = birr)
 	ProgramIDs  []string  `json:"program_ids,omitempty"   dynamodbav:"program_ids,omitempty"`  // programs the plan covered at purchase
 	Validity    *Validity `json:"validity,omitempty"     dynamodbav:"validity,omitempty"`      // plan validity snapshot
 	Revoked     bool      `json:"revoked,omitempty"       dynamodbav:"revoked,omitempty"`

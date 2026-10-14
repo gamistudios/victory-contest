@@ -775,7 +775,7 @@ Illustrative plans (the numbers are placeholders; admins set the real ones):
 
 ```go
 type Money struct {
-    Currency string `json:"currency"` // "ETB" (amount in santim, 1/100 birr) | "XTR" (whole Telegram Stars)
+    Currency string `json:"currency"` // "ETB" (amount in whole birr — no sub-units) | "XTR" (whole Telegram Stars)
     Amount   int64  `json:"amount"`
 }
 type Validity struct {
@@ -801,7 +801,7 @@ type PricePlan struct {                       // table price_plans
 
 type Coupon struct {                          // table coupons
     ID, Code string                           // unique, case-insensitive
-    Kind  string                              // percent (1–100, any currency) | fixed (ETB only, in santim)
+    Kind  string                              // percent (1–100, any currency) | fixed (ETB only, whole birr)
     Value int64
     PlanIDs, ProgramIDs []string              // empty = applies to everything
     MaxRedemptions, PerStudentLimit, Redeemed int

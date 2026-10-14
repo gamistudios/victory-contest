@@ -13,11 +13,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
-// PricingOptions configures the default plan. EtbSantim is REQUIRED: no price
-// is ever invented.
+// PricingOptions configures the default plan. Etb (whole birr) is REQUIRED:
+// no price is ever invented.
 type PricingOptions struct {
 	Table     string
-	EtbSantim int64
+	Etb       int64
 	Days      int
 	UpdatedBy string
 }
@@ -33,8 +33,8 @@ func MigratePricing(ctx context.Context, env Env, o PricingOptions) (Result, err
 	if o.UpdatedBy == "" {
 		o.UpdatedBy = "migrations"
 	}
-	if o.EtbSantim <= 0 {
-		return Result{}, fmt.Errorf("price (santim) is required; none is invented")
+	if o.Etb <= 0 {
+		return Result{}, fmt.Errorf("price in ETB (whole birr) is required; none is invented")
 	}
 	out, err := env.DB.Scan(ctx, &dynamodb.ScanInput{TableName: aws.String(o.Table), Limit: aws.Int32(1)})
 	if err != nil {
@@ -46,7 +46,7 @@ func MigratePricing(ctx context.Context, env Env, o PricingOptions) (Result, err
 	plan := domain.PricePlan{
 		ID: "all-access-default", Name: "All access", AllPrograms: true,
 		Validity: domain.Validity{Type: domain.ValidityDays, Days: o.Days},
-		Prices:   []domain.Money{{Currency: domain.CurrencyETB, Amount: o.EtbSantim}},
+		Prices:   []domain.Money{{Currency: domain.CurrencyETB, Amount: o.Etb}},
 		IsActive: true, UpdatedBy: o.UpdatedBy, UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	if !env.Apply {
@@ -70,7 +70,7 @@ func envPricing(env Env) (PricingOptions, bool, error) {
 	}
 	etb, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || etb <= 0 {
-		return PricingOptions{}, true, fmt.Errorf("MIGRATE_PRICING_ETB=%q must be a positive integer (santim)", raw)
+		return PricingOptions{}, true, fmt.Errorf("MIGRATE_PRICING_ETB=%q must be a positive integer of whole ETB (birr)", raw)
 	}
 	days := 30
 	if d := env.Getenv("MIGRATE_PRICING_DAYS"); d != "" {
@@ -78,5 +78,5 @@ func envPricing(env Env) (PricingOptions, bool, error) {
 			days = v
 		}
 	}
-	return PricingOptions{EtbSantim: etb, Days: days, UpdatedBy: "auto-migration"}, true, nil
+	return PricingOptions{Etb: etb, Days: days, UpdatedBy: "auto-migration"}, true, nil
 }

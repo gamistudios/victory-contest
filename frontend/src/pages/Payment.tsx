@@ -214,7 +214,7 @@ const Payment: FC = () => {
       formData.append("bankName", bankName);
       // With a plan the server derives the price; `amount` is only the
       // student's stated transfer for the legacy no-plan flow.
-      formData.append("amount", planSel ? String(planSel.quote.final / 100) : amount.trim());
+      formData.append("amount", planSel ? String(planSel.quote.final) : amount.trim());
       if (planSel) withPlan(formData, planSel.planId, "ETB", planSel.coupon);
       if (billScreenshot) formData.append("img", billScreenshot);
 
@@ -502,7 +502,7 @@ const Payment: FC = () => {
             )}
             <PlanPicker initialPlanId={qs.get("plan") ?? undefined} initialCoupon={qs.get("coupon") ?? undefined} onSelect={(planId, quote, coupon) => {
               setPlanSel({ planId, quote, coupon });
-              setAmount(String(quote.final / 100));
+              setAmount(String(quote.final));
             }} />
             <div className="space-y-2">
               <Label htmlFor="amount">Amount Paid (ETB)</Label>

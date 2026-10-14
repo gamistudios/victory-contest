@@ -4,7 +4,7 @@ package domain
 // Stars (decision 23); this model is independent of how money moves.
 
 const (
-	CurrencyETB = "ETB" // amount in santim (1/100 birr)
+	CurrencyETB = "ETB" // whole birr — all money amounts are integer ETB (no sub-units)
 	CurrencyXTR = "XTR" // whole Telegram Stars
 
 	ValidityDays     = "days"
@@ -12,7 +12,7 @@ const (
 	ValidityLifetime = "lifetime"
 
 	CouponPercent = "percent" // 1-100, any currency
-	CouponFixed   = "fixed"   // ETB only, in santim
+	CouponFixed   = "fixed"   // ETB only, whole birr
 
 	EntitlementSourcePayment    = "payment"
 	EntitlementSourceAdminGrant = "admin_grant"

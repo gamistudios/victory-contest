@@ -1,10 +1,10 @@
 // Command migrate-pricing seeds the default "All access" plan by hand (plan
-// 5.12) when price_plans is empty. Amounts are in santim and come from flags:
-// NO price is invented. On boot the same logic runs as migration 20261014-004
-// when MIGRATE_PRICING_ETB is set.
+// 5.12) when price_plans is empty. The price is whole ETB (birr) and comes
+// from flags: NO price is invented. On boot the same logic runs as migration
+// 20261014-004 when MIGRATE_PRICING_ETB is set.
 //
-//	go run ./cmd/migrate-pricing -etb 29900            # report
-//	go run ./cmd/migrate-pricing -etb 29900 -apply
+//	go run ./cmd/migrate-pricing -etb 299              # report
+//	go run ./cmd/migrate-pricing -etb 299 -apply
 package main
 
 import (
@@ -23,11 +23,11 @@ import (
 func main() {
 	apply := flag.Bool("apply", false, "write (default: dry run)")
 	table := flag.String("table", "price_plans", "plans table")
-	etb := flag.Int64("etb", 0, "price in santim (required)")
+	etb := flag.Int64("etb", 0, "price in whole ETB / birr (required)")
 	days := flag.Int("days", 30, "validity in days")
 	flag.Parse()
 	if *etb <= 0 {
-		log.Fatal("-etb (santim) is required; no default price is invented")
+		log.Fatal("-etb (whole ETB) is required; no default price is invented")
 	}
 	if _, err := os.Stat(".env"); err == nil {
 		_ = godotenv.Load()
@@ -38,7 +38,7 @@ func main() {
 		log.Fatal(err)
 	}
 	env := migrations.Env{DB: awsconfig.DynamoClient(cfg), Apply: *apply, Out: os.Stdout, Getenv: os.Getenv}
-	res, err := migrations.MigratePricing(ctx, env, migrations.PricingOptions{Table: *table, EtbSantim: *etb, Days: *days, UpdatedBy: "migrate-pricing"})
+	res, err := migrations.MigratePricing(ctx, env, migrations.PricingOptions{Table: *table, Etb: *etb, Days: *days, UpdatedBy: "migrate-pricing"})
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -188,7 +188,7 @@ export function PremiumSheet({ open, onOpenChange, subject, isPremium: anyPlan, 
             </Button>
           ) : (
             <Button className="h-12 w-full rounded-xl bg-gradient-to-r from-yellow-fix-600 to-orange-fix-700 text-base font-extrabold text-white hover:opacity-90" onClick={pay}>
-              <Sparkles className="h-5 w-5" /> {sel ? (sel.quote.free ? "Claim for free" : `Continue · ${(sel.quote.final / 100).toLocaleString()} ETB`) : grace ? "Renew" : "Upgrade to Premium"}
+              <Sparkles className="h-5 w-5" /> {sel ? (sel.quote.free ? "Claim for free" : `Continue · ${sel.quote.final.toLocaleString()} ETB`) : grace ? "Renew" : "Upgrade to Premium"}
             </Button>
           )}
         </div>

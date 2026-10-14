@@ -14,9 +14,9 @@ func plan() domain.PricePlan {
 	return domain.PricePlan{
 		ID: "p1", Name: "G12 3m", ProgramIDs: []string{"grade-12"}, IsActive: true,
 		Validity:   domain.Validity{Type: domain.ValidityDays, Days: 90},
-		Prices:     []domain.Money{{Currency: "ETB", Amount: 90000}, {Currency: "XTR", Amount: 400}},
-		ListPrices: []domain.Money{{Currency: "ETB", Amount: 120000}},
-		Sale: &domain.Sale{Prices: []domain.Money{{Currency: "ETB", Amount: 70000}},
+		Prices:     []domain.Money{{Currency: "ETB", Amount: 900}, {Currency: "XTR", Amount: 400}},
+		ListPrices: []domain.Money{{Currency: "ETB", Amount: 1200}},
+		Sale: &domain.Sale{Prices: []domain.Money{{Currency: "ETB", Amount: 700}},
 			StartsAt: "2026-10-10T00:00:00Z", EndsAt: "2026-10-20T00:00:00Z"},
 	}
 }
@@ -24,10 +24,10 @@ func plan() domain.PricePlan {
 func TestEffectivePriceSaleBoundaries(t *testing.T) {
 	p := plan()
 	cases := map[string]int64{
-		"2026-10-09T23:59:59Z": 90000,
-		"2026-10-10T00:00:00Z": 70000, // start inclusive
-		"2026-10-20T00:00:00Z": 70000, // end inclusive
-		"2026-10-20T00:00:01Z": 90000,
+		"2026-10-09T23:59:59Z": 900,
+		"2026-10-10T00:00:00Z": 700, // start inclusive
+		"2026-10-20T00:00:00Z": 700, // end inclusive
+		"2026-10-20T00:00:01Z": 900,
 	}
 	for at, want := range cases {
 		got, err := EffectivePrice(p, "ETB", ts(at))
@@ -47,27 +47,37 @@ func TestEffectivePriceSaleBoundaries(t *testing.T) {
 
 func TestBuildQuoteCoupons(t *testing.T) {
 	p := plan()
-	now := ts("2026-10-15T00:00:00Z") // inside sale: 700.00
+	now := ts("2026-10-15T00:00:00Z") // inside sale: 700 ETB
 	q, err := BuildQuote(p, "ETB", nil, now, 0)
-	if err != nil || q.Final != 70000 || q.ListAmount != 120000 || q.Free {
+	if err != nil || q.Final != 700 || q.ListAmount != 1200 || q.Free {
 		t.Fatalf("plain quote %+v %v", q, err)
 	}
 	pct := &domain.Coupon{Code: "save10", Kind: domain.CouponPercent, Value: 10, IsActive: true}
 	q, _ = BuildQuote(p, "ETB", pct, now, 0)
-	if q.Discount != 7000 || q.Final != 63000 || q.CouponCode != "SAVE10" {
+	if q.Discount != 70 || q.Final != 630 || q.CouponCode != "SAVE10" {
 		t.Errorf("percent %+v", q)
 	}
-	fixed := &domain.Coupon{Code: "F", Kind: domain.CouponFixed, Value: 5000, IsActive: true}
+	// A percent discount rounds to the nearest whole birr (there is no
+	// sub-unit): 10% of 95 ETB = 9.5 -> 10, final 85.
+	pOdd := p
+	pOdd.Sale = nil
+	pOdd.ListPrices = nil
+	pOdd.Prices = []domain.Money{{Currency: "ETB", Amount: 95}}
+	q, _ = BuildQuote(pOdd, "ETB", &domain.Coupon{Code: "P10", Kind: domain.CouponPercent, Value: 10, IsActive: true}, now, 0)
+	if q.Discount != 10 || q.Final != 85 {
+		t.Errorf("percent rounding %+v", q)
+	}
+	fixed := &domain.Coupon{Code: "F", Kind: domain.CouponFixed, Value: 50, IsActive: true}
 	q, _ = BuildQuote(p, "ETB", fixed, now, 0)
-	if q.Final != 65000 {
+	if q.Final != 650 {
 		t.Errorf("fixed %+v", q)
 	}
 	if _, err := BuildQuote(p, "XTR", fixed, now, 0); !errors.Is(err, ErrCouponCurrency) {
 		t.Errorf("fixed coupon on XTR must fail: %v", err)
 	}
-	over := &domain.Coupon{Code: "BIG", Kind: domain.CouponFixed, Value: 999999, IsActive: true}
+	over := &domain.Coupon{Code: "BIG", Kind: domain.CouponFixed, Value: 9999, IsActive: true}
 	q, _ = BuildQuote(p, "ETB", over, now, 0)
-	if q.Final != 0 || !q.Free || q.Discount != 70000 {
+	if q.Final != 0 || !q.Free || q.Discount != 700 {
 		t.Errorf("covering coupon must clamp and be free: %+v", q)
 	}
 	full := &domain.Coupon{Code: "FREE", Kind: domain.CouponPercent, Value: 100, IsActive: true}

@@ -102,7 +102,8 @@ func EffectivePrice(p domain.PricePlan, currency string, now time.Time) (domain.
 	return base, nil
 }
 
-// Quote is what the server tells the student before they pay.
+// Quote is what the server tells the student before they pay. All ETB amounts
+// are whole birr (integers; a percent discount rounds to the nearest birr).
 type Quote struct {
 	PlanID      string          `json:"plan_id"`
 	Currency    string          `json:"currency"`
@@ -188,7 +189,7 @@ func BuildQuote(p domain.PricePlan, currency string, coupon *domain.Coupon, now 
 			if pct > 100 {
 				pct = 100
 			}
-			d = (price.Amount*pct + 50) / 100 // round half up
+			d = (price.Amount*pct + 50) / 100 // nearest whole birr
 		case domain.CouponFixed:
 			d = coupon.Value
 		}
