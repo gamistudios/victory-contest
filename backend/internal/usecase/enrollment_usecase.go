@@ -8,11 +8,10 @@ import (
 )
 
 var (
-	ErrAlreadyEnrolled   = errors.New("already enrolled in this program")
-	ErrNotEnrolled       = errors.New("not enrolled in this program")
-	ErrLastEnrollment    = errors.New("cannot leave your only program")
-	ErrStudentNotFound   = errors.New("student not found")
-	ErrSuspendedStudent  = errors.New("student is suspended")
+	ErrAlreadyEnrolled  = errors.New("already enrolled in this program")
+	ErrNotEnrolled      = errors.New("not enrolled in this program")
+	ErrLastEnrollment   = errors.New("cannot leave your only program")
+	ErrSuspendedStudent = errors.New("student is suspended")
 )
 
 // EnrollmentUsecase owns Student.Enrollments / PrimaryProgramID (plan §5.2).
@@ -20,9 +19,9 @@ var (
 // enrol into any active program. Entitlements (payment) are independent: being
 // enrolled never unlocks premium content.
 type EnrollmentUsecase struct {
-	students StudentRepository
-	programs func() ([]domain.AcademyProgram, error)
-	now      func() time.Time
+	students  StudentRepository
+	programs  func() ([]domain.AcademyProgram, error)
+	now       func() time.Time
 	locations func() domain.Locations // nil = embedded seed
 }
 

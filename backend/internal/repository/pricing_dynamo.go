@@ -93,7 +93,7 @@ type pricePlanRepo struct{ s docStore[domain.PricePlan] }
 func NewPricePlanDynamoRepository(db *dynamodb.Client, table string) usecase.PricePlanRepository {
 	return &pricePlanRepo{docStore[domain.PricePlan]{db, table}}
 }
-func (r *pricePlanRepo) Put(p domain.PricePlan) error            { return r.s.put(p) }
+func (r *pricePlanRepo) Put(p domain.PricePlan) error             { return r.s.put(p) }
 func (r *pricePlanRepo) Get(id string) (*domain.PricePlan, error) { return r.s.get(id) }
 func (r *pricePlanRepo) Delete(id string) error                   { return r.s.del(id) }
 func (r *pricePlanRepo) List() ([]domain.PricePlan, error)        { return r.s.scan() }
@@ -105,7 +105,10 @@ type couponRepo struct{ s docStore[domain.Coupon] }
 func NewCouponDynamoRepository(db *dynamodb.Client, table string) usecase.CouponRepository {
 	return &couponRepo{docStore[domain.Coupon]{db, table}}
 }
-func (r *couponRepo) Put(c domain.Coupon) error            { c.Code = strings.ToUpper(strings.TrimSpace(c.Code)); return r.s.put(c) }
+func (r *couponRepo) Put(c domain.Coupon) error {
+	c.Code = strings.ToUpper(strings.TrimSpace(c.Code))
+	return r.s.put(c)
+}
 func (r *couponRepo) Get(id string) (*domain.Coupon, error) { return r.s.get(id) }
 func (r *couponRepo) Delete(id string) error                { return r.s.del(id) }
 func (r *couponRepo) List() ([]domain.Coupon, error)        { return r.s.scan() }

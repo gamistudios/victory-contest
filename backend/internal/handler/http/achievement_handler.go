@@ -94,4 +94,4 @@ func (h *AchievementHandler) GetAchievementsByStudent(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"achievements": achievements})
-} 
+}

@@ -33,7 +33,7 @@ type QuestionPatch struct {
 	Subject        *string   `json:"subject"`
 	Grade          *string   `json:"grade"`
 	Chapter        *string   `json:"chapter"`
-	MultipleChoice *[]string  `json:"multiple_choice"`
+	MultipleChoice *[]string `json:"multiple_choice"`
 	// OptionImages, when non-nil, fully replaces the stored per-option image
 	// URLs. Empty slice = clear all option images; nil = leave unchanged.
 	OptionImages *[]string `json:"option_images"`

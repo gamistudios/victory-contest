@@ -171,6 +171,7 @@ export default function Home() {
 
 function ProgramSheet({ open, onOpenChange, level, stream, onSaved }: { open: boolean; onOpenChange: (o: boolean) => void; level: LevelId; stream: StreamId; onSaved: () => void }) {
   const { data } = useAsync(getPrograms, []);
+  const { catalog } = useCatalog();
   const [l, setL] = useState(level);
   const [s, setS] = useState(stream);
   const prog = data?.programs.find((p) => p.id === l);
@@ -192,7 +193,7 @@ function ProgramSheet({ open, onOpenChange, level, stream, onSaved }: { open: bo
             <div className="grid grid-cols-2 gap-2">
               {streams.map((x) => (
                 <button key={x} onClick={() => setS(x)} className={cn("flex h-12 items-center justify-center rounded-xl border text-sm font-bold", s === x ? "border-brand bg-brand/15 text-brand-ink" : "border-border bg-card")}>
-                  {STREAM_SHORT[x]} Science
+                  {streamShort(catalog?.streams, x)}
                 </button>
               ))}
             </div>

@@ -78,13 +78,13 @@ type academyProfile struct {
 }
 
 type AcademyUsecase struct {
-	premiumResolver func(studentID string) bool // optional: entitlement-based premium (Phase 1)
+	premiumResolver func(studentID string) bool            // optional: entitlement-based premium (Phase 1)
 	programResolver func(studentID string) map[string]bool // optional: entitled program ids (per-program locks)
-	studentRepo     StudentRepository // optional: location rename propagation
-	locStore        LocationStore                // optional: admin-managed locations
-	repo     AcademyRepository
-	students StudentUsecase
-	ai       AcademyTextGenerator
+	studentRepo     StudentRepository                      // optional: location rename propagation
+	locStore        LocationStore                          // optional: admin-managed locations
+	repo            AcademyRepository
+	students        StudentUsecase
+	ai              AcademyTextGenerator
 
 	snapMu sync.Mutex
 	snap   *academySnapshot

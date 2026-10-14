@@ -210,7 +210,6 @@ func NewPaymentUsecases(payRepo PaymentRepository) PaymentUsecase {
 	return &paymentUsecase{paymentRepo: payRepo}
 }
 
-
 // PaymentAmountMismatch compares what the student reported transferring
 // (PaymentRequest.Amount, ETB) with what the server priced the plan at
 // (FinalAmount, santim). It only applies to plan-based ETB payments that

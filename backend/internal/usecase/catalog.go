@@ -1,11 +1,11 @@
 package usecase
 
 import (
-	"log"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 
@@ -107,9 +107,9 @@ type PromoteLocationInput struct {
 	FromRegionID  string `json:"from_region_id"`
 	FromRegion    string `json:"from_region"`
 	FromCity      string `json:"from_city"`
-	TargetRegion  string `json:"target_region_id"`  // existing region id, or empty to create
-	NewRegionName string `json:"new_region_name"`   // used when TargetRegion is empty
-	CityName      string `json:"city_name"`         // display name; defaults to FromCity
+	TargetRegion  string `json:"target_region_id"` // existing region id, or empty to create
+	NewRegionName string `json:"new_region_name"`  // used when TargetRegion is empty
+	CityName      string `json:"city_name"`        // display name; defaults to FromCity
 }
 
 func normLoc(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }

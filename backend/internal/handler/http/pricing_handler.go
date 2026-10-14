@@ -14,9 +14,9 @@ import (
 // PricingHandler: public plan list, student quote/entitlements, admin CRUD for
 // plans and coupons, admin grant/revoke/rebuild (plan §5.12).
 type PricingHandler struct {
-	pricing      *usecase.PricingUsecase
-	payments     usecase.PaymentUsecase
-	studentAuth  gin.HandlerFunc
+	pricing     *usecase.PricingUsecase
+	payments    usecase.PaymentUsecase
+	studentAuth gin.HandlerFunc
 }
 
 func NewPricingHandler(p *usecase.PricingUsecase, pay usecase.PaymentUsecase) *PricingHandler {

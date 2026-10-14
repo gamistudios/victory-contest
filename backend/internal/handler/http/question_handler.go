@@ -587,7 +587,6 @@ func parseScopeForm(raw string) (sc *domain.Scope, clear bool, err error) {
 	return &v, false, nil
 }
 
-
 // filterQuestionsByScope applies the optional ?program_id, ?stream_id,
 // ?subject_id, ?chapter_id and ?scoped=none|any filters. Without any of them
 // the list is returned untouched. Questions with no scope only match

@@ -242,8 +242,8 @@ func ensureGSIs(ctx context.Context, client *dynamodb.Client, def Table) (int, e
 	utCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	if _, err := client.UpdateTable(utCtx, &dynamodb.UpdateTableInput{
-		TableName:                 aws.String(def.Name),
-		AttributeDefinitions:      attrDefs,
+		TableName:                   aws.String(def.Name),
+		AttributeDefinitions:        attrDefs,
 		GlobalSecondaryIndexUpdates: updates,
 	}); err != nil {
 		return 0, fmt.Errorf("add %d GSI: %w", len(missing), err)

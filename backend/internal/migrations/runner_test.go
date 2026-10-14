@@ -15,10 +15,10 @@ func TestValidateRegistry(t *testing.T) {
 
 func TestValidateRejectsBadOrderAndIDs(t *testing.T) {
 	cases := map[string][]Migration{
-		"bad id":    {{ID: "grade", Run: noop}},
-		"duplicate": {{ID: "20261014-001-a", Run: noop}, {ID: "20261014-001-a", Run: noop}},
+		"bad id":     {{ID: "grade", Run: noop}},
+		"duplicate":  {{ID: "20261014-001-a", Run: noop}, {ID: "20261014-001-a", Run: noop}},
 		"descending": {{ID: "20261014-002-a", Run: noop}, {ID: "20261014-001-b", Run: noop}},
-		"no run":    {{ID: "20261014-001-a"}},
+		"no run":     {{ID: "20261014-001-a"}},
 	}
 	for name, l := range cases {
 		if Validate(l) == nil {

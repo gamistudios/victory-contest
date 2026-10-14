@@ -1,11 +1,11 @@
 package usecase
 
 import (
-	"log"
-	"sync"
 	"errors"
+	"log"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"victory-contest-go/internal/domain"
@@ -41,14 +41,14 @@ var (
 
 // PricingUsecase owns plans, coupons, quotes and entitlements (plan §5.12).
 type PricingUsecase struct {
-	plans       PricePlanRepository
-	coupons     CouponRepository
-	ents        EntitlementRepository
-	payments    PaymentRepository
-	programIDs  func() []string // active program ids, for AllPrograms expansion
-	graceDays   int
-	redeemMu    sync.Mutex // serialises limit check + reservation per process
-	now         func() time.Time
+	plans      PricePlanRepository
+	coupons    CouponRepository
+	ents       EntitlementRepository
+	payments   PaymentRepository
+	programIDs func() []string // active program ids, for AllPrograms expansion
+	graceDays  int
+	redeemMu   sync.Mutex // serialises limit check + reservation per process
+	now        func() time.Time
 }
 
 func NewPricingUsecase(plans PricePlanRepository, coupons CouponRepository, ents EntitlementRepository,

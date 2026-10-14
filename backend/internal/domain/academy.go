@@ -311,8 +311,8 @@ type AcademyFlashcardProgress struct {
 // document per student, optimistic-locked through Version).
 type AcademyStudentState struct {
 	// Runtime-only (never persisted): per-program entitlement set.
-	AccessSet     bool            `json:"-" dynamodbav:"-"`
-	ProgramAccess map[string]bool `json:"-" dynamodbav:"-"`
+	AccessSet         bool                                `json:"-" dynamodbav:"-"`
+	ProgramAccess     map[string]bool                     `json:"-" dynamodbav:"-"`
 	StudentID         string                              `json:"student_id"`
 	LevelID           string                              `json:"level_id"`
 	StreamID          string                              `json:"stream_id"`

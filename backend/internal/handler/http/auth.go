@@ -151,7 +151,6 @@ func withStudentAuth(mw gin.HandlerFunc, h gin.HandlerFunc) gin.HandlersChain {
 	return gin.HandlersChain{mw, h}
 }
 
-
 // studentOwnerOrAdminAuth gates per-student READ routes (editorial, statistics)
 // that carry the student id in the path (D5 / IDOR fix). A valid student
 // session must carry the same id as the path param named paramName (403

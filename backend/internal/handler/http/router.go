@@ -13,10 +13,10 @@ import (
 
 	"log"
 	"os"
-	"time"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -247,7 +247,7 @@ func NewServer() *Server {
 		feedbackResponseHandler:    NewFeedbackResponseHandler(feedbackResponseUsecase, notificationUsecase),
 		paymentHandler:             NewPaymentHandler(paymentUsecase, *imgRepo),
 		paymentSettingsHandler:     NewPaymentSettingsHandler(paymentSettingsUsecase),
-		aiHandler:                  NewAiHandler(aiUsecase, entitlementAiAccess{aiSettingsUsecase, pricingUsecase, func(id string) string {
+		aiHandler: NewAiHandler(aiUsecase, entitlementAiAccess{aiSettingsUsecase, pricingUsecase, func(id string) string {
 			if st, err := studentRepo.GetStudentByID(id); err == nil && st != nil {
 				return st.PrimaryProgramID
 			}
@@ -265,18 +265,18 @@ func NewServer() *Server {
 			}
 			return true
 		}}, jwtSecret),
-		aiAdminHandler:             NewAiAdminHandler(aiProviderUsecase, aiSettingsUsecase),
-		telegramHandler:            NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")).withBotName(botUserName),
-		pageViewHandler:            NewPageViewHandler(pageViewUsecase),
-		articleHandler:             NewArticleHandler(articleUsecase),
-		imageHandler:               NewImageHandler(imgRepo),
-		contestStatisticsHandler:   NewContestStatisticsHandler(contestStatisticsUsecase),
-		academyHandler:             NewAcademyHandler(academyUsecase),
-		catalogHandler:             NewCatalogHandler(academyUsecase),
-		pricingHandler:             NewPricingHandler(pricingUsecase, paymentUsecase),
-		enrollmentHandler:          NewEnrollmentHandler(enrollmentUsecase),
-		jwtSecret:                  jwtSecret,
-		aiRequestsPerMinute:        aiRequestsPerMinute,
+		aiAdminHandler:           NewAiAdminHandler(aiProviderUsecase, aiSettingsUsecase),
+		telegramHandler:          NewTelegramHandler(telegramUsecase, os.Getenv("TELEGRAM_WEBHOOK_SECRET")).withBotName(botUserName),
+		pageViewHandler:          NewPageViewHandler(pageViewUsecase),
+		articleHandler:           NewArticleHandler(articleUsecase),
+		imageHandler:             NewImageHandler(imgRepo),
+		contestStatisticsHandler: NewContestStatisticsHandler(contestStatisticsUsecase),
+		academyHandler:           NewAcademyHandler(academyUsecase),
+		catalogHandler:           NewCatalogHandler(academyUsecase),
+		pricingHandler:           NewPricingHandler(pricingUsecase, paymentUsecase),
+		enrollmentHandler:        NewEnrollmentHandler(enrollmentUsecase),
+		jwtSecret:                jwtSecret,
+		aiRequestsPerMinute:      aiRequestsPerMinute,
 	}
 	server.telegramAuthHandler = newTelegramAuthHandler(jwtSecret, botToken, os.Getenv("ALLOW_DEV_AUTH") == "true")
 	if server.telegramAuthHandler.allowDevAuth {

@@ -121,24 +121,24 @@ type ContestStats struct {
 // in a single in-memory pass over one GetAllQuestions scan so it adds no extra
 // round-trips to the dashboard.
 type QuestionStats struct {
-	Total            int          `json:"total" validate:"min=0"`
-	BySubject        []SubjectStat `json:"by_subject"`
-	ByGrade          []GradeDistribution `json:"by_grade"`
-	WithExplanation int          `json:"with_explanation" validate:"min=0"`
-	WithImage        int          `json:"with_image" validate:"min=0"`
+	Total           int                 `json:"total" validate:"min=0"`
+	BySubject       []SubjectStat       `json:"by_subject"`
+	ByGrade         []GradeDistribution `json:"by_grade"`
+	WithExplanation int                 `json:"with_explanation" validate:"min=0"`
+	WithImage       int                 `json:"with_image" validate:"min=0"`
 }
 
 // PaymentStats summarizes the payments ledger (client task 4): a status
 // breakdown, approved revenue, and a 30-day request trend, all derived from
 // the one ListAll scan the dashboard already performs.
 type PaymentStats struct {
-	Total          int     `json:"total" validate:"min=0"`
-	Pending        int     `json:"pending" validate:"min=0"`
-	Approved       int     `json:"approved" validate:"min=0"`
-	Rejected       int     `json:"rejected" validate:"min=0"`
-	ApprovedRevenue float64 `json:"approved_revenue"`
-	ByStatus       []PaymentStatusStat `json:"by_status"`
-	Trend          []int   `json:"trend" validate:"required"`
+	Total           int                 `json:"total" validate:"min=0"`
+	Pending         int                 `json:"pending" validate:"min=0"`
+	Approved        int                 `json:"approved" validate:"min=0"`
+	Rejected        int                 `json:"rejected" validate:"min=0"`
+	ApprovedRevenue float64             `json:"approved_revenue"`
+	ByStatus        []PaymentStatusStat `json:"by_status"`
+	Trend           []int               `json:"trend" validate:"required"`
 }
 
 // PaymentStatusStat is one bucket of the payments status distribution.

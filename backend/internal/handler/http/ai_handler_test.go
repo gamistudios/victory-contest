@@ -17,10 +17,10 @@ import (
 
 // fakeAiUsecase records whether the (paid) generation path was reached.
 type fakeAiUsecase struct {
-	practiceCalls   int
-	recoCalls       int
-	explainCalls    int
-	bankCalls       int
+	practiceCalls    int
+	recoCalls        int
+	explainCalls     int
+	bankCalls        int
 	bankSubjectCalls int
 }
 

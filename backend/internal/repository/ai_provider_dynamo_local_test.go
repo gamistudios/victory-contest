@@ -64,7 +64,7 @@ func TestLocalDynamoAiProviderCRUD(t *testing.T) {
 	key := "sk-local-test-key"
 	createdID, err := repo.AddProvider(domain.AIProvider{
 		ID: id, Name: "probe", BaseURL: "https://api.example.com", APIKey: key,
-		Protocol: domain.AIProtocolOpenAI, Models: domain.ModelList{ {Name: "m1"}, {Name: "m2"} }, Enabled: true,
+		Protocol: domain.AIProtocolOpenAI, Models: domain.ModelList{{Name: "m1"}, {Name: "m2"}}, Enabled: true,
 	})
 	if err != nil {
 		t.Fatalf("AddProvider: %v", err)

@@ -19,13 +19,13 @@ type PaymentRequest struct {
 	ExpirationDate  *time.Time    `json:"expirationDate,omitempty" dynamodbav:"expirationDate,omitempty"`
 	GSI1PK          string        `dynamodbav:"GSI1PK,omitempty"` // New field
 	// Phase 1 plan snapshot (all optional; legacy rows read as empty and keep the 1-month rule).
-	PlanID       string   `json:"plan_id,omitempty"       dynamodbav:"plan_id,omitempty"`
-	CouponCode   string   `json:"coupon_code,omitempty"   dynamodbav:"coupon_code,omitempty"`
-	Currency     string   `json:"currency,omitempty"      dynamodbav:"currency,omitempty"`
-	FinalAmount  int64    `json:"final_amount,omitempty"  dynamodbav:"final_amount,omitempty"` // minor units of Currency
-	ProgramIDs   []string `json:"program_ids,omitempty"   dynamodbav:"program_ids,omitempty"`  // programs the plan covered at purchase
-	Validity     *Validity `json:"validity,omitempty"     dynamodbav:"validity,omitempty"`     // plan validity snapshot
-	Revoked      bool     `json:"revoked,omitempty"       dynamodbav:"revoked,omitempty"`
+	PlanID      string    `json:"plan_id,omitempty"       dynamodbav:"plan_id,omitempty"`
+	CouponCode  string    `json:"coupon_code,omitempty"   dynamodbav:"coupon_code,omitempty"`
+	Currency    string    `json:"currency,omitempty"      dynamodbav:"currency,omitempty"`
+	FinalAmount int64     `json:"final_amount,omitempty"  dynamodbav:"final_amount,omitempty"` // minor units of Currency
+	ProgramIDs  []string  `json:"program_ids,omitempty"   dynamodbav:"program_ids,omitempty"`  // programs the plan covered at purchase
+	Validity    *Validity `json:"validity,omitempty"     dynamodbav:"validity,omitempty"`      // plan validity snapshot
+	Revoked     bool      `json:"revoked,omitempty"       dynamodbav:"revoked,omitempty"`
 }
 
 type PaymentStatus string

@@ -78,10 +78,10 @@ func MigrateEnrollments(ctx context.Context, env Env, table string) (Result, err
 			continue
 		}
 		_, err = env.DB.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-			TableName:           aws.String(table),
-			Key:                 map[string]types.AttributeValue{"id": strAttr(c.ID)},
-			UpdateExpression:    aws.String("SET enrollments = :e, primary_program_id = :p"),
-			ConditionExpression: aws.String("attribute_exists(id) AND attribute_not_exists(enrollments)"),
+			TableName:                 aws.String(table),
+			Key:                       map[string]types.AttributeValue{"id": strAttr(c.ID)},
+			UpdateExpression:          aws.String("SET enrollments = :e, primary_program_id = :p"),
+			ConditionExpression:       aws.String("attribute_exists(id) AND attribute_not_exists(enrollments)"),
 			ExpressionAttributeValues: map[string]types.AttributeValue{":e": en, ":p": strAttr(c.Primary)},
 		})
 		if err != nil {
