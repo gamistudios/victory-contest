@@ -45,4 +45,4 @@ export const saveLocations = (regions: Region[]) => api.put("/api/locations-admi
 export interface FreeTextLocation { region_id?: string; region: string; city: string; count: number }
 export const getFreeTextLocations = () => api.get("/api/locations-admin/free-text").then((r) => (r.data?.items ?? []) as FreeTextLocation[]);
 export const promoteLocation = (b: { from_region_id?: string; from_region: string; from_city: string; target_region_id?: string; new_region_name?: string; city_name?: string }) =>
-  api.post("/api/locations-admin/promote", b).then((r) => r.data as { updated: number; regions: Region[] });
+  api.post("/api/locations-admin/promote", b).then((r) => r.data as { updated: number; failed: number; regions: Region[] });

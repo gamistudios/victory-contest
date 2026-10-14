@@ -33,6 +33,7 @@ func MigrateGrade(ctx context.Context, env Env, table string) (Result, error) {
 	}
 	distinct := map[string]int{}
 	var changes []GradeChange
+	var changeItems []map[string]types.AttributeValue // parallel to changes: source of each row's full key
 	unknown := 0
 	for _, item := range items {
 		var st struct {
@@ -48,6 +49,7 @@ func MigrateGrade(ctx context.Context, env Env, table string) (Result, error) {
 		}
 		if next, ok := domain.LegacyGradeToCurrent(st.Grade); ok {
 			changes = append(changes, GradeChange{ID: st.ID, OldGrade: st.Grade, NewGrade: next})
+			changeItems = append(changeItems, item)
 		} else {
 			unknown++
 			say(env, "UNMAPPED id=%s grade=%q (left untouched)", st.ID, st.Grade)
@@ -69,14 +71,28 @@ func MigrateGrade(ctx context.Context, env Env, table string) (Result, error) {
 		say(env, "backup of %d rows: %s", len(changes), path)
 	}
 	done, failed := 0, 0
-	for _, ch := range changes {
+	var pKey []string
+	if env.Apply {
+		var err error
+		pKey, err = keyNames(ctx, env.DB, table)
+		if err != nil {
+			return Result{}, err
+		}
+	}
+	for i, ch := range changes {
 		if !env.Apply {
 			say(env, "WOULD CHANGE id=%s %q -> %q", ch.ID, ch.OldGrade, ch.NewGrade)
 			continue
 		}
-		_, err := env.DB.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		key, err := fullKey(pKey, changeItems[i])
+		if err != nil {
+			failed++
+			say(env, "update %s failed: %v", ch.ID, err)
+			continue
+		}
+		_, err = env.DB.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 			TableName:           aws.String(table),
-			Key:                 map[string]types.AttributeValue{"id": strAttr(ch.ID)},
+			Key:                 key,
 			UpdateExpression:    aws.String("SET grade = :n"),
 			ConditionExpression: aws.String("attribute_exists(id) AND grade = :o"),
 			ExpressionAttributeValues: map[string]types.AttributeValue{

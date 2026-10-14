@@ -99,9 +99,47 @@ func (r *StudentDynamoRepository) UpdateStudent(student domain.Student) error {
 		delete(item, "created_at") // do not clobber the real creation time
 	}
 
+	keyNames := r.keyAttributes(ctx)
+	expression, names, values := studentPatchExpression(item, keyNames, time.Now().UTC().Format(time.RFC3339))
+
+	// Build the point-operation key from the table's real key schema, not a
+	// hardcoded {id}: UpdateItem requires the table's COMPLETE primary key, and
+	// the live student table's key is discovered here so a composite or
+	// non-"id" key no longer trips "key element does not match the schema".
+	keyMap, err := r.fullKeyFor(ctx, student.ID, student.TelegramID)
+	if err != nil {
+		return err
+	}
+	if keyMap == nil {
+		return fmt.Errorf("student %s not found in %s table", student.ID, r.tableName)
+	}
+	_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:                 &r.tableName,
+		Key:                       keyMap,
+		UpdateExpression:          aws.String(expression),
+		ExpressionAttributeNames:  names,
+		ExpressionAttributeValues: values,
+	})
+	return err
+}
+
+// studentPatchExpression renders a marshalled patch as an UpdateItem SET
+// expression. Attributes the caller left at their Go zero value are treated as
+// "not provided" and skipped, as is the audit timestamp written on every call.
+//
+// keyNames are the table's primary-key attributes, which must never appear in
+// the SET clause: DynamoDB rejects the entire write with "Cannot update
+// attribute <x>. This attribute is part of the key". The live student table is
+// keyed on (id, telegram_id) and every caller carries telegram_id in its patch,
+// so it is targeted through the Key instead of written.
+func studentPatchExpression(item map[string]types.AttributeValue, keyNames []string, updatedAt string) (string, map[string]string, map[string]types.AttributeValue) {
+	isKey := make(map[string]bool, len(keyNames))
+	for _, n := range keyNames {
+		isKey[n] = true
+	}
 	attrs := make([]string, 0, len(item))
 	for name, av := range item {
-		if name == "id" || isZeroAttributeValue(av) {
+		if name == "id" || isKey[name] || isZeroAttributeValue(av) {
 			continue
 		}
 		attrs = append(attrs, name)
@@ -110,7 +148,7 @@ func (r *StudentDynamoRepository) UpdateStudent(student domain.Student) error {
 
 	names := map[string]string{"#updated_at": "updated_at"}
 	values := map[string]types.AttributeValue{
-		":updated_at": &types.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339)},
+		":updated_at": &types.AttributeValueMemberS{Value: updatedAt},
 	}
 	parts := []string{"#updated_at = :updated_at"}
 	for i, name := range attrs {
@@ -120,26 +158,7 @@ func (r *StudentDynamoRepository) UpdateStudent(student domain.Student) error {
 		values[v] = item[name]
 		parts = append(parts, n+" = "+v)
 	}
-
-	// Build the point-operation key from the table's real key schema, not a
-	// hardcoded {id}: UpdateItem requires the table's COMPLETE primary key, and
-	// the live student table's key is discovered here so a composite or
-	// non-"id" key no longer trips "key element does not match the schema".
-	key, err := r.fullKeyFor(ctx, student.ID, student.TelegramID)
-	if err != nil {
-		return err
-	}
-	if key == nil {
-		return fmt.Errorf("student %s not found in %s table", student.ID, r.tableName)
-	}
-	_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-		TableName:                 &r.tableName,
-		Key:                       key,
-		UpdateExpression:          aws.String("SET " + strings.Join(parts, ", ")),
-		ExpressionAttributeNames:  names,
-		ExpressionAttributeValues: values,
-	})
-	return err
+	return "SET " + strings.Join(parts, ", "), names, values
 }
 
 // isZeroAttributeValue reports whether a marshalled attribute carries only

@@ -79,7 +79,7 @@ func (h *CatalogHandler) Promote(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	n, err := h.uc.PromoteLocation(in)
+	n, failed, err := h.uc.PromoteLocation(in)
 	if err != nil {
 		if errors.Is(err, usecase.ErrInvalidLocation) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "choose an existing region or give a new region name, and a city name"})
@@ -89,7 +89,7 @@ func (h *CatalogHandler) Promote(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"updated": n, "regions": h.uc.Locations().Regions})
+	c.JSON(http.StatusOK, gin.H{"updated": n, "failed": failed, "regions": h.uc.Locations().Regions})
 }
 
 func (h *CatalogHandler) GetLocations(c *gin.Context) { c.JSON(http.StatusOK, h.uc.Locations()) }

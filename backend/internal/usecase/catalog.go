@@ -168,17 +168,19 @@ func (u *AcademyUsecase) FreeTextLocations() ([]FreeTextLocation, error) {
 }
 
 // PromoteLocation adds the region/city to the stored list (if missing) and
-// links every matching student to the stable ids. Returns the students updated.
-func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, error) {
+// links every matching student to the stable ids. It returns the students
+// updated plus the number that matched but could not be written: a promote that
+// quietly updated nobody was indistinguishable from one with nobody to promote.
+func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, int, error) {
 	if u.studentRepo == nil {
-		return 0, errors.New("student repository not configured")
+		return 0, 0, errors.New("student repository not configured")
 	}
 	cityName := strings.TrimSpace(in.CityName)
 	if cityName == "" {
 		cityName = strings.TrimSpace(in.FromCity)
 	}
 	if locSlug(cityName) == "" {
-		return 0, ErrInvalidLocation
+		return 0, 0, ErrInvalidLocation
 	}
 	locs := u.Locations()
 	ri := -1
@@ -186,7 +188,7 @@ func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, error) {
 	case in.FromRegionID != "":
 		in.TargetRegion = in.FromRegionID // the region is already known: only the city is promoted
 	case in.TargetRegion == "" && strings.TrimSpace(in.NewRegionName) == "":
-		return 0, ErrInvalidLocation
+		return 0, 0, ErrInvalidLocation
 	}
 	if in.TargetRegion != "" {
 		for i, r := range locs.Regions {
@@ -195,13 +197,13 @@ func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, error) {
 			}
 		}
 		if ri < 0 {
-			return 0, ErrInvalidLocation
+			return 0, 0, ErrInvalidLocation
 		}
 	} else {
 		name := strings.TrimSpace(in.NewRegionName)
 		id := locSlug(name)
 		if id == "" {
-			return 0, ErrInvalidLocation
+			return 0, 0, ErrInvalidLocation
 		}
 		for i, r := range locs.Regions {
 			if r.ID == id || normLoc(r.Name) == normLoc(name) {
@@ -228,14 +230,14 @@ func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, error) {
 	region.Active, region.Cities[ci].Active = true, true
 	rid, rname, cname := region.ID, region.Name, region.Cities[ci].Name
 	if err := u.SaveLocations(locs); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	students, err := u.studentRepo.GetStudents()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	updated := 0
+	updated, failed := 0, 0
 	for _, st := range students {
 		if st.CityID != "" || normLoc(st.City) != normLoc(in.FromCity) {
 			continue
@@ -246,11 +248,12 @@ func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, error) {
 		patch := domain.Student{ID: st.ID, TelegramID: st.TelegramID, RegionID: rid, Region: rname, CityID: cid, City: cname}
 		if err := u.studentRepo.UpdateStudent(patch); err != nil {
 			log.Printf("locations: promote failed for student %s: %v", st.ID, err)
+			failed++
 			continue
 		}
 		updated++
 	}
-	return updated, nil
+	return updated, failed, nil
 }
 
 // SetStudentRepo enables rename propagation to existing student rows.

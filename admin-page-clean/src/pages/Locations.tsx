@@ -164,12 +164,14 @@ export default function Locations() {
           item={promoting}
           regions={regions ?? []}
           onClose={() => setPromoting(null)}
-          onDone={(r, updated) => {
+          onDone={(r, updated, failed) => {
             setRegions(r);
             setPromoting(null);
             void getAdminCatalog(true);
             void loadFree();
-            toast.success(`Promoted. ${updated} student${updated === 1 ? "" : "s"} updated.`);
+            const people = `${updated} student${updated === 1 ? "" : "s"} updated`;
+            if (failed > 0) toast.error(`${people}, ${failed} failed to save — report this.`);
+            else toast.success(`Promoted. ${people}.`);
           }}
         />
       )}
@@ -177,7 +179,7 @@ export default function Locations() {
   );
 }
 
-function PromoteSheet({ item, regions, onClose, onDone }: { item: svc.FreeTextLocation; regions: svc.Region[]; onClose: () => void; onDone: (r: svc.Region[], updated: number) => void }) {
+function PromoteSheet({ item, regions, onClose, onDone }: { item: svc.FreeTextLocation; regions: svc.Region[]; onClose: () => void; onDone: (r: svc.Region[], updated: number, failed: number) => void }) {
   const known = !!item.region_id; // region already linked: only the city is free text
   const guess = regions.find((r) => r.name.trim().toLowerCase() === item.region.trim().toLowerCase())?.id;
   const [target, setTarget] = useState(item.region_id || guess || NEW);
@@ -198,7 +200,7 @@ function PromoteSheet({ item, regions, onClose, onDone }: { item: svc.FreeTextLo
         new_region_name: target === NEW ? newRegion : "",
         city_name: cityName,
       });
-      onDone(r.regions, r.updated);
+      onDone(r.regions, r.updated, r.failed ?? 0);
     } catch (e) {
       setErr(errMsg(e));
     } finally {

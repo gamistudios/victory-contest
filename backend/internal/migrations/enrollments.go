@@ -41,9 +41,10 @@ func MigrateEnrollments(ctx context.Context, env Env, table string) (Result, err
 		return Result{}, err
 	}
 	var changes []EnrollmentChange
+	var changeItems []map[string]types.AttributeValue // parallel to changes: source of each row's full key
 	skipped, unknown := 0, 0
 	now := time.Now().UTC().Format(time.RFC3339)
-	for _, s := range students {
+	for i, s := range students {
 		if len(s.Enrollments) > 0 {
 			skipped++
 			continue
@@ -60,6 +61,7 @@ func MigrateEnrollments(ctx context.Context, env Env, table string) (Result, err
 		pid := "grade-" + s.Grade
 		changes = append(changes, EnrollmentChange{ID: s.ID, Grade: s.Grade, Primary: pid,
 			Enrollments: []domain.Enrollment{{ProgramID: pid, StreamID: stream, EnrolledAt: now, Source: "admin", Confirmed: false}}})
+		changeItems = append(changeItems, items[i])
 	}
 	say(env, "to migrate: %d, already enrolled: %d, unknown grade: %d", len(changes), skipped, unknown)
 	if !env.Apply || len(changes) == 0 {
@@ -71,15 +73,25 @@ func MigrateEnrollments(ctx context.Context, env Env, table string) (Result, err
 	}
 	say(env, "backup: %s", path)
 	done, failed := 0, 0
-	for _, c := range changes {
+	pKey, err := keyNames(ctx, env.DB, table)
+	if err != nil {
+		return Result{}, err
+	}
+	for i, c := range changes {
 		en, err := attributevalue.Marshal(c.Enrollments)
 		if err != nil {
 			failed++
 			continue
 		}
+		key, err := fullKey(pKey, changeItems[i])
+		if err != nil {
+			failed++
+			say(env, "fail %s: %v", c.ID, err)
+			continue
+		}
 		_, err = env.DB.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 			TableName:                 aws.String(table),
-			Key:                       map[string]types.AttributeValue{"id": strAttr(c.ID)},
+			Key:                       key,
 			UpdateExpression:          aws.String("SET enrollments = :e, primary_program_id = :p"),
 			ConditionExpression:       aws.String("attribute_exists(id) AND attribute_not_exists(enrollments)"),
 			ExpressionAttributeValues: map[string]types.AttributeValue{":e": en, ":p": strAttr(c.Primary)},
