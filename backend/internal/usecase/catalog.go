@@ -376,8 +376,7 @@ func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, int, *Pr
 	if err != nil {
 		return 0, 0, nil, err
 	}
-	locs := u.Locations()
-	dedupeCityIDs(&locs)
+	locs, _ := CanonicalLocations(u.Locations())
 	var cl *freeCluster
 	for _, c := range clusterFreeText(locs, students) {
 		if c.Key == in.GroupKey {
@@ -513,8 +512,7 @@ func (u *AcademyUsecase) MergeCities(in MergeCitiesInput) (int, int, *PromoteTar
 	if in.FromCityID == "" || in.ToCityID == "" || in.FromCityID == in.ToCityID {
 		return 0, 0, nil, fmt.Errorf("%w: pick two different cities to merge", ErrInvalidLocation)
 	}
-	locs := u.Locations()
-	dedupeCityIDs(&locs)
+	locs, _ := CanonicalLocations(u.Locations())
 	tgt := &PromoteTarget{CityID: in.ToCityID}
 	fromRI := -1
 	for i, r := range locs.Regions {
@@ -567,6 +565,370 @@ func filterCities(cs []domain.City, dropID string) []domain.City {
 		}
 	}
 	return out
+}
+
+// ---- removing an entry from the list (delete / merge / unlink) ----
+
+// RemoveLocationInput drops one entry from the stored list.
+type RemoveLocationInput struct {
+	Kind     string `json:"kind"` // RemoveRegion or RemoveCity
+	SourceID string `json:"source_id"`
+	// TargetID is where the students go: another region (or city). Empty means
+	// unlink them — detach the row from the list so it reappears in free text.
+	TargetID string `json:"target_id"`
+}
+
+// RemoveResult reports what removal did to the students that were on the entry.
+type RemoveResult struct {
+	Moved    int            `json:"moved"`    // relinked onto another entry
+	Unlinked int            `json:"unlinked"` // detached, so they show as free text
+	Failed   int            `json:"failed"`   // writes that did not land
+	Dropped  string         `json:"dropped"`  // the name that left the list
+	Target   *PromoteTarget `json:"target,omitempty"`
+}
+
+const (
+	RemoveRegion = "region"
+	RemoveCity   = "city"
+)
+
+// RemoveLocation deletes a region or a city from the list without leaving a
+// single student pointing at an entry that no longer exists. A region's students
+// either follow its cities into another region or are unlinked back to free
+// text; there is no third option, because a row holding a dead id has a location
+// nobody can read — not the dashboard, not the admin panel, not the student.
+func (u *AcademyUsecase) RemoveLocation(in RemoveLocationInput) (*RemoveResult, error) {
+	if u.studentRepo == nil {
+		return nil, errors.New("student repository not configured")
+	}
+	if in.SourceID == "" {
+		return nil, fmt.Errorf("%w: pick the entry to remove", ErrInvalidLocation)
+	}
+	switch in.Kind {
+	case RemoveRegion:
+		return u.removeRegion(in)
+	case RemoveCity:
+		if in.TargetID == "" {
+			return u.unlinkCity(in.SourceID)
+		}
+		if in.TargetID == in.SourceID {
+			return nil, fmt.Errorf("%w: a city cannot merge into itself", ErrInvalidLocation)
+		}
+		name := ""
+		for _, r := range u.Locations().Regions {
+			for _, c := range r.Cities {
+				if c.ID == in.SourceID {
+					name = c.Name
+				}
+			}
+		}
+		moved, failed, tgt, err := u.MergeCities(MergeCitiesInput{FromCityID: in.SourceID, ToCityID: in.TargetID})
+		if err != nil {
+			return nil, err
+		}
+		return &RemoveResult{Moved: moved, Failed: failed, Dropped: name, Target: tgt}, nil
+	default:
+		return nil, fmt.Errorf("%w: kind must be region or city", ErrInvalidLocation)
+	}
+}
+
+func (u *AcademyUsecase) removeRegion(in RemoveLocationInput) (*RemoveResult, error) {
+	if in.TargetID == in.SourceID {
+		return nil, fmt.Errorf("%w: a region cannot merge into itself", ErrInvalidLocation)
+	}
+	locs, _ := CanonicalLocations(u.Locations())
+	from, tgt := -1, -1
+	for i, r := range locs.Regions {
+		if r.ID == in.SourceID {
+			from = i
+		}
+		if in.TargetID != "" && r.ID == in.TargetID {
+			tgt = i
+		}
+	}
+	if from < 0 {
+		return nil, fmt.Errorf("%w: that region is not in the list", ErrInvalidLocation)
+	}
+	if in.TargetID != "" && tgt < 0 {
+		return nil, fmt.Errorf("%w: that target region is not in the list", ErrInvalidLocation)
+	}
+	region := locs.Regions[from]
+
+	students, err := u.studentRepo.GetStudents()
+	if err != nil {
+		return nil, err
+	}
+	moving := regionStudents(students, region)
+	res := &RemoveResult{Dropped: region.Name}
+
+	if tgt < 0 {
+		// Unlink. The list is rewritten first: a student still pointing at a
+		// region the list holds is at least visible, and if the clears below
+		// fail, the free-text panel still finds them by their typed names.
+		locs.Regions = dropRegionAt(locs.Regions, from)
+		if err := u.SaveLocations(locs); err != nil {
+			return nil, err
+		}
+		for _, st := range moving {
+			if err := u.studentRepo.ClearStudentLocation(st.ID, st.TelegramID); err != nil {
+				log.Printf("locations: unlink failed for student %s: %v", st.ID, err)
+				res.Failed++
+				continue
+			}
+			res.Unlinked++
+		}
+		return res, nil
+	}
+
+	// Merge: the region's cities fold onto the target's same-place cities and the
+	// rest move with them, so a city never appears twice under one region.
+	target := locs.Regions[tgt]
+	merged := make([]domain.City, len(target.Cities), len(target.Cities)+len(region.Cities))
+	copy(merged, target.Cities)
+	dest := map[string]domain.City{}
+	for _, c := range region.Cities {
+		at := sameCityIndex(merged, c)
+		if at >= 0 {
+			dest[c.ID] = merged[at]
+			continue
+		}
+		merged = append(merged, c)
+		dest[c.ID] = c
+	}
+	locs.Regions = dropRegionAt(locs.Regions, from)
+	for i := range locs.Regions {
+		if locs.Regions[i].ID == target.ID {
+			locs.Regions[i].Cities = merged
+		}
+	}
+	if err := u.SaveLocations(locs); err != nil {
+		return nil, err
+	}
+
+	tgt2 := &PromoteTarget{RegionID: target.ID, RegionName: target.Name, Merged: true}
+	// Where each city now lives, after the fold: a student filed under the region
+	// being merged but standing on a city that another region owns follows that
+	// city instead of the merge target. A row whose region_id contradicts its
+	// city_id is the exact shape this list exists to prevent.
+	owned := CityLocations(locs)
+	for _, st := range moving {
+		regionID, regionName := target.ID, target.Name
+		if l, ok := owned[st.CityID]; ok && st.CityID != "" {
+			regionID, regionName = l.RegionID, l.RegionName
+		}
+		patch := domain.Student{ID: st.ID, TelegramID: st.TelegramID, RegionID: regionID, Region: regionName}
+		if c, ok := dest[st.CityID]; ok && st.CityID != "" {
+			patch.CityID, patch.City = c.ID, c.Name
+		}
+		// A student with no city_id typed their city under this region: the
+		// region is fixed, the free-text city stays for the admin to promote.
+		if err := u.studentRepo.UpdateStudent(patch); err != nil {
+			log.Printf("locations: region merge failed for student %s: %v", st.ID, err)
+			res.Failed++
+			continue
+		}
+		res.Moved++
+	}
+	res.Target = tgt2
+	return res, nil
+}
+
+func (u *AcademyUsecase) unlinkCity(cityID string) (*RemoveResult, error) {
+	locs, _ := CanonicalLocations(u.Locations())
+	ri, name := -1, ""
+	for i, r := range locs.Regions {
+		for _, c := range r.Cities {
+			if c.ID == cityID {
+				ri, name = i, c.Name
+			}
+		}
+	}
+	if ri < 0 {
+		return nil, fmt.Errorf("%w: that city is not in the list", ErrInvalidLocation)
+	}
+	students, err := u.studentRepo.GetStudents()
+	if err != nil {
+		return nil, err
+	}
+	moving := make([]domain.Student, 0, len(students))
+	for _, st := range students {
+		if st.CityID == cityID {
+			moving = append(moving, st)
+		}
+	}
+	locs.Regions[ri].Cities = filterCities(locs.Regions[ri].Cities, cityID)
+	if err := u.SaveLocations(locs); err != nil {
+		return nil, err
+	}
+	res := &RemoveResult{Dropped: name}
+	for _, st := range moving {
+		if err := u.studentRepo.ClearStudentLocation(st.ID, st.TelegramID); err != nil {
+			log.Printf("locations: city unlink failed for student %s: %v", st.ID, err)
+			res.Failed++
+			continue
+		}
+		res.Unlinked++
+	}
+	return res, nil
+}
+
+// regionStudents is every student whose location depends on a region: the ones
+// filed under it, and the ones linked to one of its cities even if their
+// region_id says something else (a duplicate city id leaves exactly that).
+func regionStudents(students []domain.Student, r domain.Region) []domain.Student {
+	cityIDs := make(map[string]bool, len(r.Cities))
+	for _, c := range r.Cities {
+		cityIDs[c.ID] = true
+	}
+	out := make([]domain.Student, 0, len(students))
+	for _, st := range students {
+		if st.RegionID == r.ID || (st.CityID != "" && cityIDs[st.CityID]) {
+			out = append(out, st)
+		}
+	}
+	return out
+}
+
+// sameCityIndex finds the city a moved city folds onto: the same id, or the same
+// place under a different spelling.
+func sameCityIndex(cs []domain.City, c domain.City) int {
+	for i, x := range cs {
+		if x.ID == c.ID || locnorm.Fold(x.Name) == locnorm.Fold(c.Name) {
+			return i
+		}
+	}
+	return -1
+}
+
+func dropRegionAt(rs []domain.Region, at int) []domain.Region {
+	out := make([]domain.Region, 0, len(rs)-1)
+	for i, r := range rs {
+		if i == at {
+			continue
+		}
+		r.SortOrder = len(out) + 1
+		out = append(out, r)
+	}
+	return out
+}
+
+// LocationStudentCounts reports how many students stand on each stored entry,
+// keyed "region:<id>" and "city:<id>". The admin page labels a removal with it, so
+// "delete" is only offered when nothing is on the entry and "unlink N students"
+// says N. A student filed under a region but linked to another region's city is
+// counted where their city actually lives, which is what a removal follows.
+func (u *AcademyUsecase) LocationStudentCounts() (map[string]int, error) {
+	if u.studentRepo == nil {
+		return nil, errors.New("student repository not configured")
+	}
+	students, err := u.studentRepo.GetStudents()
+	if err != nil {
+		return nil, err
+	}
+	canonical, _ := CanonicalLocations(u.Locations())
+	owned := CityLocations(canonical)
+	out := map[string]int{}
+	for _, st := range students {
+		rid := st.RegionID
+		if rid == "" {
+			if l, ok := owned[st.CityID]; ok {
+				rid = l.RegionID
+			}
+		}
+		if rid != "" {
+			out["region:"+rid]++
+		}
+		if st.CityID != "" {
+			out["city:"+st.CityID]++
+		}
+	}
+	return out, nil
+}
+
+// GuardLocationDrops refuses a plain save that would delete an entry students are
+// still standing on. The editor saves the whole list, so removing a row there is
+// one stray click away from orphaning everyone on it; the admin has to go through
+// remove, which moves or unlinks the students first.
+func (u *AcademyUsecase) GuardLocationDrops(cur domain.Locations) error {
+	stored := u.Locations()
+	keptR, keptC := map[string]bool{}, map[string]bool{}
+	for _, r := range cur.Regions {
+		keptR[r.ID] = true
+		for _, c := range r.Cities {
+			keptC[c.ID] = true
+		}
+	}
+	droppedR, droppedC := []string{}, []string{}
+	for _, r := range stored.Regions {
+		if !keptR[r.ID] {
+			droppedR = append(droppedR, r.ID)
+		}
+		for _, c := range r.Cities {
+			if !keptC[c.ID] {
+				droppedC = append(droppedC, c.ID)
+			}
+		}
+	}
+	if len(droppedR) == 0 && len(droppedC) == 0 {
+		return nil
+	}
+	if u.studentRepo == nil {
+		return errors.New("student repository not configured")
+	}
+	students, err := u.studentRepo.GetStudents()
+	if err != nil {
+		return err
+	}
+	isDroppedR := map[string]bool{}
+	for _, id := range droppedR {
+		isDroppedR[id] = true
+	}
+	isDroppedC := map[string]bool{}
+	for _, id := range droppedC {
+		isDroppedC[id] = true
+	}
+	names := map[string]string{}
+	for _, r := range stored.Regions {
+		names["region:"+r.ID] = r.Name
+		for _, c := range r.Cities {
+			names["city:"+c.ID] = c.Name
+		}
+	}
+	countR, countC := map[string]int{}, map[string]int{}
+	for _, st := range students {
+		if isDroppedR[st.RegionID] {
+			countR[st.RegionID]++
+		}
+		if isDroppedC[st.CityID] {
+			countC[st.CityID]++
+		}
+	}
+	problems := make([]string, 0, 2)
+	for _, id := range droppedR {
+		if n := countR[id]; n > 0 {
+			problems = append(problems, fmt.Sprintf("region %q still has %d student%s", names["region:"+id], n, plural(n)))
+		}
+	}
+	for _, id := range droppedC {
+		if n := countC[id]; n > 0 {
+			problems = append(problems, fmt.Sprintf("city %q still has %d student%s", names["city:"+id], n, plural(n)))
+		}
+	}
+	if len(problems) == 0 {
+		return nil
+	}
+	if len(problems) > 3 {
+		problems = append(problems[:2], fmt.Sprintf("and %d more", len(problems)-2))
+	}
+	return fmt.Errorf("%w: %s — merge them into another entry or unlink them instead of deleting the row",
+		ErrInvalidLocation, strings.Join(problems, ", "))
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 // SetStudentRepo enables rename propagation to existing student rows.

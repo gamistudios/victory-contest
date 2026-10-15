@@ -44,17 +44,46 @@ func prodSpellings() []domain.Student {
 
 type memLocStore struct{ l domain.Locations }
 
-func (m *memLocStore) Load() (*domain.Locations, error) { c := m.l; return &c, nil }
-func (m *memLocStore) Save(l domain.Locations) error    { m.l = l; return nil }
+// The DynamoDB store unmarshals a fresh document on every Load, so callers that
+// mutate what they got never touch the stored list. The fake has to behave the
+// same way, or a test's edits leak into the store it is asserting on.
+func copyLocations(l domain.Locations) domain.Locations {
+	out := domain.Locations{Regions: make([]domain.Region, 0, len(l.Regions))}
+	for _, r := range l.Regions {
+		rc := r
+		rc.Cities = append([]domain.City(nil), r.Cities...)
+		out.Regions = append(out.Regions, rc)
+	}
+	return out
+}
+
+func (m *memLocStore) Load() (*domain.Locations, error) { c := copyLocations(m.l); return &c, nil }
+func (m *memLocStore) Save(l domain.Locations) error    { m.l = copyLocations(l); return nil }
 
 type promoteRepo struct {
 	StudentRepository
 	students []domain.Student
 	patched  []domain.Student
+	cleared  []string
 	fail     map[string]bool
 }
 
 func (r *promoteRepo) GetStudents() ([]domain.Student, error) { return r.students, nil }
+
+// ClearStudentLocation mirrors the dedicated write: the ids go, the typed names
+// stay, because that is what makes an unlinked student reappear as free text.
+func (r *promoteRepo) ClearStudentLocation(id, telegramID string) error {
+	if r.fail[id] {
+		return errors.New("write failed")
+	}
+	r.cleared = append(r.cleared, id)
+	for i := range r.students {
+		if r.students[i].ID == id {
+			r.students[i].RegionID, r.students[i].CityID = "", ""
+		}
+	}
+	return nil
+}
 
 func (r *promoteRepo) UpdateStudent(s domain.Student) error {
 	if r.fail[s.ID] {
