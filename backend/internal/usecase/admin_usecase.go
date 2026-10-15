@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 	"victory-contest-go/internal/domain"
+	"victory-contest-go/internal/locnorm"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -132,6 +133,9 @@ type AdminUsecase interface {
 	// that existing unit tests use; a usecase that never gets a question repo
 	// simply reports zero question stats.
 	WithQuestionRepo(q QuestionRepository) AdminUsecase
+	// WithLocations attaches the stored region/city list so the city chart can
+	// fold the spellings students typed onto the cities they mean.
+	WithLocations(get func() domain.Locations) AdminUsecase
 }
 
 type adminUsecase struct {
@@ -143,6 +147,7 @@ type adminUsecase struct {
 	paymentRepo             PaymentRepository
 	pageViewRepo            PageViewRepository
 	questionRepo            QuestionRepository
+	locations               func() domain.Locations
 
 	// Dashboard stats cache (client task 4 / performance): the aggregation is
 	// full-table scans, so serving a fresh copy from the network on every
@@ -182,6 +187,12 @@ func NewAdminUsecase(repo AdminRepository, studentRepo StudentRepository, contes
 // usecase that never gets a question repo simply reports zero question stats.
 func (u *adminUsecase) WithQuestionRepo(q QuestionRepository) AdminUsecase {
 	u.questionRepo = q
+	return u
+}
+
+// WithLocations attaches the stored region/city list (see the interface doc).
+func (u *adminUsecase) WithLocations(get func() domain.Locations) AdminUsecase {
+	u.locations = get
 	return u
 }
 
@@ -507,9 +518,50 @@ func (u *adminUsecase) calculateOverviewStats(students []domain.Student, contest
 	}
 }
 
+// cityIndex folds typed city spellings onto the stored cities. Without a
+// attached location list it returns nil and the chart groups by raw spelling,
+// which is what it did before the list existed.
+func (u *adminUsecase) cityIndex() (*locnorm.Index, map[string]string) {
+	if u.locations == nil {
+		return nil, nil
+	}
+	l := u.locations()
+	byName := map[string]string{}
+	for _, r := range l.Regions {
+		for _, c := range r.Cities {
+			if _, dup := byName[c.ID]; !dup {
+				byName[c.ID] = c.Name
+			}
+		}
+	}
+	return locnorm.NewIndex(KnownCities(l)), byName
+}
+
+// canonCity keys one student's city: a linked student belongs to that city id, a
+// typed name that the list recognises belongs to that city, and anything else
+// clusters with its own folded spelling.
+func canonCity(idx *locnorm.Index, nameBy map[string]string, st domain.Student) (string, string) {
+	if st.CityID != "" {
+		return "id:" + st.CityID, nameBy[st.CityID]
+	}
+	if idx != nil {
+		if k, ok := idx.Resolve(st.City); ok {
+			return "id:" + k.ID, k.Name
+		}
+	}
+	return "fold:" + locnorm.Fold(st.City), ""
+}
+
 func (u *adminUsecase) calculateUserStats(students []domain.Student, submissions []domain.Submission) domain.UserStats {
-	// Calculate city distribution
-	cityMap := make(map[string]int)
+	// City distribution. Students type the city themselves under "Other", so one
+	// city arrives as "Addis Ababa", "Addis Ababa ", "Adis Abeba" and "A.A". Each
+	// student is counted under the city they mean, and that city is labelled with
+	// its stored name (or the spelling its students used most) — the chart gets
+	// one bar per city instead of one bar per typo.
+	cityIdx, cityNameBy := u.cityIndex()
+	cityCount := map[string]int{}
+	cityLabel := map[string]string{}
+	citySpell := map[string]map[string]int{}
 	// Gender bucketing (issue #5): EVERY student lands in exactly one of the
 	// four normalized buckets — the old code dropped "M"/"F"/empty values
 	// entirely, so the gender charts never summed to the total.
@@ -561,8 +613,16 @@ func (u *adminUsecase) calculateUserStats(students []domain.Student, submissions
 
 	for _, student := range students {
 		// City distribution
-		if student.City != "" {
-			cityMap[student.City]++
+		if student.City != "" || student.CityID != "" {
+			key, label := canonCity(cityIdx, cityNameBy, student)
+			if cityCount[key] == 0 {
+				citySpell[key] = map[string]int{}
+			}
+			cityCount[key]++
+			if label != "" && cityLabel[key] == "" {
+				cityLabel[key] = label
+			}
+			citySpell[key][strings.TrimSpace(student.City)]++
 		}
 
 		// Gender distribution — normalizes aliases and never drops a row.
@@ -602,12 +662,16 @@ func (u *adminUsecase) calculateUserStats(students []domain.Student, submissions
 
 	totalStudents := len(students)
 
-	// Convert city map to sorted slice
-	cityDistribution := make([]domain.CityDistribution, 0, len(cityMap))
-	for city, count := range cityMap {
+	// Convert city counts to sorted slice
+	cityDistribution := make([]domain.CityDistribution, 0, len(cityCount))
+	for key, count := range cityCount {
+		name := cityLabel[key]
+		if name == "" {
+			name = modeSpelling(citySpell[key])
+		}
 		percentage := float64(count) / float64(totalStudents) * 100
 		cityDistribution = append(cityDistribution, domain.CityDistribution{
-			City:       city,
+			City:       name,
 			Count:      count,
 			Percentage: math.Round(percentage*100) / 100,
 		})

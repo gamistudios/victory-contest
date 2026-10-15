@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"victory-contest-go/internal/domain"
+	"victory-contest-go/internal/locnorm"
 )
 
 // locationsSeedJSON is the developer-maintained starting list of regions and
@@ -71,12 +72,14 @@ func (u *AcademyUsecase) SaveLocations(l domain.Locations) error {
 		return errors.New("location store not configured")
 	}
 	seenR := map[string]bool{}
+	// City ids are global, not per region: a student row stores only city_id, so
+	// the same id under two regions makes that row's region unknowable.
+	seenC := map[string]bool{}
 	for _, r := range l.Regions {
 		if strings.TrimSpace(r.ID) == "" || strings.TrimSpace(r.Name) == "" || seenR[r.ID] {
 			return ErrInvalidLocation
 		}
 		seenR[r.ID] = true
-		seenC := map[string]bool{}
 		for _, c := range r.Cities {
 			if strings.TrimSpace(c.ID) == "" || strings.TrimSpace(c.Name) == "" || seenC[c.ID] {
 				return ErrInvalidLocation
@@ -94,25 +97,256 @@ func (u *AcademyUsecase) SaveLocations(l domain.Locations) error {
 
 // ---- free-text location promotion (plan §5.1) ----
 
-// FreeTextLocation is one distinct "Other" entry typed by students.
+// FreeTextLocation is one cluster of "Other" entries students typed. The cluster
+// is keyed by canonical spelling, so "Adis Abeba", "Addis Ababa " and
+// "AddisAbaba" are one row that promotes as one, instead of three promotions that
+// each leave their own city behind.
 type FreeTextLocation struct {
-	RegionID string `json:"region_id,omitempty"` // set when the region is known and only the city is free text
-	Region   string `json:"region"`
-	City     string `json:"city"`
-	Count    int    `json:"count"`
+	Key      string   `json:"key"` // canonical cluster id, sent back to promote the whole cluster
+	RegionID string   `json:"region_id,omitempty"`
+	Region   string   `json:"region"`
+	CityID   string   `json:"city_id,omitempty"` // set when the typed name is already a stored city
+	City     string   `json:"city"`
+	Known    bool     `json:"known"` // promoting links to that stored city: no new entry is minted
+	Variants []string `json:"variants,omitempty"`
+	Count    int      `json:"count"`
 }
 
-// PromoteLocationInput maps one free-text group onto a (new or existing) region/city.
+// PromoteLocationInput promotes one cluster onto a stored or a new region/city.
 type PromoteLocationInput struct {
-	FromRegionID  string `json:"from_region_id"`
-	FromRegion    string `json:"from_region"`
-	FromCity      string `json:"from_city"`
-	TargetRegion  string `json:"target_region_id"` // existing region id, or empty to create
-	NewRegionName string `json:"new_region_name"`  // used when TargetRegion is empty
-	CityName      string `json:"city_name"`        // display name; defaults to FromCity
+	GroupKey      string `json:"group_key"`        // the cluster's key from the free-text list
+	TargetRegion  string `json:"target_region_id"` // existing region id, or empty to follow the cluster
+	NewRegionName string `json:"new_region_name"`  // used when no region matches
+	CityName      string `json:"city_name"`        // display name; defaults to the cluster's
 }
 
-func normLoc(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+// PromoteTarget is where a promote landed the students. The admin needs it: when
+// the typed name matched a stored city the students were merged into that city's
+// own region, which is not the region row they were typed under.
+type PromoteTarget struct {
+	RegionID   string `json:"region_id"`
+	RegionName string `json:"region"`
+	CityID     string `json:"city_id"`
+	CityName   string `json:"city"`
+	Merged     bool   `json:"merged"` // the city was already in the list
+}
+
+// KnownRegions indexes the stored regions for canonical name resolution.
+func KnownRegions(locs domain.Locations) []locnorm.Known {
+	out := make([]locnorm.Known, 0, len(locs.Regions))
+	for _, r := range locs.Regions {
+		out = append(out, locnorm.Known{ID: r.ID, Name: r.Name})
+	}
+	return out
+}
+
+// KnownCities indexes every stored city, carrying the region that owns it.
+func KnownCities(locs domain.Locations) []locnorm.Known {
+	var out []locnorm.Known
+	for _, r := range locs.Regions {
+		for _, c := range r.Cities {
+			out = append(out, locnorm.Known{ID: c.ID, Name: c.Name, GroupID: r.ID, GroupName: r.Name})
+		}
+	}
+	return out
+}
+
+// dedupeCityIDs keeps one list entry per city id. A student row stores only the
+// city id, so the same id filed under two regions — which promotes produced
+// before they merged — makes that row's region a guess. The copy stored under a
+// region of the same name survives; the others are dropped, and the students that
+// pointed at any copy now resolve to the entry that is left.
+func dedupeCityIDs(l *domain.Locations) {
+	keep := map[string]int{}
+	for i, r := range l.Regions {
+		for _, c := range r.Cities {
+			if _, seen := keep[c.ID]; !seen {
+				keep[c.ID] = i
+				continue
+			}
+			if locnorm.Fold(r.Name) == locnorm.Fold(c.Name) {
+				keep[c.ID] = i
+			}
+		}
+	}
+	for i, r := range l.Regions {
+		kept := r.Cities[:0]
+		for _, c := range r.Cities {
+			if keep[c.ID] == i {
+				kept = append(kept, c)
+			}
+		}
+		l.Regions[i].Cities = kept
+	}
+}
+
+// CityLocation is where a city id lives in the list: the entry plus the region
+// that owns it. City ids are global, so these four fields are a complete
+// location for a student row.
+type CityLocation struct {
+	RegionID   string `json:"region_id"`
+	RegionName string `json:"region"`
+	CityID     string `json:"city_id"`
+	CityName   string `json:"city"`
+}
+
+// CanonicalLocations returns the list carrying one entry per city id and the
+// number of duplicate copies it dropped. The boot migration and every admin path
+// must agree on which copy survives, so the rule is stated once here.
+func CanonicalLocations(l domain.Locations) (domain.Locations, int) {
+	before := 0
+	out := domain.Locations{Regions: make([]domain.Region, len(l.Regions))}
+	for i, r := range l.Regions {
+		before += len(r.Cities)
+		rc := r
+		rc.Cities = append([]domain.City(nil), r.Cities...)
+		out.Regions[i] = rc
+	}
+	dedupeCityIDs(&out)
+	after := 0
+	for _, r := range out.Regions {
+		after += len(r.Cities)
+	}
+	return out, before - after
+}
+
+// CityLocations indexes the list by city id.
+func CityLocations(l domain.Locations) map[string]CityLocation {
+	out := make(map[string]CityLocation)
+	for _, r := range l.Regions {
+		for _, c := range r.Cities {
+			out[c.ID] = CityLocation{RegionID: r.ID, RegionName: r.Name, CityID: c.ID, CityName: c.Name}
+		}
+	}
+	return out
+}
+
+// freeCluster is one cluster with its students and the spellings they typed.
+type freeCluster struct {
+	FreeTextLocation
+	members   []domain.Student
+	citySpell map[string]int
+	regSpell  map[string]int
+}
+
+// clusterFreeText groups the students who typed a place the list does not hold
+// yet. A typed city the list recognises joins that city (and its own region), so
+// promoting it merges into the existing entry instead of adding a second one.
+func clusterFreeText(locs domain.Locations, students []domain.Student) []*freeCluster {
+	cityIdx := locnorm.NewIndex(KnownCities(locs))
+	regionIdx := locnorm.NewIndex(KnownRegions(locs))
+	owned := CityLocations(locs)
+	byKey := map[string]*freeCluster{}
+	var order []string
+	for _, st := range students {
+		// A city_id the list no longer holds is free text again: a merge whose
+		// write failed would otherwise leave that student unfindable by the admin.
+		if _, linked := owned[st.CityID]; linked || strings.TrimSpace(st.City) == "" {
+			continue
+		}
+		var key string
+		head := FreeTextLocation{}
+		regionNamed := false
+		if ck, ok := cityIdx.Resolve(st.City); ok {
+			key = "city:" + ck.ID
+			head.CityID, head.City, head.Known = ck.ID, ck.Name, true
+			head.RegionID, head.Region = ck.GroupID, ck.GroupName
+			regionNamed = true
+		} else if rk, ok := regionIdx.Resolve(st.Region); ok {
+			key = "free:id:" + rk.ID + ":" + locnorm.Fold(st.City)
+			head.City = strings.TrimSpace(st.City)
+			head.RegionID, head.Region = rk.ID, rk.Name
+			regionNamed = true
+		} else {
+			key = "free:fold:" + locnorm.Fold(st.Region) + ":" + locnorm.Fold(st.City)
+			head.City = strings.TrimSpace(st.City)
+			head.Region, head.RegionID = strings.TrimSpace(st.Region), st.RegionID
+		}
+		c := byKey[key]
+		if c == nil {
+			c = &freeCluster{FreeTextLocation: head, citySpell: map[string]int{}, regSpell: map[string]int{}}
+			c.Key = key
+			if regionNamed {
+				c.regSpell[head.Region] = 1 // keep the stored name as the label
+			}
+			byKey[key] = c
+			order = append(order, key)
+		}
+		if !regionNamed {
+			if s := strings.TrimSpace(st.Region); s != "" {
+				c.regSpell[s]++
+			}
+		}
+		c.citySpell[strings.TrimSpace(st.City)]++
+		c.members = append(c.members, st)
+	}
+	out := make([]*freeCluster, 0, len(order))
+	for _, k := range order {
+		c := byKey[k]
+		c.Count = len(c.members)
+		if !c.Known {
+			c.City = modeSpelling(c.citySpell)
+		}
+		if !c.Known && c.RegionID == "" {
+			c.Region = modeSpelling(c.regSpell)
+		}
+		c.Variants = otherSpellings(c.citySpell, c.City)
+		out = append(out, c)
+	}
+	return out
+}
+
+// modeSpelling labels a cluster with the spelling its students actually used most.
+func modeSpelling(counts map[string]int) string {
+	best, n := "", 0
+	for s, c := range counts {
+		if c > n || (c == n && s < best) {
+			best, n = s, c
+		}
+	}
+	return best
+}
+
+func otherSpellings(counts map[string]int, label string) []string {
+	if len(counts) < 2 {
+		return nil
+	}
+	out := make([]string, 0, len(counts))
+	for s := range counts {
+		if s != label {
+			out = append(out, s)
+		}
+	}
+	sort.Strings(out)
+	if len(out) > 6 {
+		out = append(out[:6], "…")
+	}
+	return out
+}
+
+// FreeTextLocations lists the unmatched typed places, one row per canonical city,
+// most populated first.
+func (u *AcademyUsecase) FreeTextLocations() ([]FreeTextLocation, error) {
+	if u.studentRepo == nil {
+		return nil, errors.New("student repository not configured")
+	}
+	students, err := u.studentRepo.GetStudents()
+	if err != nil {
+		return nil, err
+	}
+	clusters := clusterFreeText(u.Locations(), students)
+	out := make([]FreeTextLocation, 0, len(clusters))
+	for _, c := range clusters {
+		out = append(out, c.FreeTextLocation)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].City < out[j].City
+	})
+	return out, nil
+}
 
 func locSlug(s string) string {
 	var b strings.Builder
@@ -129,123 +363,129 @@ func locSlug(s string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-// FreeTextLocations lists the distinct unmatched region/city entries, most common first.
-func (u *AcademyUsecase) FreeTextLocations() ([]FreeTextLocation, error) {
+// PromoteLocation links every student in one free-text cluster to a stored city,
+// adding that city to the list only when the list has no name that matches. It
+// returns the students updated, the number that could not be written (a promote
+// that quietly updated nobody looked identical to one with nobody to promote) and
+// where the students ended up.
+func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, int, *PromoteTarget, error) {
 	if u.studentRepo == nil {
-		return nil, errors.New("student repository not configured")
+		return 0, 0, nil, errors.New("student repository not configured")
 	}
 	students, err := u.studentRepo.GetStudents()
 	if err != nil {
-		return nil, err
+		return 0, 0, nil, err
 	}
-	groups := map[string]*FreeTextLocation{}
-	for _, st := range students {
-		if st.CityID != "" || strings.TrimSpace(st.City) == "" {
-			continue
+	locs := u.Locations()
+	dedupeCityIDs(&locs)
+	var cl *freeCluster
+	for _, c := range clusterFreeText(locs, students) {
+		if c.Key == in.GroupKey {
+			cl = c
 		}
-		if st.RegionID == "" && strings.TrimSpace(st.Region) == "" {
-			continue
-		}
-		k := st.RegionID + "|" + normLoc(st.Region) + "|" + normLoc(st.City)
-		g := groups[k]
-		if g == nil {
-			g = &FreeTextLocation{RegionID: st.RegionID, Region: strings.TrimSpace(st.Region), City: strings.TrimSpace(st.City)}
-			groups[k] = g
-		}
-		g.Count++
 	}
-	out := make([]FreeTextLocation, 0, len(groups))
-	for _, g := range groups {
-		out = append(out, *g)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Count != out[j].Count {
-			return out[i].Count > out[j].Count
-		}
-		return out[i].City < out[j].City
-	})
-	return out, nil
-}
-
-// PromoteLocation adds the region/city to the stored list (if missing) and
-// links every matching student to the stable ids. It returns the students
-// updated plus the number that matched but could not be written: a promote that
-// quietly updated nobody was indistinguishable from one with nobody to promote.
-func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, int, error) {
-	if u.studentRepo == nil {
-		return 0, 0, errors.New("student repository not configured")
+	if cl == nil {
+		return 0, 0, nil, fmt.Errorf("%w: no students are waiting under that entry", ErrInvalidLocation)
 	}
 	cityName := strings.TrimSpace(in.CityName)
 	if cityName == "" {
-		cityName = strings.TrimSpace(in.FromCity)
+		cityName = cl.City
 	}
 	if locSlug(cityName) == "" {
-		return 0, 0, ErrInvalidLocation
+		return 0, 0, nil, ErrInvalidLocation
 	}
-	locs := u.Locations()
+
+	tgt := &PromoteTarget{CityName: cityName}
 	ri := -1
-	switch {
-	case in.FromRegionID != "":
-		in.TargetRegion = in.FromRegionID // the region is already known: only the city is promoted
-	case in.TargetRegion == "" && strings.TrimSpace(in.NewRegionName) == "":
-		return 0, 0, ErrInvalidLocation
+	// One city, one entry: if the typed name is a place the list already holds,
+	// link to it where it is stored instead of minting a second copy under the
+	// region the student mistyped.
+	if ck, ok := locnorm.NewIndex(KnownCities(locs)).Resolve(cityName); ok {
+		for i, r := range locs.Regions {
+			if r.ID != ck.GroupID {
+				continue
+			}
+			for _, c := range r.Cities {
+				if c.ID == ck.ID {
+					ri, tgt.CityID, tgt.CityName, tgt.Merged = i, c.ID, c.Name, true
+				}
+			}
+		}
 	}
-	if in.TargetRegion != "" {
-		for i, r := range locs.Regions {
-			if r.ID == in.TargetRegion {
-				ri = i
+	if tgt.Merged {
+		locs.Regions[ri].Active = true
+		for j := range locs.Regions[ri].Cities {
+			if locs.Regions[ri].Cities[j].ID == tgt.CityID {
+				locs.Regions[ri].Cities[j].Active = true
+			}
+		}
+	}
+	if !tgt.Merged {
+		if ri < 0 {
+			want := in.TargetRegion
+			if want == "" {
+				want = cl.RegionID
+			}
+			if want == "" && strings.TrimSpace(in.NewRegionName) != "" {
+				if rk, ok := locnorm.NewIndex(KnownRegions(locs)).Resolve(in.NewRegionName); ok {
+					want = rk.ID
+				}
+			}
+			for i, r := range locs.Regions {
+				if r.ID == want {
+					ri = i
+				}
 			}
 		}
 		if ri < 0 {
-			return 0, 0, ErrInvalidLocation
-		}
-	} else {
-		name := strings.TrimSpace(in.NewRegionName)
-		id := locSlug(name)
-		if id == "" {
-			return 0, 0, ErrInvalidLocation
-		}
-		for i, r := range locs.Regions {
-			if r.ID == id || normLoc(r.Name) == normLoc(name) {
-				ri = i
+			name := strings.TrimSpace(in.NewRegionName)
+			if name == "" {
+				name = cl.Region
 			}
-		}
-		if ri < 0 {
+			id := locSlug(name)
+			if id == "" {
+				return 0, 0, nil, ErrInvalidLocation
+			}
 			locs.Regions = append(locs.Regions, domain.Region{ID: id, Name: name, Active: true, SortOrder: len(locs.Regions) + 1})
 			ri = len(locs.Regions) - 1
 		}
-	}
-	region := &locs.Regions[ri]
-	cid := locSlug(cityName)
-	ci := -1
-	for i, c := range region.Cities {
-		if c.ID == cid {
-			ci = i
+		region := &locs.Regions[ri]
+		cid := locSlug(cityName)
+		ci := -1
+		for i, c := range region.Cities {
+			if c.ID == cid {
+				ci = i
+			}
 		}
+		if ci < 0 {
+			region.Cities = append(region.Cities, domain.City{ID: cid, Name: cityName, Active: true})
+			ci = len(region.Cities) - 1
+		} else {
+			// Same id, different spelling: ids never change, so this is the
+			// rename the sheet asked for and propagation fixes the student rows.
+			region.Cities[ci].Name = cityName
+		}
+		region.Active, region.Cities[ci].Active = true, true
+		tgt.CityID, tgt.CityName = cid, cityName
 	}
-	if ci < 0 {
-		region.Cities = append(region.Cities, domain.City{ID: cid, Name: cityName, Active: true})
-		ci = len(region.Cities) - 1
-	}
-	region.Active, region.Cities[ci].Active = true, true
-	rid, rname, cname := region.ID, region.Name, region.Cities[ci].Name
+	tgt.RegionID, tgt.RegionName = locs.Regions[ri].ID, locs.Regions[ri].Name
 	if err := u.SaveLocations(locs); err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 
-	students, err := u.studentRepo.GetStudents()
-	if err != nil {
-		return 0, 0, err
+	write := append([]domain.Student(nil), cl.members...)
+	if tgt.Merged {
+		// Students already linked to this city but filed under a region that no
+		// longer holds it follow it home: a merge has to mean one count.
+		for _, st := range students {
+			if st.CityID == tgt.CityID && st.RegionID != tgt.RegionID {
+				write = append(write, st)
+			}
+		}
 	}
 	updated, failed := 0, 0
-	for _, st := range students {
-		if st.CityID != "" || normLoc(st.City) != normLoc(in.FromCity) {
-			continue
-		}
-		if st.RegionID != in.FromRegionID || (in.FromRegionID == "" && normLoc(st.Region) != normLoc(in.FromRegion)) {
-			continue
-		}
-		patch := domain.Student{ID: st.ID, TelegramID: st.TelegramID, RegionID: rid, Region: rname, CityID: cid, City: cname}
+	for _, st := range write {
+		patch := domain.Student{ID: st.ID, TelegramID: st.TelegramID, RegionID: tgt.RegionID, Region: tgt.RegionName, CityID: tgt.CityID, City: tgt.CityName}
 		if err := u.studentRepo.UpdateStudent(patch); err != nil {
 			log.Printf("locations: promote failed for student %s: %v", st.ID, err)
 			failed++
@@ -253,7 +493,80 @@ func (u *AcademyUsecase) PromoteLocation(in PromoteLocationInput) (int, int, err
 		}
 		updated++
 	}
-	return updated, failed, nil
+	return updated, failed, tgt, nil
+}
+
+// MergeCitiesInput folds one stored city into another.
+type MergeCitiesInput struct {
+	FromCityID string `json:"from_city_id"` // the entry that disappears
+	ToCityID   string `json:"to_city_id"`   // the entry its students join
+}
+
+// MergeCities relinks every student on the first city onto the second and drops
+// the merged-away entry from the list. Canonical clustering handles spelling
+// noise; this is the decision the admin makes for the rest — "Bole", "yeka" and
+// "Endbr" are Addis Ababa neighbourhoods, and only they know it.
+func (u *AcademyUsecase) MergeCities(in MergeCitiesInput) (int, int, *PromoteTarget, error) {
+	if u.studentRepo == nil {
+		return 0, 0, nil, errors.New("student repository not configured")
+	}
+	if in.FromCityID == "" || in.ToCityID == "" || in.FromCityID == in.ToCityID {
+		return 0, 0, nil, fmt.Errorf("%w: pick two different cities to merge", ErrInvalidLocation)
+	}
+	locs := u.Locations()
+	dedupeCityIDs(&locs)
+	tgt := &PromoteTarget{CityID: in.ToCityID}
+	fromRI := -1
+	for i, r := range locs.Regions {
+		for _, c := range r.Cities {
+			if c.ID == in.ToCityID {
+				tgt.RegionID, tgt.RegionName, tgt.CityName, tgt.Merged = r.ID, r.Name, c.Name, true
+			}
+			if c.ID == in.FromCityID {
+				fromRI = i
+			}
+		}
+	}
+	if !tgt.Merged || fromRI < 0 {
+		return 0, 0, nil, fmt.Errorf("%w: both cities must be in the list", ErrInvalidLocation)
+	}
+	students, err := u.studentRepo.GetStudents()
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	moving := make([]domain.Student, 0, len(students))
+	for _, st := range students {
+		if st.CityID == in.FromCityID {
+			moving = append(moving, st)
+		}
+	}
+	// Unlink the merged-away entry first: a student still pointing at a city the
+	// list no longer has would be unfindable if the writes below then failed.
+	locs.Regions[fromRI].Cities = filterCities(locs.Regions[fromRI].Cities, in.FromCityID)
+	if err := u.SaveLocations(locs); err != nil {
+		return 0, 0, nil, err
+	}
+	moved, failed := 0, 0
+	for _, st := range moving {
+		patch := domain.Student{ID: st.ID, TelegramID: st.TelegramID, RegionID: tgt.RegionID, Region: tgt.RegionName, CityID: tgt.CityID, City: tgt.CityName}
+		if err := u.studentRepo.UpdateStudent(patch); err != nil {
+			log.Printf("locations: merge failed for student %s: %v", st.ID, err)
+			failed++
+			continue
+		}
+		moved++
+	}
+	return moved, failed, tgt, nil
+}
+
+func filterCities(cs []domain.City, dropID string) []domain.City {
+	out := make([]domain.City, 0, len(cs))
+	for _, c := range cs {
+		if c.ID != dropID {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // SetStudentRepo enables rename propagation to existing student rows.

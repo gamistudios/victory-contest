@@ -59,6 +59,7 @@ func (h *CatalogHandler) RegisterAdminRoutes(rg *gin.RouterGroup) {
 	rg.PUT("", h.PutLocations)
 	rg.GET("/free-text", h.FreeText)
 	rg.POST("/promote", h.Promote)
+	rg.POST("/merge", h.MergeCities)
 }
 
 // FreeText lists the distinct "Other" region/city entries students typed.
@@ -79,17 +80,38 @@ func (h *CatalogHandler) Promote(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	n, failed, err := h.uc.PromoteLocation(in)
+	n, failed, tgt, err := h.uc.PromoteLocation(in)
 	if err != nil {
 		if errors.Is(err, usecase.ErrInvalidLocation) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "choose an existing region or give a new region name, and a city name"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		log.Printf("locations promote: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"updated": n, "failed": failed, "regions": h.uc.Locations().Regions})
+	c.JSON(http.StatusOK, gin.H{"updated": n, "failed": failed, "target": tgt, "regions": h.uc.Locations().Regions})
+}
+
+// MergeCities relinks every student of one listed city onto another and drops the
+// entry that was merged away.
+func (h *CatalogHandler) MergeCities(c *gin.Context) {
+	var in usecase.MergeCitiesInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	moved, failed, tgt, err := h.uc.MergeCities(in)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidLocation) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		log.Printf("locations merge: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"moved": moved, "failed": failed, "target": tgt, "regions": h.uc.Locations().Regions})
 }
 
 func (h *CatalogHandler) GetLocations(c *gin.Context) { c.JSON(http.StatusOK, h.uc.Locations()) }

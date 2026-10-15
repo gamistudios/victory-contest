@@ -220,6 +220,8 @@ func NewServer() *Server {
 	academyUsecase.SetPremiumResolver(pricingUsecase.HasAnyAccess)
 	academyUsecase.SetProgramResolver(pricingUsecase.EntitledPrograms)
 	academyUsecase.SetStudentRepo(studentRepo)
+	// The dashboard city chart folds what students typed onto the stored cities.
+	adminUsecase.WithLocations(academyUsecase.Locations)
 	enrollmentUsecase := usecase.NewEnrollmentUsecase(studentRepo, programList).WithLocations(academyUsecase.Locations)
 	studentUsecase = usecase.WithEnrollment(studentUsecase, enrollmentUsecase)
 
