@@ -38,7 +38,16 @@ export const bulkEnroll = (student_ids: string[], program_id: string, stream_id 
 // Locations admin (plan §5.1)
 export interface City { id: string; name: string; active: boolean }
 export interface Region { id: string; name: string; active: boolean; sort_order: number; cities: City[] }
-export const getLocations = () => api.get("/api/locations-admin").then((r) => (r.data?.regions ?? []) as Region[]);
+// `counts` is how many students stand on each entry, keyed "region:<id>" and
+// "city:<id>", so a removal can say what it does before the admin clicks it.
+export interface LocationsDoc { regions: Region[]; counts: Record<string, number> }
+export const getLocations = () =>
+  api.get("/api/locations-admin").then(
+    (r): LocationsDoc => ({
+      regions: (r.data?.regions ?? []) as Region[],
+      counts: (r.data?.counts ?? {}) as Record<string, number>,
+    }),
+  );
 export const saveLocations = (regions: Region[]) => api.put("/api/locations-admin", { regions }).then((r) => (r.data?.regions ?? []) as Region[]);
 
 // Free-text ("Other") locations typed by students, clustered by canonical
@@ -60,6 +69,17 @@ export interface LocationTarget { region_id: string; region: string; city_id: st
 export const getFreeTextLocations = () => api.get("/api/locations-admin/free-text").then((r) => (r.data?.items ?? []) as FreeTextLocation[]);
 export const promoteLocation = (b: { group_key: string; target_region_id?: string; new_region_name?: string; city_name?: string }) =>
   api.post("/api/locations-admin/promote", b).then((r) => r.data as { updated: number; failed: number; target?: LocationTarget; regions: Region[] });
-// Fold one listed city into another: the entry disappears, its students move.
-export const mergeCities = (b: { from_city_id: string; to_city_id: string }) =>
-  api.post("/api/locations-admin/merge", b).then((r) => r.data as { moved: number; failed: number; target?: LocationTarget; regions: Region[] });
+// Fold one listed city into another, or drop a whole region: the entry leaves the
+// list and the students on it either follow a target or are unlinked back to free
+// text. No target means unlink — nobody is left pointing at a missing entry.
+export interface RemoveTarget { kind: "region" | "city"; id: string; name: string }
+export interface RemoveResult {
+  moved: number;
+  unlinked: number;
+  failed: number;
+  dropped: string;
+  target?: LocationTarget;
+  regions: Region[];
+}
+export const removeLocation = (b: { kind: RemoveTarget["kind"]; source_id: string; target_id?: string }) =>
+  api.post("/api/locations-admin/remove", b).then((r) => r.data as RemoveResult);

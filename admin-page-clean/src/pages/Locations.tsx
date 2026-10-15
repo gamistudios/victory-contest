@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, MapPin, Plus, Save, Sparkles } from "lucide-react";
+import { GitMerge, MapPin, Plus, Save, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -23,21 +23,32 @@ export default function Locations() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const [promoting, setPromoting] = useState<svc.FreeTextLocation | null>(null);
-  const [merging, setMerging] = useState<svc.City | null>(null);
+  const [removing, setRemoving] = useState<svc.RemoveTarget | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   const loadFree = useCallback(() => svc.getFreeTextLocations().then(setFreeText).catch(() => setFreeText([])), []);
+  // Removing students from an entry changes its count, and counts come from the
+  // list endpoint, so they are refreshed on their own without touching the draft.
+  const loadCounts = useCallback(() => svc.getLocations().then((r) => setCounts(r.counts)).catch(() => setCounts({})), []);
   useEffect(() => {
-    svc.getLocations().then(setRegions).catch((e) => setError(errMsg(e)));
+    svc
+      .getLocations()
+      .then((r) => {
+        setRegions(r.regions);
+        setCounts(r.counts);
+      })
+      .catch((e) => setError(errMsg(e)));
     void loadFree();
-  }, [loadFree]);
+  }, [loadFree, loadCounts]);
 
-  // A promote/merge writes the stored list and returns it, so the draft on screen
-  // is replaced by what the server now holds.
+  // A promote or a removal writes the stored list and returns it, so the draft on
+  // screen is replaced by what the server now holds.
   const adopt = (r: svc.Region[]) => {
     setRegions(r);
     setDirty(false);
     void getAdminCatalog(true);
     void loadFree();
+    void loadCounts();
   };
 
   const edit = (fn: (r: svc.Region[]) => svc.Region[]) => {
@@ -69,7 +80,7 @@ export default function Locations() {
     <div className="mx-auto w-full max-w-4xl space-y-4 p-4">
       <PageTitle
         title="Locations"
-        hint="Regions and cities students pick at registration. Ids never change; renaming only changes the display name."
+        hint="Regions and cities students pick at registration. Ids never change; renaming only changes the display name. Removing an entry is its own action, so the students on it are moved or unlinked rather than orphaned."
         action={
           <Button onClick={save} disabled={!dirty || saving} className="h-11 gap-1.5 rounded-xl">
             <Save className="h-4 w-4" aria-hidden /> {saving ? "Saving…" : "Save"}
@@ -113,6 +124,17 @@ export default function Locations() {
               <div className="flex items-center gap-3">
                 <input aria-label="Region name" className={`${inputCls} font-bold`} value={r.name} onChange={(e) => patchRegion(ri, { name: e.target.value })} />
                 <Switch checked={r.active} onCheckedChange={(v) => patchRegion(ri, { active: v })} aria-label={`${r.name} active`} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11 shrink-0 rounded-xl"
+                  disabled={dirty}
+                  title={dirty ? "Save your edits first" : `Merge or remove ${r.name}`}
+                  aria-label={`Merge or remove ${r.name}`}
+                  onClick={() => setRemoving({ kind: "region", id: r.id, name: r.name })}
+                >
+                  <GitMerge className="h-4 w-4" aria-hidden />
+                </Button>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">id: {r.id}</p>
               <ul className="mt-3 grid gap-2 md:grid-cols-2">
@@ -125,11 +147,11 @@ export default function Locations() {
                       size="icon"
                       className="h-11 w-11 shrink-0 rounded-xl"
                       disabled={dirty}
-                      title={dirty ? "Save your edits before merging" : `Merge ${c.name} into another city`}
-                      aria-label={`Merge ${c.name} into another city`}
-                      onClick={() => setMerging(c)}
+                      title={dirty ? "Save your edits first" : `Merge, unlink or delete ${c.name}`}
+                      aria-label={`Merge, unlink or delete ${c.name}`}
+                      onClick={() => setRemoving({ kind: "city", id: c.id, name: c.name })}
                     >
-                      <ArrowLeftRight className="h-4 w-4" aria-hidden />
+                      <GitMerge className="h-4 w-4" aria-hidden />
                     </Button>
                   </li>
                 ))}
@@ -203,18 +225,26 @@ export default function Locations() {
         />
       )}
 
-      {merging && regions && (
-        <MergeSheet
-          city={merging}
+      {removing && regions && (
+        <RemoveSheet
+          target={removing}
           regions={regions}
-          onClose={() => setMerging(null)}
+          students={counts[`${removing.kind}:${removing.id}`] ?? 0}
+          onClose={() => setRemoving(null)}
           onDone={(res) => {
             adopt(res.regions);
-            setMerging(null);
-            const people = `${res.moved} student${res.moved === 1 ? "" : "s"}`;
-            const where = res.target ? `${res.target.city} · ${res.target.region}` : "";
-            if (res.failed > 0) toast.error(`${people} moved, ${res.failed} failed to save — report this.`);
-            else toast.success(res.moved > 0 ? `Merged. ${people} now in ${where}.` : `Merged. That city had no students.`);
+            setRemoving(null);
+            const people = `${res.moved + res.unlinked} student${res.moved + res.unlinked === 1 ? "" : "s"}`;
+            if (res.failed > 0) {
+              toast.error(`${res.dropped} removed, ${res.failed} student write${res.failed === 1 ? "" : "s"} failed — report this.`);
+            } else if (res.target) {
+              const where = res.target.city ? `${res.target.city} · ${res.target.region}` : res.target.region;
+              toast.success(res.moved > 0 ? `${res.dropped} merged into ${where}. ${people} moved.` : `${res.dropped} merged into ${where}. It had no students.`);
+            } else if (res.unlinked > 0) {
+              toast.success(`${res.dropped} removed. ${people} ${res.unlinked === 1 ? "is" : "are"} back in free text for you to promote.`);
+            } else {
+              toast.success(`${res.dropped} deleted. Nothing was on it.`);
+            }
           }}
         />
       )}
@@ -231,8 +261,11 @@ function PromoteSheet({ item, regions, onClose, onDone }: {
   // The typed name is a city the list already holds: that entry decides the region,
   // so the admin links the students instead of adding a place they just spelled.
   const listed = !!item.city_id;
-  const linkedRegion = !!item.region_id; // region already linked: only the city is free text
-  const locked = listed || linkedRegion;
+  // A region on the cluster only means its typed name matched a listed one — after
+  // an unlink the students carry no link at all — so it pre-fills the choice
+  // instead of locking it.
+  const fromTypedRegion = !listed && !!item.region_id;
+  const locked = listed;
   const guess = regions.find((r) => r.name.trim().toLowerCase() === item.region.trim().toLowerCase())?.id;
   const [target, setTarget] = useState(item.region_id || guess || NEW);
   const [newRegion, setNewRegion] = useState(item.region);
@@ -277,7 +310,7 @@ function PromoteSheet({ item, regions, onClose, onDone }: {
       <div className="space-y-4">
         <Field
           label="Region"
-          hint={listed ? `Joined to the listed ${item.city}, which lives in ${item.region}.` : linkedRegion ? "Region is already linked for these students." : undefined}
+          hint={listed ? `Joined to the listed ${item.city}, which lives in ${item.region}.` : fromTypedRegion ? `Pre-filled from the region these students typed. Change it if they belong elsewhere.` : undefined}
         >
           <select className={inputCls} value={target} disabled={locked} onChange={(e) => setTarget(e.target.value)}>
             {regions.map((r) => (
@@ -300,21 +333,35 @@ function PromoteSheet({ item, regions, onClose, onDone }: {
 }
 
 /** Merge one listed city into another: the entry leaves the list and its students move. */
-function MergeSheet({ city, regions, onClose, onDone }: {
-  city: svc.City;
+const UNLINK = "__unlink__";
+
+/**
+ * One decision per entry that leaves the list: where its students go. Merging is
+ * the default when anybody is registered, because unlinking leaves them with a
+ * typed name and no link until the admin promotes them again.
+ */
+function RemoveSheet({ target, regions, students, onClose, onDone }: {
+  target: svc.RemoveTarget;
   regions: svc.Region[];
+  students: number;
   onClose: () => void;
-  onDone: (res: Awaited<ReturnType<typeof svc.mergeCities>>) => void;
+  onDone: (res: svc.RemoveResult) => void;
 }) {
-  const [to, setTo] = useState("");
+  const choices = target.kind === "region"
+    ? regions.filter((r) => r.id !== target.id).map((r) => ({ value: r.id, label: r.name, note: r.cities.length === 1 ? "1 city" : `${r.cities.length} cities` }))
+    : regions.flatMap((r) => r.cities.filter((c) => c.id !== target.id).map((c) => ({ value: c.id, label: c.name, note: r.name })));
+  const [pick, setPick] = useState(choices.length && students > 0 ? choices[0].value : UNLINK);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
+  const merging = pick !== UNLINK;
+  const where = choices.find((c) => c.value === pick)?.label ?? "";
+  const noun = target.kind === "region" ? "region" : "city";
 
   const submit = async () => {
     setBusy(true);
     setErr(undefined);
     try {
-      onDone(await svc.mergeCities({ from_city_id: city.id, to_city_id: to }));
+      onDone(await svc.removeLocation({ kind: target.kind, source_id: target.id, target_id: merging ? pick : "" }));
     } catch (e) {
       setErr(errMsg(e));
     } finally {
@@ -326,23 +373,45 @@ function MergeSheet({ city, regions, onClose, onDone }: {
     <FormSheet
       open
       onOpenChange={(o) => !o && onClose()}
-      title="Merge city"
-      description={`Students in “${city.name}” move to the city you pick, and “${city.name}” leaves the list.`}
+      title={merging ? `Merge ${target.name}` : `${students > 0 ? "Remove" : "Delete"} ${target.name}`}
+      description={
+        target.kind === "region"
+          ? `“${target.name}” leaves the list${students > 0 ? ` with ${students} student${students === 1 ? "" : "s"} on it` : ""}. Its cities go wherever you send its students.`
+          : `“${target.name}” leaves the list${students > 0 ? ` with ${students} student${students === 1 ? "" : "s"} on it` : ""}.`
+      }
       footer={
         <>
           <Button variant="secondary" className="h-11 flex-1 rounded-xl" onClick={onClose}>Cancel</Button>
-          <Button className="h-11 flex-1 rounded-xl" disabled={busy || !to} onClick={submit}>{busy ? "Merging…" : "Merge"}</Button>
+          <Button
+            className="h-11 flex-1 rounded-xl"
+            variant={merging ? "default" : "destructive"}
+            disabled={busy || (merging && !pick)}
+            onClick={submit}
+          >
+            {busy ? "Working…" : merging ? `Merge into ${where}` : students > 0 ? "Unlink students" : "Delete"}
+          </Button>
         </>
       }
     >
-      <Field label="Merge into" error={err} hint="For places one spelling rule cannot decide — a neighbourhood, or the same city under two regions.">
-        <select className={inputCls} value={to} onChange={(e) => setTo(e.target.value)}>
-          <option value="">Choose a city…</option>
-          {regions.flatMap((r) => r.cities.filter((c) => c.id !== city.id).map((c) => (
-            <option key={`${c.id}|${r.id}`} value={c.id}>{c.name} — {r.name}</option>
-          )))}
-        </select>
-      </Field>
+      <div className="space-y-4">
+        <Field label={`Send the ${target.name} ${noun} to`} error={err}>
+          <select className={inputCls} value={pick} onChange={(e) => setPick(e.target.value)}>
+            {choices.map((c) => (
+              <option key={`${c.value}`} value={c.value}>{c.label} — {c.note}</option>
+            ))}
+            <option value={UNLINK}>{students > 0 ? `Unlink: keep their typed names, ${students} student${students === 1 ? "" : "s"} back to free text` : "Delete it (no students are on it)"}</option>
+          </select>
+        </Field>
+        <p className="text-xs text-muted-foreground">
+          {merging
+            ? target.kind === "region"
+              ? "A city the target already holds is folded into it, so nothing appears twice."
+              : "For places one spelling rule cannot decide — a neighbourhood, or the same city under two regions."
+            : students > 0
+              ? "Unlinked students show up under Free-text, where you can link or promote them again."
+              : "Nothing to move: this entry is simply removed."}
+        </p>
+      </div>
     </FormSheet>
   );
 }
