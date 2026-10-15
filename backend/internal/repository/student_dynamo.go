@@ -454,6 +454,47 @@ func (r *StudentDynamoRepository) SetSuspended(id string, suspended bool) error 
 	return err
 }
 
+// ClearStudentLocation unlinks a student from the region/city list by removing
+// region_id and city_id outright. UpdateStudent cannot do this: it skips
+// zero-valued fields, so an empty id means "not provided" rather than "cleared".
+// The typed region/city strings stay on the row, which is what makes an unlinked
+// student reappear in the admin free-text panel instead of vanishing from it.
+// Keyed through fullKeyFor like every other student write, because the live
+// table's key is (id, telegram_id).
+func (r *StudentDynamoRepository) ClearStudentLocation(id, telegramID string) error {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	if id == "" {
+		return fmt.Errorf("student id is required and cannot be empty")
+	}
+	if telegramID == "" {
+		telegramID = id // this system's student id equals its telegram id
+	}
+
+	key, err := r.fullKeyFor(ctx, id, telegramID)
+	if err != nil {
+		return err
+	}
+	if key == nil {
+		return fmt.Errorf("student %s not found in %s table", id, r.tableName)
+	}
+
+	_, err = r.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:        &r.tableName,
+		Key:              key,
+		UpdateExpression: aws.String("REMOVE #region_id, #city_id SET #updated_at = :updated_at"),
+		ExpressionAttributeNames: map[string]string{
+			"#region_id":  "region_id",
+			"#city_id":    "city_id",
+			"#updated_at": "updated_at",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":updated_at": &types.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339)},
+		},
+	})
+	return err
+}
+
 func (r *StudentDynamoRepository) DeleteStudent(id string) error {
 	ctx, cancel := awsconfig.CallCtx(context.Background())
 	defer cancel()

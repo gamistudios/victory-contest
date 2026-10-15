@@ -21,6 +21,12 @@ type StudentRepository interface {
 	// would be treated as "not provided"); this dedicated write closes that
 	// gap for the admin suspend/reactivate lifecycle.
 	SetSuspended(id string, suspended bool) error
+	// ClearStudentLocation removes region_id and city_id outright, which
+	// UpdateStudent cannot express (an empty id reads as "not provided"). The
+	// admin uses it to unlink students from a region or city that is being
+	// removed, so they fall back to free text instead of pointing at an entry
+	// the list no longer holds.
+	ClearStudentLocation(id, telegramID string) error
 	UpdateStudentIfExist(student domain.Student) error
 	DeleteStudent(id string) error
 	GetStudentByTelegramID(telegramID string) (*domain.Student, error)
