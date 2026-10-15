@@ -42,5 +42,12 @@ func Registry() []Migration {
 				return MigratePricing(ctx, env, o)
 			},
 		},
+		{
+			ID:          "20261014-005-location-dedupe",
+			Description: "Fold duplicate city entries and relink their students (plan 5.1)",
+			Run: func(ctx context.Context, env Env) (Result, error) {
+				return MigrateLocationDedupe(ctx, env, "reference_data", "student")
+			},
+		},
 	}
 }
