@@ -41,8 +41,25 @@ export interface Region { id: string; name: string; active: boolean; sort_order:
 export const getLocations = () => api.get("/api/locations-admin").then((r) => (r.data?.regions ?? []) as Region[]);
 export const saveLocations = (regions: Region[]) => api.put("/api/locations-admin", { regions }).then((r) => (r.data?.regions ?? []) as Region[]);
 
-// Free-text ("Other") locations typed by students, and promoting them to the managed list.
-export interface FreeTextLocation { region_id?: string; region: string; city: string; count: number }
+// Free-text ("Other") locations typed by students, clustered by canonical
+// spelling: "Adis abeba", "Addis Ababa " and "A.A" arrive as ONE row that
+// promotes as one. `known` means the typed name is a city the list already holds,
+// so promoting links those students to it instead of adding a second entry.
+export interface FreeTextLocation {
+  key: string;
+  region_id?: string;
+  region: string;
+  city_id?: string;
+  city: string;
+  known?: boolean;
+  variants?: string[];
+  count: number;
+}
+// Where a promote or merge actually landed the students.
+export interface LocationTarget { region_id: string; region: string; city_id: string; city: string; merged?: boolean }
 export const getFreeTextLocations = () => api.get("/api/locations-admin/free-text").then((r) => (r.data?.items ?? []) as FreeTextLocation[]);
-export const promoteLocation = (b: { from_region_id?: string; from_region: string; from_city: string; target_region_id?: string; new_region_name?: string; city_name?: string }) =>
-  api.post("/api/locations-admin/promote", b).then((r) => r.data as { updated: number; failed: number; regions: Region[] });
+export const promoteLocation = (b: { group_key: string; target_region_id?: string; new_region_name?: string; city_name?: string }) =>
+  api.post("/api/locations-admin/promote", b).then((r) => r.data as { updated: number; failed: number; target?: LocationTarget; regions: Region[] });
+// Fold one listed city into another: the entry disappears, its students move.
+export const mergeCities = (b: { from_city_id: string; to_city_id: string }) =>
+  api.post("/api/locations-admin/merge", b).then((r) => r.data as { moved: number; failed: number; target?: LocationTarget; regions: Region[] });
