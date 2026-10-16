@@ -1166,3 +1166,72 @@ Two behaviours exist only on the legacy path, so removing it today loses them:
 2. **Editorial for everyone after `EndTime`.** The legacy editorial page is readable by any student once the contest closes. Phase 2 gates it on `EditorialVisible`, which an admin must set.
 
 And while both UIs are live over the same 50 contests, a student can be recorded twice: the legacy submission row and a Phase 2 attempt are separate stores with separate leaderboards and separate admin lists. `SubmitLegacy` only bridges rows stamped by Phase 2, so an empty `mode` leaves both paths open. Deleting the legacy pages is therefore a product decision (port the two behaviours, then stamp `mode` in prod in one write), not a cleanup I should do unasked.
+
+# Phase 2 closeout, second half (2026-10-16): ports landed, prod mode stamped, legacy contest pages deleted
+
+Owner decisions taken at the start of this pass, both honored literally:
+
+1. **"Port, then delete legacy"** for the collision above — port the two legacy-only behaviours first, stamp `mode` in prod, then delete the pages behind redirects.
+2. **"Keep extended dialogs"** — the plan's stepper `AssessmentForm` is **not** built. Deviation 2 above is the accepted end state, so item 5 of the open list is closed by decision, not by code.
+
+## The two ports (item 1's blockers)
+
+| Behaviour | Where it went | How it stays honest |
+|---|---|---|
+| Roster write — the legacy contest card recorded the student into `contest_registeration`, and the admin dashboard's registration count and trend are built from that table | `usecase.Roster` (`EnsureActive`, `Register`) on `AttemptUsecase`; `POST /api/assessments/:id/register`; roster row created on register, activated on start | `NeedsRegistration()` scopes it to the competing kinds, so practice and past-exam taps cannot inflate the counts. `noteRoster` logs and never fails a start: a stats row must not be able to block an exam. `Register` is idempotent |
+| Public walkthrough after the window closes — the legacy editorial page was readable by any student once the contest ended | `GET /api/assessments/:id/editorial` + `EditorialVisible` (non-participant branch) | Ended **global** papers publish, because nobody can start them any more. `self_paced` and `reveal=on_submit` stay private to finishers, because late attempts on those are still answerable and a public answer key would leak into them. The Phase 2 branch honours the injected clock; the `Mode == ""` bridge keeps reading `ContestHasEnded` so unstamped rows behave exactly as before |
+
+`GetAssessment` now reports `registered` / `needs_registration`, and `Intro.tsx` shows **Register to join** in place of Start when the roster row is missing — the same gate the legacy card had. New `Editorial.tsx` renders the walkthrough for a student who never attempted, and shows the server's message when the answers are not publishable yet rather than re-guessing the rule in the client.
+
+## Production state: every live contest now carries an explicit `mode`
+
+`cmd/migrate-contest-mode` (dry run → review → apply), following the `contest_scope` house pattern: full scan, JSON backup outside the repository, conditional writes on the complete primary key, idempotent.
+
+- Dry run: `contests=50 already-stamped=0 to-stamp=50 (window open=0 ended=50, penalty defaulted=0)`. Nothing needed guessing: no prod contest carries `duration_minutes`, so all 50 map to `global`, which is the semantics the legacy countdown already implemented (`pages/Contest.tsx` counted down to `end_time`).
+- **Every contest window in production has already closed** (latest end `2026-10-09T10:17Z`, "bjbnj"). No student could start an attempt on any prod contest when this ran, so the stamp could not lock anyone out of a live exam, and `mode` deletion-safety held.
+- Apply: `stamped=50 failed=0`. Backup: `%LOCALAPPDATA%\Temp\victory-migration-backups\migrate-contest-mode-20261016T140905Z.json` (outside the repo — `migration-backups` is not gitignored and these are production rows).
+- Re-run: `already-stamped=50 to-stamp=0`. Spot check (`Qu3DLncJF8JH34jsEgMCUg`): `mode: global` added; `scope`, `kind`, `grade`, `type`, `status`, `start_time`, `end_time` unchanged and **no** `duration_minutes` / `late_penalty_percent` written.
+- Deliberately **not** in `Registry()`: boot must never write to the live table without someone having read the report.
+
+## Legacy contest pages deleted (item 1 closed)
+
+`pages/Contest.tsx`, `pages/ContestEditorial.tsx`, `pages/ContestStudentRegistration.tsx`, `components/ContestCard.tsx`, `components/LeaderboardModal.tsx`, `components/ContestCardSkeleton.tsx`, `components/NoContest.tsx`, `components/QuestionNavigationDropdown.tsx`, `hooks/useContestTimer.ts`, `services/contestApi.ts` — 1396 lines removed, and Home (`pages/Home.tsx`) rewritten onto `/assessments`.
+
+| Legacy screen behaviour | Where it lives now |
+|---|---|
+| Active/previous split by `end_time`, "N Available" count | Home, partitioned on the server's `server_now` rather than the device clock |
+| Countdown, prize, register/join gate, start | `Intro.tsx` (`/assessment/:id`) |
+| Exam, question palette, autosave, submit | `Exam.tsx` / `Palette.tsx` |
+| Previous-contest standings modal | `AssessmentLeaderboard.tsx` page, reached from the Home row |
+| Editorial link | `Editorial.tsx`, reached from the Home row and the Intro |
+| Premium gate opening the sheet | Home row and Intro both call `openPremium("premium_contest", program_id)`; the server's `lock` is the single source of truth, replacing the client-side `isContestLocked` guess |
+| Grade filtering by `sameGrade` | Kept, reading the digits off `scope.program_id` (`grade-<n>`); unscoped and non-grade programs stay visible to everyone |
+| `/contest`, `/registration`, `/contest-editorial` deep links | `<Navigate replace>` redirects that carry `?id=` to the matching Phase 2 screen, falling back to `/practice` |
+
+Two visible consequences, both intended: drills and past papers are left to the Practice tab so Home stays the contest surface, and Home's list is a **student read** now (`GET /contest/` was public), so it awaits the session `ensureStudentSession()` is already exchanging. Outside Telegram, with no token, Home shows its retryable error state instead of a public list — the same trade the Practice tab already makes.
+
+The legacy **endpoints** stay: `GET /api/contest*`, `/api/submission/rank/:id`, `/api/submission/editorial/:student_id` and the `contest-registration` routes are still used by the admin app and by Phase 2's own submission mirror (every Phase 2 submit also writes a full submission row). Removing them needs an admin-side usage audit, so it is not part of this pass.
+
+## Item 4 closed: the remaining student screens
+
+`pages/Payment.tsx`, `pages/Leaderboard.tsx`, `pages/Profile.tsx`, `pages/Statistics.tsx` restyled onto the card/token system (compact: the row heights did not grow; Leaderboard gained `rankChip`/`RankBadge`/`ListAvatar` and swapped its inline `NotFound` for `EmptyState`). Verified behaviour-preserving three ways: deleted-logic-token grep, re-emission grep, and a user-visible-string diff that lost zero strings.
+
+## Gates (this pass)
+
+- `gofmt -l` clean on every file this pass touched (`router.go` and `domain/contest.go` remain flagged only as pre-existing CRLF working copies — verified whole-file, so deliberately not reformatted).
+- Backend: `go build ./...` exit 0, `go vet ./...` exit 0, `go test -count=1 ./...` → `ok domain`, `ok handler/http`, `ok usecase`, `ok migrations`, `ok repository`, `ok schema`, `ok locnorm`, `ok cmd/migrate-answer-index`. 13 assessment/attempt route tests including the three new roster/editorial/practice cases, plus `TestEnsureActive`, `TestRegisterAcceptsAnExistingRow` and the rewritten `TestEditorialVisibleBridge`.
+- Student app: `npx tsc -b` exit 0, `npx eslint src` 0 errors / 5 pre-existing warnings, `npm run build` succeeds.
+- Not browser-verified: this environment has no reachable dev server for the Telegram-shaped UI, so the Home rewrite and the four restyled screens are compiled-and-read. The specific things to look at on a device: Home's open/past split for a grade other than 12, the new `Register to join` step, and the `/assessment/:id/editorial` page for an ended contest.
+
+## Phase 2 open list, final state
+
+| Item | State |
+|---|---|
+| 1. Delete legacy contest pages + redirects | **Done** (port → prod stamp → delete) |
+| 2. Handler tests for `/assessments`, `/attempts` | **Done** (13 route tests) |
+| 3. `admin-page-clean` typecheck | **Done** (clean) |
+| 4. Restyle the remaining student screens | **Done** (all eight surfaces) |
+| 5. Stepper `AssessmentForm` | **Closed by owner decision** — extended dialogs stay |
+| 6. `CountsByContest` full scan | Not a defect today: the `attempts` table has no prod rows yet, so the scan has nothing to aggregate; revisit after the first real contest window runs on the new build |
+| 7. Phase 3 + `-004` default price plan | Out of Phase 2; `-004` still needs a client-supplied price before it can run |
+
