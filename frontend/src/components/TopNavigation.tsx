@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTelegram } from "../hooks/useTelegram";
 import { ThemeToggle } from "./ThemeToggle";
-import { Bell, Lock, SlidersHorizontal, User, BarChart3, Layers, ChevronRight } from "lucide-react";
+import { Bell, Lock, SlidersHorizontal, User, BarChart3, Trophy, Layers, ChevronRight } from "lucide-react";
 import { SettingsSheet } from "../academy/components/SettingsSheet";
 import NotificationCenter from "./NotificationCenter";
 import { useNotification } from "../context/NotificationContext";
@@ -142,7 +142,7 @@ const TopNavigation: React.FC = () => {
     );
   };
 
-  const menuActive = ["/profile", "/statistics", "/programs", "/payment-history"].includes(location.pathname);
+  const menuActive = ["/leaderboard", "/statistics", "/programs", "/payment-history"].includes(location.pathname);
 
   const handleNotificationClick = () => {
     hapticFeedback("selection");
@@ -243,6 +243,13 @@ const TopNavigation: React.FC = () => {
                   </DropdownMenuItem>
 
                   <DropdownMenuGroup className="mt-1">
+                    <MenuRow
+                      icon={<Trophy className="h-4 w-4" />}
+                      label="Leaderboard"
+                      tone="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      active={location.pathname === "/leaderboard"}
+                      onSelect={() => navigate("/leaderboard")}
+                    />
                     <MenuRow
                       icon={<BarChart3 className="h-4 w-4" />}
                       label="Statistics"

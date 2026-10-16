@@ -1,8 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { GraduationCap, ClipboardList } from "lucide-react";
+import { GraduationCap, ClipboardList, User } from "lucide-react";
 import HomeIcon from "../assets/home-09-stroke-rounded.svg?react";
-import AwardIcon from "../assets/award-04-stroke-rounded.svg?react";
 const BottomNavigation: React.FC = () => {
   const location = useLocation();
 
@@ -27,11 +26,10 @@ const BottomNavigation: React.FC = () => {
       match: (p: string) => p.startsWith("/practice") || p.startsWith("/assessment") || p.startsWith("/attempt"),
     },
     {
-      path: "/leaderboard",
-      icon: ({ className }: { className: string }) => {
-        return <AwardIcon className={className} />;
-      },
-      label: "Leaderboard",
+      path: "/profile",
+      icon: () => <User className="mb-1 transition-all duration-200" />,
+      label: "Profile",
+      match: (p: string) => p === "/profile",
     },
   ];
 
