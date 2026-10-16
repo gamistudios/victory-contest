@@ -4,6 +4,7 @@ import Intro from "./features/assessments/Intro";
 import Exam from "./features/assessments/Exam";
 import Result from "./features/assessments/Result";
 import AssessmentLeaderboard from "./features/assessments/AssessmentLeaderboard";
+import Editorial from "./features/assessments/Editorial";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { useTelegram } from "./hooks/useTelegram";
 import Layout from "./components/Layout";
@@ -80,6 +81,7 @@ function App() {
             <Route path="assessment/:id" element={<Intro />} />
             <Route path="assessment/:id/exam" element={<Exam />} />
             <Route path="assessment/:id/leaderboard" element={<AssessmentLeaderboard />} />
+            <Route path="assessment/:id/editorial" element={<Editorial />} />
             <Route path="attempt/:id/result" element={<Result />} />
             <Route
               path="payment-history"

@@ -9,7 +9,7 @@ export interface AssessmentMeta {
   id: string; title: string; description: string; kind: string; mode: "self_paced" | "global";
   access: string; scope?: Scope; start_time: string; end_time: string; duration_minutes: number;
   late_penalty_percent: number; reveal: "at_end" | "on_submit"; question_count: number;
-  year?: string; source?: string; lock?: Lock; my_attempt?: MyAttempt; server_now: string;
+  year?: string; source?: string; lock?: Lock; my_attempt?: MyAttempt; registered?: boolean; needs_registration?: boolean; server_now: string;
 }
 export interface Attempt {
   id: string; contest_id: string; status: "in_progress" | "submitted" | "auto_submitted" | "abandoned";
@@ -56,4 +56,19 @@ export async function getResult(attemptId: string): Promise<ResultView> {
 }
 export async function assessmentLeaderboard(id: string): Promise<LeaderboardRow[]> {
   return (await api.get(`/assessments/${enc(id)}/leaderboard`)).data ?? [];
+}
+
+export interface EditorialView {
+  title: string; visible: boolean; participated: boolean; message?: string;
+  editorial?: EditorialItem[]; server_now: string;
+}
+
+/** The roster step the legacy contest card required before joining. Idempotent. */
+export async function registerForAssessment(id: string): Promise<void> {
+  await api.post(`/assessments/${enc(id)}/register`);
+}
+
+/** Walkthrough of a closed assessment, for students who never attempted it. */
+export async function getAssessmentEditorial(id: string): Promise<EditorialView> {
+  return (await api.get(`/assessments/${enc(id)}/editorial`)).data;
 }

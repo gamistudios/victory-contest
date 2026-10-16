@@ -5,7 +5,7 @@ import { useServerClock } from "@/shared/data/useServerClock";
 import { usePremiumSheet } from "@/context/PremiumSheetContext";
 import { CardSkeleton, InlineError } from "@/academy/components/States";
 import { cn } from "@/lib/utils";
-import { enc, getAssessment, type AssessmentMeta } from "./api";
+import { enc, getAssessment, registerForAssessment, type AssessmentMeta } from "./api";
 import { formatCountdown } from "./Timer";
 
 const day = (s: string) => (s ? new Date(s).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "");
@@ -18,12 +18,27 @@ export default function Intro() {
   const clock = useServerClock();
   const [a, setA] = useState<AssessmentMeta | null>(null);
   const [err, setErr] = useState("");
+  const [registered, setRegistered] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [, tick] = useState(0);
 
   useEffect(() => {
-    getAssessment(id).then((m) => { clock.sync(m.server_now); setA(m); })
+    getAssessment(id).then((m) => { clock.sync(m.server_now); setA(m); setRegistered(!!m.registered); })
       .catch(() => setErr("Could not load this assessment."));
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const register = async () => {
+    if (!a) return;
+    setBusy(true);
+    try {
+      await registerForAssessment(a.id);
+      setRegistered(true);
+    } catch {
+      setErr("Could not sign you up. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // One second tick so the "opens in" / "closes in" countdown moves on its own.
   useEffect(() => {
@@ -43,6 +58,8 @@ export default function Intro() {
   // A global (window) contest can only be started before it closes; self-paced
   // ones stay open past the end time and take the late penalty instead.
   const closed = !my && a.mode === "global" && closesIn <= 0;
+  // Sign-up comes before joining, exactly as the legacy contest card enforced it.
+  const needsRegister = !!a.needs_registration && !my && !a.lock && !registered;
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-24">
@@ -103,6 +120,13 @@ export default function Intro() {
         <button className="h-12 rounded-xl bg-primary text-sm font-bold text-primary-foreground" onClick={() => nav(`/attempt/${enc(my!.id)}/result`)}>
           View result · {my!.points} pts
         </button>
+      ) : needsRegister ? (
+        /* The legacy contest card let a student join only after signing up; the
+           roster row it wrote is what the admin registration stats count. */
+        <button className="h-12 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-60"
+          disabled={busy} onClick={() => void register()}>
+          {busy ? "Registering…" : "Register to join"}
+        </button>
       ) : (
         <button className="h-12 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
           disabled={notOpen || closed || !!a.lock} onClick={() => nav(`/assessment/${enc(a.id)}/exam`)}>
@@ -110,6 +134,9 @@ export default function Intro() {
           {my ? `Resume · ${formatCountdown(Math.max(0, Date.parse(my.expires_at) - now))} left`
             : closed ? "Closed" : notOpen ? "Wait for it to open" : "Start"}
         </button>
+      )}
+      {closed && a.reveal !== "on_submit" && (
+        <Link className="text-center text-sm underline text-muted-foreground" to={`/assessment/${enc(a.id)}/editorial`}>See the answers</Link>
       )}
       <Link className="text-center text-sm underline text-muted-foreground" to={`/assessment/${enc(a.id)}/leaderboard`}>Leaderboard</Link>
     </div>
