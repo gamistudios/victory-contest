@@ -1042,3 +1042,80 @@ Gates: `gofmt` clean on every touched file, `go build ./...`, `go vet ./...`, `g
 ## Still open
 
 Bottom-nav crowding at 360 px, deleting the legacy contest pages (now that all 50 prod contests are scoped, but they still have no `mode`), `CountsByContest` full scan, Phase 3 leaderboards, and `20261014-004-default-price-plan` whenever a prod price is configured.
+
+
+---
+
+# Update 2026-10-16 (Phase 2 completion audit + student UI/UX pass)
+
+Method: every Phase 2 row in `PROPOSED-IMPLEMENTATION-PLAN.md` (section 8, Phase 2) was checked against the files in this tree. This pass **read code and file listings only**. `go build`, `go test`, `tsc` and `vite build` could not be run in this sandbox (no Go module proxy or `node_modules`); **the owner ran the Go and TypeScript builds and checks locally afterwards and reports them passing** (see the admin form note below for the one file edited after that). Production state (the 50-contest back-fill) is taken from the sixth pass and was not re-checked.
+
+## Verdict: Phase 2 is functionally complete, with three deliberate deviations and a short list of leftovers
+
+### Backend: all rows present
+
+| Plan row | Status | Where |
+|---|---|---|
+| Contest fields (`Kind`, `Mode`, `DurationMinutes`, `LatePenaltyPercent`, `Reveal`, shuffle flags, `Year`, `Source`, `Scope`) | Done | `domain/contest.go` |
+| `Attempt` + status constants | Done | `domain/attempt.go` |
+| Submission fields (`Scope`, `AttemptID`, `StartedAt`, `IsLate`, `PenaltyPercent`, `Points`, `DurationSeconds`) | Done | `domain/submission.go` |
+| `attempts` table + 3 GSIs (`student_id-index`, `contest_id-index`, `status-expires_at-index`) | Done | `schema/tables.go` |
+| Attempt repository (conditional create, versioned autosave, conditional finalise, list by student/contest/expiring) | Done | `repository/attempt_dynamo.go` |
+| Attempt usecase (start, autosave, submit, finalise, lazy finalise, visibility, lateness/points, admin exclude/waive/regrade/reset, 409) | Done | `usecase/attempt_usecase.go`, `attempt_logic.go` |
+| Contest create defaults + typed validation | Done, with deviation 1 | `usecase/contest_usecase.go` |
+| Typed `ContestPatch` replacing the reflection PATCH (D11) | Done, legacy string-field map kept | `domain/contest.go`, `contest_handler.go` |
+| `/api/assessments*`, `/api/attempts*`, admin attempt routes (list, CSV, get, patch, counts) | Done | `handler/http/assessment_handler.go` |
+| Routes registered; `/api/contest/*` and `POST /api/submission/` kept as the `SubmitLegacy` bridge | Done | `router.go` |
+| Expiry sweeper with graceful shutdown | Done | `main.go`, `RunAttemptSweeper` in `router.go` |
+| Editorial visibility via `AnswersVisible` / `EditorialVisible` | Done | `submission_usecase.go`, `attempt_logic.go` |
+| Data migration: contest scope back-fill | Done (per sixth pass) | `cmd/migrate-contest-scope` |
+
+### Student app: all rows present
+
+`features/assessments/` has `AssessmentList`, `Intro`, `Exam` (flagging, 1.5 s debounced autosave, resume), `Palette`, `Timer`, `Result`, `Retake` (wired from `Result`), `AssessmentLeaderboard` and `api.ts`. `shared/data/useServerClock.ts` exists. Routes: `/practice`, `/assessment/:id`, `/assessment/:id/exam`, `/assessment/:id/leaderboard`, `/attempt/:id/result`.
+
+### Admin app: present, one row done differently
+
+`services/assessmentServices.ts`, `features/assessments/AttemptsTab.tsx` (exclude / waive / re-grade / CSV), `TimingFields.tsx` (shared by add and update dialogs). `ContestList` shows kind, mode, scope filter (`matchesScopeFilter`) and an attempts count from `/api/admin/attempt-counts`.
+
+### Tests (from the sixth pass, not re-run here)
+
+`attempt_usecase_test.go` (13), `assessment_read_test.go` (4), `scope_validate_test.go` (2), `contest_patch_test.go` (2), `attempt_dynamo_local_test.go` (1, skips unless `AWS_ENDPOINT_URL_DYNAMODB` is set). I found **no handler-level tests for the new `/assessments` and `/attempts` routes**; the plan's test list asked for them.
+
+## Deliberate deviations (unchanged, restated so they are not mistaken for gaps)
+
+1. Contest create defaults to `self_paced` + 10% penalty only when `duration_minutes` or `mode` is sent. Forcing it would break the old admin form.
+2. `AddContest` / `UpdateContestDialog` were **extended with `TimingFields`**, not replaced by a stepper `AssessmentForm.tsx`. The plan's stepper (section 7.3) is not built.
+3. Legacy student pages (`ContestStudentRegistration`, `Contest`, `ContestEditorial`, `useContestTimer`) and the `/contest`, `/registration`, `/contest-editorial` routes are kept, with **no redirects**, because live contests still have an empty `mode` and run on them.
+
+## UI/UX pass (this session): student app
+
+Done to follow the Academy design language (rounded cards, tinted icon chips, shared `States` components). Not compiled or viewed in a browser.
+
+| Change | File |
+|---|---|
+| Bottom nav is now **Home · Learn · Practice · Profile** (4 tabs). Profile uses the lucide `User` icon. **Closes the 360 px crowding item** | `components/BottomNavigation.tsx` |
+| Top-right menu: person icon trigger (highlights on Leaderboard, Statistics, My programs, Payments); clickable user card opens Profile; **Leaderboard**, **Statistics**, **My programs**, then AI Practice, Upgrade, Learning settings, Payments, Feedback. Compact rows (`w-60`, 32 px chips), scrolls on short screens. Icons that ship `color="#000000"` (Payments, AI, Feedback, Upgrade) are coloured on the icon itself, so they are visible in dark mode | `components/TopNavigation.tsx` |
+| My programs rebuilt: program cards with Active badge and status pill, Make active / Leave buttons, tile picker + stream toggle for Join, Upgrade button, skeleton / empty / error states. **My programs now has an entry point** (it had none) | `pages/MyPrograms.tsx` |
+| Practice rebuilt: title, scrolling program chips, assessment cards with status icon, kind badge, question count, duration, Premium / In progress / Completed + points | `features/assessments/AssessmentList.tsx` |
+
+Known issue: `dark:` Tailwind variants on the menu icon chips did not take effect in the Telegram WebView screenshot (chips stay light in dark mode). Icons remain readable. Needs a look at how the app toggles dark mode.
+
+## Closed by this pass
+
+- "A Practice tab entry in navigation": already in the bottom nav.
+- "Bottom-nav crowding at 360 px": four tabs now.
+
+## Still open
+
+1. Delete the legacy contest pages and add redirects, once every live contest has a Phase 2 `mode` (prod contests are scoped but still have no `mode`).
+2. Handler tests for the new `/assessments` and `/attempts` routes.
+3. ~~Re-run Go and TS builds~~ **Done by the owner (passing).** Re-run `npm run typecheck` in `admin-page-clean` once more after the `TimingFields.tsx` edit below.
+4. Restyle the remaining student screens to the same card system: assessment `Intro`, `Exam`, `Result`, `Palette`; `Profile`, `Statistics`, `Payment`, `Leaderboard`.
+5. Stepper `AssessmentForm` (deviation 2), if the plan's admin UX is still wanted.
+6. `CountsByContest` scans the whole attempts table; switch to a stored counter if it grows.
+7. Phase 3 (leaderboards by period/program, question bank), and `20261014-004-default-price-plan` once a prod price is configured.
+
+## Admin form clarity fix (2026-10-16)
+
+`admin-page-clean/src/features/assessments/TimingFields.tsx` (shared by Add and Update contest): the "Source / year" pair was squeezed into one row (a tiny unlabeled box next to a "Year" box) and the checkboxes had no explanation. Now a single-column layout with a one-line hint under every field, "Source" and "Exam year" as separate labelled optional fields under an "Optional details (for past exams and entrance exams)" heading, shorter select labels so they no longer truncate, and shuffle options as full-width cards with descriptions. **Source and Year are stored but not displayed to students anywhere yet**; the hint says so. Not compiled after this edit.
