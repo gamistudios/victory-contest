@@ -1,129 +1,146 @@
-import React, { useState, useEffect } from "react";
-import { useTelegram } from "../hooks/useTelegram";
-import { Contest } from "../types";
-import { Calendar } from "lucide-react";
-import { getAllContests } from "../services/contestApi";
-import ContestCard, { PremiumUpgradeButton } from "../components/ContestCard";
-import NoContests from "../components/NoContest";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ContestCardSkeleton } from "../components/ContestCardSkeleton";
-import WelcomeCarousel from "../components/WelcomeCarousell";
-import LeaderboardModal from "../components/LeaderboardModal";
-import {
-  safeFormatDistanceToNow,
-  safeParseDate,
-  safeQuestionsLength,
-  sameGrade,
-} from "../lib/utils";
-import { ArticleListForHome } from "../components/article/ArticleList";
+import { BarChart3, BookOpen, Calendar, ChevronRight, ClipboardList, HelpCircle, Lock, PlayCircle, CheckCircle2, Sparkles } from "lucide-react";
+import { useTelegram } from "../hooks/useTelegram";
 import { useAuth } from "../context/AuthContext";
-import { isContestLocked } from "@/lib/premium";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
+import { CardSkeleton, EmptyState } from "@/academy/components/States";
+import { enc, listAssessments, type AssessmentMeta } from "../features/assessments/api";
+import { cn, safeFormatDistanceToNow, sameGrade } from "../lib/utils";
+import { ArticleListForHome } from "../components/article/ArticleList";
+import WelcomeCarousel from "../components/WelcomeCarousell";
 import ErrorState from "../components/ErrorState";
 import { isAbortedRequest } from "../services/api";
+import { ensureStudentSession } from "../services/telegramServices";
+
+/** Home surfaces the same `contests` table the Phase 2 screens use. Drills and
+ *  archived papers belong to the Practice tab, so only competing kinds show here. */
+const onHome = (a: AssessmentMeta) => a.kind !== "practice" && a.kind !== "past_exam";
+
+/** Grade scoping mirrors the legacy home: a `grade-<n>` program is compared on its
+ *  digits, and anything unscoped (or a non-grade program) stays visible to all. */
+const forGrade = (a: AssessmentMeta, grade?: string) => {
+  const program = a.scope?.program_id ?? "";
+  if (!grade || !program.startsWith("grade-")) return true;
+  return sameGrade(program.slice("grade-".length), grade);
+};
+
+const AssessmentRow = ({ a }: { a: AssessmentMeta }) => {
+  const att = a.my_attempt;
+  const inProgress = att?.status === "in_progress";
+  const done = !!att && !inProgress;
+  return (
+    <Link
+      to={`/assessment/${enc(a.id)}`}
+      className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-3 transition active:scale-[0.98]"
+    >
+      <span
+        className={cn(
+          "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+          a.lock ? "bg-yellow-100 text-yellow-700" : done ? "bg-green-100 text-green-700" : inProgress ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"
+        )}
+      >
+        {a.lock ? <Lock className="h-6 w-6" /> : done ? <CheckCircle2 className="h-6 w-6" /> : inProgress ? <PlayCircle className="h-6 w-6" /> : <ClipboardList className="h-6 w-6" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-bold text-foreground">{a.title}</p>
+          {a.lock && <span className="shrink-0 rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-800">Premium</span>}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span className="rounded-full bg-muted px-2 py-0.5 font-semibold capitalize">{a.kind.replace(/_/g, " ")}</span>
+          <span className="inline-flex items-center gap-1"><HelpCircle className="h-3.5 w-3.5" />{a.question_count}</span>
+          {a.start_time && <span>{safeFormatDistanceToNow(a.start_time, "No start time")}</span>}
+        </div>
+        {att && (
+          <p className={cn("mt-1 text-xs font-semibold", inProgress ? "text-blue-700" : "text-green-700")}>
+            {inProgress ? "In progress · tap to resume" : `Completed · ${att.points} pts`}
+          </p>
+        )}
+      </div>
+      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition group-active:translate-x-0.5" aria-hidden />
+    </Link>
+  );
+};
 
 const Home: React.FC = () => {
-  const { user, hapticFeedback, hideBackButton } = useTelegram();
+  const { user, hideBackButton } = useTelegram();
   const { user: userInfo } = useAuth();
-  const [contests, setContests] = useState<Contest[]>([]);
-  const [previousContests, setPreviousContests] = useState<Contest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedPreviousContest, setSelectedPreviousContest] =
-    useState<Contest | null>(null);
-  const [triggerLoading, setTriggerLoading] = useState(true);
-  const [contestError, setContestError] = useState<string | null>(null);
-
-  const [showPreviousModal, setShowPreviousModal] = useState(false);
   const { open: openPremium } = usePremiumSheet();
+  const [assessments, setAssessments] = useState<AssessmentMeta[] | null>(null);
+  // Open/ended is decided on the server clock, not this device's.
+  const [serverNow, setServerNow] = useState(() => Date.now());
+  const [contestError, setContestError] = useState<string | null>(null);
+  const [triggerLoading, setTriggerLoading] = useState(true);
+
   useEffect(() => {
     hideBackButton();
   }, [hideBackButton]);
+
   useEffect(() => {
     let cancelled = false;
-    const fetchContests = async () => {
-      setLoading(true);
-      setContestError(null);
-      try {
-        const contests = await getAllContests();
-        // Split contests into active and previous based on end_time
-        const now = new Date();
-        const active: Contest[] = [];
-        const previous: Contest[] = [];
-        contests.forEach((contest) => {
-          try {
-            const endTime = contest.end_time
-              ? new Date(contest.end_time)
-              : null;
-            if (endTime && !isNaN(endTime.getTime()) && endTime > now) {
-              active.push(contest);
-            } else {
-              previous.push(contest);
-            }
-          } catch {
-            previous.push(contest);
-          }
-        });
-        if (!cancelled) {
-          setContests(active);
-          setPreviousContests(previous);
-        }
-      } catch (e) {
+    setAssessments(null);
+    setContestError(null);
+    // /assessments is a student read, so the contest list waits on the Telegram
+    // session the provider is exchanging; the old public /contest list never did.
+    ensureStudentSession()
+      .then(() => listAssessments())
+      .then((items) => {
+        if (cancelled) return;
+        setAssessments(items);
+        const s = items.length ? Date.parse(items[0].server_now) : NaN;
+        if (!Number.isNaN(s)) setServerNow(s);
+      })
+      .catch((e) => {
         // A cancelled/aborted request (StrictMode double mount, Vite dev
-        // full-reload) is not a real failure: render no error state. The
-        // `cancelled` guard still blocks state updates from dead passes.
-        if (!cancelled && !isAbortedRequest(e)) {
-          setContestError(e instanceof Error ? e.message : String(e));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    fetchContests();
+        // full-reload) is not a real failure: render no error state.
+        if (!cancelled && !isAbortedRequest(e)) setContestError(e instanceof Error ? e.message : String(e));
+      });
     return () => {
       cancelled = true;
     };
   }, [triggerLoading]);
 
-  const handleShowStandings = async (contest: Contest) => {
-    hapticFeedback("selection");
-    setSelectedPreviousContest(contest);
-    setShowPreviousModal(true);
-  };
+  const { openContests, pastContests } = useMemo(() => {
+    const open: AssessmentMeta[] = [];
+    const past: AssessmentMeta[] = [];
+    for (const a of assessments?.filter((a) => onHome(a) && forGrade(a, userInfo?.grade)) ?? []) {
+      const end = a.end_time ? Date.parse(a.end_time) : NaN;
+      (Number.isNaN(end) || end <= serverNow ? past : open).push(a);
+    }
+    return { openContests: open, pastContests: past };
+  }, [assessments, userInfo?.grade, serverNow]);
 
-  const filteredContest = React.useMemo(() => {
-    if (loading) return [];
-    return contests.filter((con) => sameGrade(con.grade, userInfo?.grade));
-  }, [loading, contests, userInfo]);
+  const sectionHead = (title: string, count?: number) => (
+    <div className="mb-4 flex items-center justify-between">
+      <h2 className="font-nunito-sans text-lg font-bold text-gray-700">{title}</h2>
+      {count !== undefined && (
+        <div className="flex items-center text-blue-600">
+          <Calendar className="mr-1 h-4 w-4" />
+          <span className="text-sm font-medium">{count} Available</span>
+        </div>
+      )}
+    </div>
+  );
+
+  const loading = assessments === null && contestError === null;
 
   return (
     <div className="p-4 space-y-6">
-      {/* Welcome Section */}
       <WelcomeCarousel user={user} />
-      {/* Read Articles Section */}
+
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold font-nunito-sans text-gray-700">
-            Read Articles
-          </h2>
-        </div>
+        {sectionHead("Read Articles")}
         <ArticleListForHome />
       </div>
-      {/* Upcoming Contests */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold font-nunito-sans text-gray-700">
-            Upcoming Contests
-          </h2>
-          <div className="flex items-center text-blue-600">
-            <Calendar className="w-4 h-4 mr-1" />
-            <span className="text-sm font-medium">
-              {contests.length} Available
-            </span>
-          </div>
-        </div>
 
+      <div>
+        {sectionHead("Upcoming Contests", openContests.length)}
         {loading ? (
-          <ContestCardSkeleton />
+          <div className="space-y-3">
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
         ) : contestError !== null ? (
           <ErrorState
             variant="inline"
@@ -131,26 +148,23 @@ const Home: React.FC = () => {
             description="Something went wrong. Please try again!"
             onRetry={() => setTriggerLoading((prev) => !prev)}
           />
+        ) : openContests.length === 0 ? (
+          <EmptyState icon={<Sparkles className="h-6 w-6" />} title="No contest open right now" hint="New contests appear here the moment they open." />
         ) : (
-          <div className="space-y-4">
-            {filteredContest.map((contest) => {
-              return <ContestCard contest={contest} key={contest.id} />;
-            })}
+          <div className="space-y-3">
+            {openContests.map((a) => (
+              <AssessmentRow key={a.id} a={a} />
+            ))}
           </div>
-        )}
-        {!loading && filteredContest.length === 0 && contestError == null && (
-          <NoContests type="active" />
         )}
       </div>
 
-      {/* Previous Contests */}
       <div>
-        <h2 className="text-lg font-bold mb-4 font-nunito text-gray-700">
-          Previous Contests
-        </h2>
+        {sectionHead("Previous Contests")}
         {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="space-y-3">
+            <CardSkeleton />
+            <CardSkeleton />
           </div>
         ) : contestError !== null ? (
           <ErrorState
@@ -159,138 +173,52 @@ const Home: React.FC = () => {
             description="Unable to load the previous contests. Please try again!"
             onRetry={() => setTriggerLoading((prev) => !prev)}
           />
+        ) : pastContests.length === 0 ? (
+          <EmptyState icon={<ClipboardList className="h-6 w-6" />} title="No past contests yet" hint="Finished contests stay here with their standings." />
         ) : (
           <div className="space-y-3">
-            {[...previousContests]
-              .sort((a, b) => {
-                try {
-                  const aTime = safeParseDate(
-                    a.start_time,
-                    new Date(0)
-                  ).getTime();
-                  const bTime = safeParseDate(
-                    b.start_time,
-                    new Date(0)
-                  ).getTime();
-                  return bTime - aTime;
-                } catch (error) {
-                  console.warn("Error sorting contests by date:", error);
-                  return 0;
-                }
-              })
-              .map((contest) => (
-                <div
-                  onClick={() => handleShowStandings(contest)}
-                  key={contest.id}
-                  className="bg-card p-4 rounded-xl shadow-sm border border-gray-100"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-bold text-sm text-gray-800 mb-1">
-                        {contest.title}
-                      </h3>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span>
-                          {safeFormatDistanceToNow(
-                            contest.start_time,
-                            "No start time"
-                          )}{" "}
-                          ago
-                        </span>
-                        <span>•</span>
-                        <span>
-                          {safeQuestionsLength(contest.questions)} questions
-                        </span>
-                      </div>
-                    </div>
-
-                    {isContestLocked(contest, userInfo?.is_premium) ? (
-                      <PremiumUpgradeButton
-                        onClick={() => openPremium("premium_contest", contest.scope?.program_id ?? contest.lock?.program_id)}
-                        locked
-                        label="Pro"
-                        loading={false}
-                        className="p-2"
-                      />
-                    ) : (
-                      <Link
-                        to={`/contest-editorial?${new URLSearchParams({
-                          id: String(contest.id),
-                          title: contest.title,
-                        })}`}
-                        className={`flex rounded-full cursor-pointer items-center justify-center w-10 h-10 text-sm hover:text-brand-ink hover:bg-brand/10 text-brand-ink font-bold`}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          aria-hidden="true"
-                          role="img"
-                          className="h-5 w-5 "
-                          width="1.5em"
-                          height="1.5em"
-                          preserveAspectRatio="xMidYMid meet"
-                          viewBox="0 0 256 256"
-                        >
-                          <g fill="currentColor">
-                            <path
-                              d="M152 128a24 24 0 1 1-24-24a24 24 0 0 1 24 24"
-                              opacity=".2"
-                            ></path>
-                            <path d="M200 152a31.84 31.84 0 0 0-19.53 6.68l-23.11-18A31.65 31.65 0 0 0 160 128c0-.74 0-1.48-.08-2.21l13.23-4.41A32 32 0 1 0 168 104c0 .74 0 1.48.08 2.21l-13.23 4.41A32 32 0 0 0 128 96a32.6 32.6 0 0 0-5.27.44L115.89 81A32 32 0 1 0 96 88a32.6 32.6 0 0 0 5.27-.44l6.84 15.4a31.92 31.92 0 0 0-8.57 39.64l-25.71 22.84a32.06 32.06 0 1 0 10.63 12l25.71-22.84a31.91 31.91 0 0 0 37.36-1.24l23.11 18A31.65 31.65 0 0 0 168 184a32 32 0 1 0 32-32m0-64a16 16 0 1 1-16 16a16 16 0 0 1 16-16M80 56a16 16 0 1 1 16 16a16 16 0 0 1-16-16M56 208a16 16 0 1 1 16-16a16 16 0 0 1-16 16m56-80a16 16 0 1 1 16 16a16 16 0 0 1-16-16m88 72a16 16 0 1 1 16-16a16 16 0 0 1-16 16"></path>
-                          </g>
-                        </svg>
-                      </Link>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleShowStandings(contest);
-                      }}
-                      className={`flex rounded-full cursor-pointer items-center justify-center w-10 h-10 text-sm hover:text-brand-ink hover:bg-brand/10 text-brand-ink font-bold`}
+            {pastContests.map((a) => (
+              <div key={a.id} className="flex items-center gap-2 rounded-2xl border border-border bg-card p-3">
+                <Link to={`/assessment/${enc(a.id)}`} className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-foreground">{a.title}</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                    <span>{safeFormatDistanceToNow(a.start_time, "No start time")} ago</span>
+                    <span>•</span>
+                    <span>{a.question_count} questions</span>
+                  </p>
+                </Link>
+                {a.lock ? (
+                  <button
+                    type="button"
+                    onClick={() => openPremium("premium_contest", a.scope?.program_id ?? a.lock?.program_id)}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-100 text-yellow-700"
+                    aria-label={`Unlock ${a.title}`}
+                  >
+                    <Lock className="h-5 w-5" />
+                  </button>
+                ) : (
+                  <>
+                    <Link
+                      to={`/assessment/${enc(a.id)}/editorial`}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted"
+                      aria-label={`Answers for ${a.title}`}
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true"
-                        role="img"
-                        width="0.8em"
-                        height="0.8em"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="h-5 w-5 "
-                      >
-                        <g fill="none">
-                          <path
-                            fill="currentColor"
-                            d="M4 4.001h16v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"
-                            opacity=".16"
-                          ></path>
-                          <path
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M11 4H4v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5M9 15L20 4m-5 0h5v5"
-                          ></path>
-                        </g>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                      <BookOpen className="h-5 w-5" />
+                    </Link>
+                    <Link
+                      to={`/assessment/${enc(a.id)}/leaderboard`}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted"
+                      aria-label={`Standings for ${a.title}`}
+                    >
+                      <BarChart3 className="h-5 w-5" />
+                    </Link>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
         )}
-        {!loading && contestError === null && previousContests.length === 0 && (
-          <NoContests type="past" />
-        )}
       </div>
-
-      {/* Previous Contest Modal */}
-      {showPreviousModal && selectedPreviousContest && (
-        <LeaderboardModal
-          selectedContest={selectedPreviousContest}
-          setShowModal={setShowPreviousModal}
-          isActiveContest={false}
-        />
-      )}
     </div>
   );
 };

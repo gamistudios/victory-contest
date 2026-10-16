@@ -5,16 +5,13 @@ import Exam from "./features/assessments/Exam";
 import Result from "./features/assessments/Result";
 import AssessmentLeaderboard from "./features/assessments/AssessmentLeaderboard";
 import Editorial from "./features/assessments/Editorial";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
 import { useTelegram } from "./hooks/useTelegram";
 import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import Leaderboard from "./pages/Leaderboard";
 import Statistics from "./pages/Statistics";
 import Profile from "./pages/Profile";
-import Registration from "./pages/ContestStudentRegistration";
-import ContestComponent from "./pages/Contest";
-import ContestEditorial from "./pages/ContestEditorial";
 import { FeedbackPage } from "./pages/FeedBack";
 import { AIPracticePage } from "./pages/AIPractice";
 import RegistrationForm from "./pages/StudentRegisteration";
@@ -47,6 +44,14 @@ function ScrollToTop() {
   return null;
 }
 
+/** The legacy contest pages are gone, but old links live on in Telegram chat
+ *  history and bookmarks, so they carry the contest id over to the Phase 2
+ *  screen that replaced the page instead of dead-ending. */
+function LegacyContestRedirect({ to }: { to?: (id: string) => string }) {
+  const id = new URLSearchParams(useLocation().search).get("id");
+  return <Navigate replace to={id && to ? to(encodeURIComponent(id)) : "/practice"} />;
+}
+
 function App() {
   const { isLoading } = useTelegram();
   if (isLoading) {
@@ -66,12 +71,12 @@ function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
-            <Route path="contest" element={<ContestComponent />} />
+            <Route path="contest" element={<LegacyContestRedirect to={(id) => `/assessment/${id}`} />} />
             <Route path="leaderboard" element={<Leaderboard />} />
             <Route path="statistics" element={<Statistics />} />
             <Route path="profile" element={<Profile />} />
-            <Route path="registration" element={<Registration />} />
-            <Route path="contest-editorial" element={<ContestEditorial />} />
+            <Route path="registration" element={<LegacyContestRedirect to={(id) => `/assessment/${id}`} />} />
+            <Route path="contest-editorial" element={<LegacyContestRedirect to={(id) => `/assessment/${id}/editorial`} />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="ai-practice" element={<AIPracticePage />} />
             <Route path="register" element={<RegistrationForm />} />
