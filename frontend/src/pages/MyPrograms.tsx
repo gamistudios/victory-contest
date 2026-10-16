@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, Crown, GraduationCap, LogOut, Plus, Sparkles, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { errData } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { CardSkeleton, EmptyState, InlineError } from "../academy/components/States";
 import { SectionTitle } from "../academy/components/PageHeader";
@@ -53,7 +54,7 @@ export default function MyPrograms() {
 
   const run = async (fn: () => Promise<unknown>) => {
     setErr(""); setBusy(true);
-    try { await fn(); await load(); } catch (e: any) { setErr(e?.response?.data?.error ?? "Request failed"); }
+    try { await fn(); await load(); } catch (e) { setErr(errData(e).error || "Request failed"); }
     finally { setBusy(false); }
   };
 

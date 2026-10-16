@@ -4,7 +4,7 @@ import api from "@/services/api";
 import type { Lock } from "@/shared/pricing/api";
 
 export interface Scope { program_id: string; stream_id: string; subject_id?: string; chapter_id?: string }
-export interface MyAttempt { id: string; status: string; is_late: boolean; correct: number; total: number; points: number }
+export interface MyAttempt { id: string; status: string; expires_at: string; is_late: boolean; correct: number; total: number; points: number }
 export interface AssessmentMeta {
   id: string; title: string; description: string; kind: string; mode: "self_paced" | "global";
   access: string; scope?: Scope; start_time: string; end_time: string; duration_minutes: number;
@@ -22,7 +22,7 @@ export interface PublicQuestion {
 }
 export interface StartResult { attempt: Attempt; questions: PublicQuestion[]; server_now: string; resumed: boolean }
 export interface EditorialItem {
-  id: string; question_text: string; question_image: string; multiple_choice: string[];
+  id: string; question_text: string; question_image: string; multiple_choice: string[]; option_images?: string[];
   answer: number; explanation: string; explanation_image: string; user_answer: number; is_correct: boolean;
 }
 export interface ResultView {
@@ -57,4 +57,3 @@ export async function getResult(attemptId: string): Promise<ResultView> {
 export async function assessmentLeaderboard(id: string): Promise<LeaderboardRow[]> {
   return (await api.get(`/assessments/${enc(id)}/leaderboard`)).data ?? [];
 }
-export const errCode = (e: any): string => e?.response?.data?.code ?? "";

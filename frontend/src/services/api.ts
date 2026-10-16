@@ -73,4 +73,17 @@ export function isAbortedRequest(err: unknown): boolean {
   return false;
 }
 
+/**
+ * errData reads the uniform JSON error body the backend writes
+ * (`{ error, code, ...extras }`) from a rejected axios call. Returns an empty
+ * object for network failures, so callers always fall back to their own copy.
+ */
+export function errData(err: unknown): Record<string, string> {
+  const shaped = err as { response?: { data?: Record<string, string> } } | null | undefined;
+  return shaped?.response?.data ?? {};
+}
+
+/** The machine-readable error code (`locked`, `already_attempted`, …). */
+export const errCode = (err: unknown): string => errData(err).code ?? "";
+
 export default api;

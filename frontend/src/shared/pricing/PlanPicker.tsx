@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Tag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { errData } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { listPlans, quotePlan, type PricePlan, type Quote } from "./api";
 
@@ -37,8 +38,8 @@ export default function PlanPicker({ programId, initialPlanId, initialCoupon, on
       const q = await quotePlan(id, "ETB", code);
       setQuote(q);
       onSelect(id, q, code);
-    } catch (e: any) {
-      const msg = e?.response?.data?.error ?? "Could not price this plan";
+    } catch (e) {
+      const msg = errData(e).error || "Could not price this plan";
       setQuote(null);
       // A bad coupon should not deselect the plan: re-quote without it.
       if (code) {

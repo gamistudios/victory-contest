@@ -1,58 +1,117 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { CalendarClock, CheckCircle2, ClipboardList, Clock, HelpCircle, Lock, PlayCircle, Trophy } from "lucide-react";
 import { useServerClock } from "@/shared/data/useServerClock";
+import { usePremiumSheet } from "@/context/PremiumSheetContext";
+import { CardSkeleton, InlineError } from "@/academy/components/States";
+import { cn } from "@/lib/utils";
 import { enc, getAssessment, type AssessmentMeta } from "./api";
+import { formatCountdown } from "./Timer";
 
-const when = (s: string) => (s ? new Date(s).toLocaleString() : "");
+const day = (s: string) => (s ? new Date(s).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "");
 
 /** Intro / resume screen with the late rule in plain words (plan §7.2). */
 export default function Intro() {
   const { id = "" } = useParams();
   const nav = useNavigate();
+  const { open: openPremium } = usePremiumSheet();
   const clock = useServerClock();
   const [a, setA] = useState<AssessmentMeta | null>(null);
   const [err, setErr] = useState("");
+  const [, tick] = useState(0);
 
   useEffect(() => {
     getAssessment(id).then((m) => { clock.sync(m.server_now); setA(m); })
       .catch(() => setErr("Could not load this assessment."));
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (err) return <div className="p-4 text-sm text-red-600">{err}</div>;
-  if (!a) return <div className="p-4 text-sm">Loading…</div>;
+  // One second tick so the "opens in" / "closes in" countdown moves on its own.
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
-  const opensIn = a.start_time ? Date.parse(a.start_time) - clock.now() : 0;
+  if (err) return <div className="mx-auto max-w-xl p-4"><InlineError message={err} onRetry={() => { setErr(""); void getAssessment(id).then((m) => { clock.sync(m.server_now); setA(m); }); }} /></div>;
+  if (!a) return <div className="mx-auto max-w-xl space-y-3 p-4"><CardSkeleton /><CardSkeleton /></div>;
+
+  const now = clock.now();
+  const opensIn = a.start_time ? Date.parse(a.start_time) - now : 0;
   const notOpen = opensIn > 0;
+  const closesIn = a.end_time ? Date.parse(a.end_time) - now : 0;
   const my = a.my_attempt;
   const done = my && my.status !== "in_progress";
+  // A global (window) contest can only be started before it closes; self-paced
+  // ones stay open past the end time and take the late penalty instead.
+  const closed = !my && a.mode === "global" && closesIn <= 0;
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-4 p-4">
-      <h1 className="text-xl font-bold">{a.title}</h1>
-      {a.description && <p className="text-sm opacity-80">{a.description}</p>}
-      <ul className="flex flex-col gap-1 text-sm">
-        <li>{a.question_count} questions</li>
-        {a.duration_minutes > 0 && <li>Time limit: {a.duration_minutes} minutes{a.mode === "self_paced" ? " from the moment you start" : ""}</li>}
-        {a.start_time && <li>Opens: {when(a.start_time)}</li>}
-        {a.end_time && <li>{a.mode === "self_paced" ? "On time until" : "Closes"}: {when(a.end_time)}</li>}
-        {a.reveal === "at_end" && a.end_time && <li>Answers are revealed at {when(a.end_time)}, for students who have finished.</li>}
-        {a.reveal === "on_submit" && <li>Answers are shown right after you submit.</li>}
+    <div className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-24">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-start gap-3">
+          <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+            a.lock ? "bg-yellow-100 text-yellow-700" : done ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700")}>
+            {a.lock ? <Lock className="h-6 w-6" /> : done ? <CheckCircle2 className="h-6 w-6" /> : <ClipboardList className="h-6 w-6" />}
+          </span>
+          <div className="min-w-0">
+            <h1 className="font-nunito text-lg font-extrabold text-foreground">{a.title}</h1>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span className="rounded-full bg-muted px-2 py-0.5 font-semibold capitalize">{a.kind.replace(/_/g, " ")}</span>
+              <span className="inline-flex items-center gap-1"><HelpCircle className="h-3.5 w-3.5" />{a.question_count}</span>
+              <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{a.duration_minutes > 0 ? `${a.duration_minutes} min` : "Until it closes"}</span>
+            </p>
+          </div>
+        </div>
+        {a.description && <p className="mt-3 whitespace-pre-wrap text-sm text-foreground/80">{a.description}</p>}
+      </div>
+
+      <ul className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 text-sm">
+        {a.start_time && (
+          <li className="flex items-center gap-2 text-muted-foreground">
+            <CalendarClock className="h-4 w-4 shrink-0" aria-hidden />
+            <span>{notOpen ? <>Opens at {day(a.start_time)} · <b className="text-foreground">in {formatCountdown(opensIn)}</b></> : `Opened ${day(a.start_time)}`}</span>
+          </li>
+        )}
+        {a.end_time && (
+          <li className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="h-4 w-4 shrink-0" aria-hidden />
+            <span>{a.mode === "self_paced" ? "On time until" : "Closes"} {day(a.end_time)}{!notOpen && closesIn > 0 ? ` · in ${formatCountdown(closesIn)}` : ""}</span>
+          </li>
+        )}
+        {a.reveal === "at_end" && a.end_time && (
+          <li className="flex items-center gap-2 text-muted-foreground"><Trophy className="h-4 w-4 shrink-0" aria-hidden />Answers are revealed at {day(a.end_time)}, for students who have finished.</li>
+        )}
+        {a.reveal === "on_submit" && (
+          <li className="flex items-center gap-2 text-muted-foreground"><Trophy className="h-4 w-4 shrink-0" aria-hidden />Answers are shown right after you submit.</li>
+        )}
       </ul>
+
       {a.mode === "self_paced" && a.end_time && (
-        <p className="rounded-xl bg-amber-50 p-3 text-sm">
-          You can start any time, even after {when(a.end_time)}. If you <b>submit</b> after that time you lose {a.late_penalty_percent}% of your points.
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          You can start any time, even after {day(a.end_time)}. If you <b>submit</b> after that time you lose {a.late_penalty_percent}% of your points.
           Only your first attempt is recorded.
         </p>
       )}
-      {a.lock && <p className="rounded-xl bg-muted p-3 text-sm">This assessment is Premium. <Link className="underline" to="/payment">Upgrade</Link> to start.</p>}
-      {notOpen && <p className="text-sm">This opens at {when(a.start_time)}.</p>}
-      {done ? (
-        <button className="h-12 rounded-xl bg-primary text-primary-foreground" onClick={() => nav(`/attempt/${enc(my!.id)}/result`)}>View result</button>
-      ) : (
-        <button className="h-12 rounded-xl bg-primary text-primary-foreground disabled:opacity-50" disabled={notOpen || !!a.lock}
-          onClick={() => nav(`/assessment/${enc(a.id)}/exam`)}>{my ? "Resume" : "Start"}</button>
+      {a.lock && (
+        <button type="button" onClick={() => openPremium("premium_contest")}
+          className="rounded-2xl border border-border bg-muted p-3 text-left text-sm">
+          This assessment is Premium. <span className="font-semibold underline">See plans</span> to start.
+        </button>
       )}
-      <Link className="text-center text-sm underline" to={`/assessment/${enc(a.id)}/leaderboard`}>Leaderboard</Link>
+      {closed && <p className="rounded-2xl border border-border bg-muted p-3 text-sm text-muted-foreground">This closed at {day(a.end_time)}. It is no longer open for new attempts.</p>}
+
+      {done ? (
+        <button className="h-12 rounded-xl bg-primary text-sm font-bold text-primary-foreground" onClick={() => nav(`/attempt/${enc(my!.id)}/result`)}>
+          View result · {my!.points} pts
+        </button>
+      ) : (
+        <button className="h-12 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
+          disabled={notOpen || closed || !!a.lock} onClick={() => nav(`/assessment/${enc(a.id)}/exam`)}>
+          <PlayCircle className="mr-1 inline h-4 w-4" aria-hidden />
+          {my ? `Resume · ${formatCountdown(Math.max(0, Date.parse(my.expires_at) - now))} left`
+            : closed ? "Closed" : notOpen ? "Wait for it to open" : "Start"}
+        </button>
+      )}
+      <Link className="text-center text-sm underline text-muted-foreground" to={`/assessment/${enc(a.id)}/leaderboard`}>Leaderboard</Link>
     </div>
   );
 }
