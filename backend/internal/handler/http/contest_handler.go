@@ -19,6 +19,8 @@ type ContestHandler struct {
 	notificationService usecase.NotificationUsecase
 	pricing             *usecase.PricingUsecase // optional: premium gate (D2)
 	jwtSecret           []byte
+	// scopeCheck validates a contest Scope against the catalog (wired by NewRouter; nil in tests).
+	scopeCheck func(domain.Scope) error
 }
 
 // premiumContest: contests have no Scope yet (Phase 2), so the interim gate
@@ -100,6 +102,12 @@ func (h *ContestHandler) AddContest(c *gin.Context) {
 	if err := c.ShouldBindJSON(&contest); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	if contest.Scope != nil && h.scopeCheck != nil {
+		if err := h.scopeCheck(*contest.Scope); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 	id, err := h.usecase.AddContest(contest)
 	if err != nil {
@@ -193,10 +201,7 @@ func (h *ContestHandler) UpdateContest(c *gin.Context) {
 	}
 
 	// Validate that at least one field was updated
-	if !providedAnyUpdate {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No valid fields provided for update"})
-		return
-	}
+	_ = providedAnyUpdate // re-evaluated after the typed Phase 2 patch below
 
 	// Preserve existing fields that weren't updated
 	if update.Title == "" {
@@ -227,6 +232,40 @@ func (h *ContestHandler) UpdateContest(c *gin.Context) {
 		update.Type = currentContest.Contest.Type
 	}
 
+	// Phase 2 (D11): carry the stored Scope/Phase 2 fields over (a full-row
+	// update would otherwise drop them), then apply the typed patch.
+	cur := currentContest.Contest
+	update.Scope, update.Kind, update.Mode = cur.Scope, cur.Kind, cur.Mode
+	update.DurationMinutes, update.LatePenaltyPercent, update.Reveal = cur.DurationMinutes, cur.LatePenaltyPercent, cur.Reveal
+	update.ShuffleQuestions, update.ShuffleOptions, update.Year, update.Source = cur.ShuffleQuestions, cur.ShuffleOptions, cur.Year, cur.Source
+	var patch domain.ContestPatch
+	if raw, mErr := json.Marshal(rawData); mErr == nil {
+		if uErr := json.Unmarshal(raw, &patch); uErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assessment field: " + uErr.Error()})
+			return
+		}
+	}
+	if patch.Apply(&update) {
+		providedAnyUpdate = true
+		if update.Scope != nil && patch.Scope != nil {
+			if h.scopeCheck != nil {
+				if vErr := h.scopeCheck(*update.Scope); vErr != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": vErr.Error()})
+					return
+				}
+			} else if update.Scope.ProgramID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "scope.program_id is required"})
+				return
+			}
+		}
+		if update.Mode != "" {
+			if vErr := usecase.ValidateContestPhase2(&update); vErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": vErr.Error()})
+				return
+			}
+		}
+	}
+
 	// Preserve questions unless the caller sent a valid replacement list.
 	update.Questions = currentContest.Contest.Questions
 	if questionsProvided && len(newQuestions) > 0 {
@@ -250,6 +289,11 @@ func (h *ContestHandler) UpdateContest(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+	}
+
+	if !providedAnyUpdate {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No valid fields provided for update"})
+		return
 	}
 
 	// Perform the update

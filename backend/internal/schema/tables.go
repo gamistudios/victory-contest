@@ -83,6 +83,13 @@ var Tables = []Table{
 	{Name: "entitlements", GSIs: []GSI{
 		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},
 	}},
+	// Phase 2 (plan §5.4.2): one recorded attempt per student per assessment.
+	{Name: "attempts", GSIs: []GSI{
+		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},
+		{Name: "contest_id-index", Partition: "contest_id", PartType: types.ScalarAttributeTypeS},
+		{Name: "status-expires_at-index", Partition: "status", Sort: "expires_at",
+			PartType: types.ScalarAttributeTypeS, SortType: types.ScalarAttributeTypeS},
+	}},
 	{Name: "submissions", GSIs: []GSI{
 		{Name: "contest_id-index", Partition: "contest_id", PartType: types.ScalarAttributeTypeS},
 		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},

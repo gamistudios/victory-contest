@@ -14,6 +14,8 @@ type SubmissionHandler struct {
 	// studentAuthMw is wired by NewRouter; when set, POST / requires a
 	// student token whose Telegram id equals student.student_id (S2).
 	studentAuthMw gin.HandlerFunc
+	// legacy routes Phase 2 contests through the attempt engine (SubmitLegacy); nil in tests.
+	legacy func(domain.SubmissionDto) (string, float64, error)
 	// studentOwnerMw (D5) guards the per-student read routes that carry
 	// :student_id in the path: a student may only read their own data, the
 	// admin cookie keeps access. Nil in handler unit tests (ungated).
@@ -58,8 +60,24 @@ func (h *SubmissionHandler) AddSubmission(c *gin.Context) {
 
 	// The usecase grades server-side; `score` in the response is the OFFICIAL
 	// score, not what the client claimed (README §9 #12).
-	id, score, err := h.usecase.AddSubmission(submission)
+	var id string
+	var score float64
+	var err error
+	handledByAttempts := false
+	if h.legacy != nil {
+		id, score, err = h.legacy(submission)
+		if !errors.Is(err, usecase.ErrNotPhase2) {
+			handledByAttempts = true
+		}
+	}
+	if !handledByAttempts {
+		id, score, err = h.usecase.AddSubmission(submission)
+	}
 	if err != nil {
+		if errors.Is(err, usecase.ErrNotOpenYet) || errors.Is(err, usecase.ErrWindowClosed) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "code": err.Error()})
+			return
+		}
 		switch {
 		case errors.Is(err, usecase.ErrContestNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

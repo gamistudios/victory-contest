@@ -14,6 +14,15 @@ type Submission struct {
 	MissedQuestions []SubmissionMissedQuestionDto `json:"missed_questions"  dynamodbav:"missed_questions"`
 	SubmissionTime  time.Time                     `json:"submission_time"   dynamodbav:"submission_time"`
 	TimeSpend       string                        `json:"time_spend"        dynamodbav:"time_spend"`
+
+	// Phase 2 (plan §5.4.2). Score stays the raw correct count; leaderboards use Points.
+	Scope           *Scope `json:"scope,omitempty"            dynamodbav:"scope,omitempty"`
+	AttemptID       string `json:"attempt_id,omitempty"       dynamodbav:"attempt_id,omitempty"`
+	StartedAt       string `json:"started_at,omitempty"       dynamodbav:"started_at,omitempty"`
+	IsLate          bool   `json:"is_late"                    dynamodbav:"is_late"`
+	PenaltyPercent  int    `json:"penalty_percent"            dynamodbav:"penalty_percent"`
+	Points          int    `json:"points"                     dynamodbav:"points"`
+	DurationSeconds int    `json:"duration_seconds"           dynamodbav:"duration_seconds"`
 }
 
 type SubmissionMissedQuestionDto struct {

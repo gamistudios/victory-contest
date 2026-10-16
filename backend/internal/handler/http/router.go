@@ -50,6 +50,8 @@ type Server struct {
 	catalogHandler             *CatalogHandler
 	pricingHandler             *PricingHandler
 	enrollmentHandler          *EnrollmentHandler
+	assessmentHandler          *AssessmentHandler
+	attemptUsecase             *usecase.AttemptUsecase
 	jwtSecret                  string
 	aiRequestsPerMinute        int
 }
@@ -131,6 +133,8 @@ func NewServer() *Server {
 	studentUsecase := usecase.NewStudentUsecase(studentRepo, paymentRepo, submissionRepo, contestRepo)
 	questionUsecase := usecase.NewQuestionUsecase(questionRepo)
 	submissionUsecase := usecase.NewSubmissionUsecase(submissionRepo, contestUsecase, questionRepo, studentRepo)
+	attemptRepo := repository.NewAttemptDynamoRepository(ddb, "attempts")
+	attemptUsecase := usecase.NewAttemptUsecase(attemptRepo, contestRepo, questionRepo, studentRepo, submissionRepo)
 	adminUsecase := usecase.NewAdminUsecase(adminRepo, studentRepo, contestRepo, submissionRepo, contestRegistrationRepo, paymentRepo, pageViewRepo).WithQuestionRepo(questionRepo)
 	pageViewUsecase := usecase.NewPageViewUsecase(pageViewRepo)
 	articleUsecase := usecase.NewArticleUsecase(articleRepo, commentRepo)
@@ -277,6 +281,8 @@ func NewServer() *Server {
 		catalogHandler:           NewCatalogHandler(academyUsecase),
 		pricingHandler:           NewPricingHandler(pricingUsecase, paymentUsecase),
 		enrollmentHandler:        NewEnrollmentHandler(enrollmentUsecase),
+		assessmentHandler:        NewAssessmentHandler(attemptUsecase),
+		attemptUsecase:           attemptUsecase,
 		jwtSecret:                jwtSecret,
 		aiRequestsPerMinute:      aiRequestsPerMinute,
 	}
@@ -292,8 +298,31 @@ func NewServer() *Server {
 	server.paymentHandler.studentAuthMw = studentAuthMw
 	server.pricingHandler.studentAuth = studentAuthMw
 	server.enrollmentHandler.studentAuth = studentAuthMw
+	server.assessmentHandler.studentAuth = studentAuthMw
+	server.submissionHandler.legacy = attemptUsecase.SubmitLegacy
+	if b, ok := submissionUsecase.(interface{ AwardBadges(domain.Submission) error }); ok {
+		attemptUsecase.OnSubmission = b.AwardBadges
+	}
 	server.contestHandler.pricing = pricingUsecase
 	server.contestHandler.jwtSecret = []byte(jwtSecret)
+	server.contestHandler.scopeCheck = func(s domain.Scope) error {
+		v, err := academyUsecase.Catalog()
+		if err != nil {
+			return nil // catalog unavailable: do not block admins on a read failure
+		}
+		return usecase.ValidateScopeAgainst(v, s)
+	}
+	// Phase 2: premium gate on attempt start / assessment lock (plan §5.3).
+	server.attemptUsecase.Access = func(studentID string, c domain.Contest) error {
+		if !server.contestHandler.studentLocked(studentID, c.Type, c.Scope) {
+			return nil
+		}
+		pid := ""
+		if c.Scope != nil {
+			pid = c.Scope.ProgramID
+		}
+		return &usecase.LockedError{Lock: usecase.LockFor(usecase.LockedPremium, pid)}
+	}
 	server.telegramHandler.studentAuthMw = studentAuthMw
 	server.submissionHandler.studentOwnerMw = studentOwnerOrAdminAuth([]byte(jwtSecret), "student_id")
 	server.contestRegistrationHandler.studentAuthMw = studentAuthMw
@@ -379,6 +408,13 @@ func corsMiddleware(allowlist []string) gin.HandlerFunc {
 	}
 }
 
+// RunAttemptSweeper finalises expired attempts every 60 s until stop closes (plan §5.4.2).
+func (s *Server) RunAttemptSweeper(stop <-chan struct{}) {
+	if s.attemptUsecase != nil {
+		s.attemptUsecase.RunSweeper(60*time.Second, stop)
+	}
+}
+
 func (s *Server) NewRouter() *gin.Engine {
 	r := gin.Default()
 	r.Use(corsMiddleware(corsAllowedOrigins()))
@@ -424,6 +460,7 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.catalogHandler.RegisterAdminRoutes(api.Group("/locations-admin", adminAuthMw))
 	s.pricingHandler.RegisterRoutes(api, adminAuthMw)
 	s.enrollmentHandler.RegisterRoutes(api, adminAuthMw)
+	s.assessmentHandler.RegisterRoutes(api, adminAuthMw)
 	// Victory Academy (Learn): student routes need the student session JWT,
 	// /admin routes the admin cookie; AI routes share the Gemini rate limiter.
 	s.academyHandler.RegisterRoutes(api.Group("/academy"), studentAuth([]byte(s.jwtSecret)), adminAuthMw,

@@ -297,7 +297,7 @@ func (u *submissionUsecase) GetStudentEditorial(conId string, studId string) (*E
 	// must not be able to read the remaining answers off the editorial while
 	// the contest is still open, so while live we return no judged questions
 	// at all (the FE renders the message).
-	if !ContestHasEnded(contest.EndTime) {
+	if !EditorialVisible(contest.Contest, submission != nil, time.Now().UTC()) {
 		return &EditorialResult{
 			Editorial:    []domain.Editorial{},
 			Participated: participated,
@@ -549,6 +549,10 @@ func (u *submissionUsecase) AddSubmission(submission domain.SubmissionDto) (stri
 
 	return id, officialScore, nil
 }
+// AwardBadges lets the attempt engine evaluate badges for one finalised
+// submission (plan §5.4.2 side effects). Errors are returned for logging only.
+func (u *submissionUsecase) AwardBadges(s domain.Submission) error { return u.evaluateAndAwardBadges(s) }
+
 func (u *submissionUsecase) GetSubmissionByID(id string) (*domain.Submission, error) {
 	return u.subRepo.GetSubmissionByID(id)
 }

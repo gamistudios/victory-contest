@@ -116,6 +116,21 @@ func (u *contestUsecase) AddContest(contest domain.Contest) (string, error) {
 	if err := ValidateContestTimes(contest.StartTime, contest.EndTime); err != nil {
 		return "", err
 	}
+	// Phase 2 (plan §5.4.1): new assessments default to self_paced with a 10%
+	// late penalty. A request that carries no Phase 2 field at all (the current
+	// admin form) stays a legacy "global" contest so it keeps working until the
+	// admin form sends duration_minutes.
+	if contest.Mode == "" && contest.DurationMinutes > 0 {
+		contest.Mode = domain.ContestModeSelfPaced
+		if contest.LatePenaltyPercent == 0 {
+			contest.LatePenaltyPercent = domain.DefaultLatePenaltyPercent
+		}
+	}
+	if contest.Mode != "" {
+		if err := ValidateContestPhase2(&contest); err != nil {
+			return "", err
+		}
+	}
 	contest.ID = GenerateUniqueId()
 	return u.contestRepo.AddContest(contest)
 }
