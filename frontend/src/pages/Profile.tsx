@@ -21,6 +21,8 @@ import CollapseText from "../components/ui/Collapse";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 import { badges } from "../lib/data";
+import { CardSkeleton } from "@/academy/components/States";
+import { cn } from "@/lib/utils";
 
 interface AchievementStyle {
   icon: React.ComponentType<{ className?: string }>;
@@ -84,7 +86,7 @@ const formatEarnedDate = (earnedDate?: string): string | null => {
 
 const getRarityBadge = (rarity: "common" | "rare" | "epic" | "legendary") => {
   const colors = {
-    common: "bg-gray-100 text-gray-800",
+    common: "bg-muted text-muted-foreground",
     rare: "bg-blue-100 text-blue-800",
     epic: "bg-purple-100 text-purple-800",
     legendary: "bg-gradient-to-r from-yellow-400 to-orange-fix-500 text-white",
@@ -92,7 +94,10 @@ const getRarityBadge = (rarity: "common" | "rare" | "epic" | "legendary") => {
 
   return (
     <span
-      className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[rarity]}`}
+      className={cn(
+        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+        colors[rarity]
+      )}
     >
       {rarity.toUpperCase()}
     </span>
@@ -270,32 +275,33 @@ const Profile = () => {
 
   if (profileLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-blue-500"></div>
+      <div className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-24">
+        <CardSkeleton />
+        <CardSkeleton />
       </div>
     );
   }
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <Link to="/programs" className="block mb-4 rounded-xl border border-blue-100 bg-card px-4 py-3 text-sm font-medium text-blue-600 shadow-sm">My programs &amp; access →</Link>
-      <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-        <div className="flex items-center justify-between mb-6 relative">
-          <div className="flex items-center space-x-4">
+    <div className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-24">
+      <Link to="/programs" className="block rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold text-blue-700">My programs &amp; access →</Link>
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-4">
             {tgUser?.photo_url ? (
               <img
                 src={tgUser.photo_url}
                 alt={tgUser.first_name}
-                className="w-20 h-20 rounded-full object-cover border-4 border-blue-100 shadow-lg"
+                className="h-20 w-20 shrink-0 rounded-full border-4 border-blue-100 object-cover"
               />
             ) : (
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-fix-500 to-purple-fix-600 rounded-full flex items-center justify-center border-4 border-blue-100 shadow-lg">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 border-blue-100 bg-gradient-to-br from-blue-fix-500 to-purple-fix-600">
                 <span className="text-white text-2xl font-bold">
                   {tgUser?.first_name?.charAt(0) || "U"}
                   {user?.name}
                 </span>
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               {isEditing ? (
                 <input
                   type="text"
@@ -306,35 +312,35 @@ const Profile = () => {
                       name: e.target.value,
                     }))
                   }
-                  className="min-w-full bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
+                  className="min-w-full rounded-lg border border-border bg-muted px-3 py-1 text-foreground mb-2"
                 />
               ) : (
-                <h2 className="text-xl font-bold text-gray-800">
+                <h2 className="font-nunito text-xl font-extrabold text-foreground">
                   {tgUser?.first_name || "Student"}
                   {tgUser?.last_name && ` ${tgUser.last_name}`}
                 </h2>
               )}
-              <div className="flex items-center space-x-2 mb-2">
-                <p className="text-gray-600">
+              <div className="mb-2 flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
                   @{tgUser?.username || "student"}
                 </p>
                 {user?.is_premium && (
-                  <span className="px-2 py-0.5 bg-gradient-to-r from-yellow-400 to-orange-fix-500 text-white text-xs font-medium rounded-full">
+                  <span className="shrink-0 rounded-full bg-gradient-to-r from-yellow-400 to-orange-fix-500 px-2 py-0.5 text-[11px] font-semibold text-white">
                     Premium
                   </span>
                 )}
               </div>
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-2">
                 <Badge variant={user?.isSuspended ? "destructive" : "success"}>
                   {user?.isSuspended ? "Suspended" : "Active"}
                 </Badge>
               </div>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex shrink-0 items-center gap-2">
             {!isEditing && (
               <Button
-                className="absolute top-0 right-0 flex border-1 border-gray-600 items-center px-4 py-2 bg-blue-50 text-blue-600  hover:bg-blue-100 transition-colors"
+                className="flex items-center rounded-xl border border-border bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                 onClick={() => setIsEditing(true)}
               >
                 Edit
@@ -342,9 +348,9 @@ const Profile = () => {
             )}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="mt-4 grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">
               Grade Level
             </label>
             {isEditing ? (
@@ -371,34 +377,34 @@ const Profile = () => {
                 </SelectContent>
               </Select>
             ) : (
-              <div className="text-gray-800">{user?.grade}</div>
+              <div className="text-sm font-semibold text-foreground">{user?.grade}</div>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">
               Current Rank
             </label>
-            <div className="flex items-center">
-              <span className="text-lg font-bold text-blue-600">
+            <div className="flex items-center gap-2">
+              <span className="font-nunito text-lg font-extrabold text-blue-700">
                 #{userStats?.rank || "N/A"}
               </span>
-              <span className="text-sm text-gray-600 ml-2">
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                 Global
               </span>
-              <TrendingUp className="w-4 h-4 text-green-500 ml-2" />
+              <TrendingUp className="h-4 w-4 shrink-0 text-green-600" />
             </div>
           </div>
         </div>
 
         <CollapseText>
-          <div className="grid grid-cols-2 gap-4 transition-all duration-1000 ease-in-out data-[state=closed]:h-0 data-[state=closed]:opacity-0 data-[state=open]:opacity-100 overflow-hidden">
+          <div className="grid grid-cols-2 gap-3 transition-all duration-1000 ease-in-out data-[state=closed]:h-0 data-[state=closed]:opacity-0 data-[state=open]:opacity-100 overflow-hidden">
             <div>
-              <div className="flex items-center  text-sm font-medium text-gray-700 gap-2 mb-1">
-                <GraduationCap />
-                <h4 className=" ">School</h4>
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <GraduationCap className="h-4 w-4 shrink-0" />
+                <h4 className="min-w-0 truncate">School</h4>
               </div>
               {!isEditing ? (
-                <div className="text-sm font-bold text-gray-800">
+                <div className="text-sm font-semibold text-foreground">
                   {user?.school || "Not provided"}
                 </div>
               ) : (
@@ -411,18 +417,18 @@ const Profile = () => {
                       school: e.target.value,
                     }))
                   }
-                  className="w-24 bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
+                  className="w-24 mb-2 rounded-lg border border-border bg-muted px-3 py-1 text-foreground"
                 />
               )}
             </div>
             <div>
-              <div className="flex gap-2 items-center text-sm font-medium text-gray-700 mb-1">
-                <Building2 className="w-5 h-5 " />
-                <h4 className="">City</h4>
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <Building2 className="h-4 w-4 shrink-0" />
+                <h4 className="min-w-0 truncate">City</h4>
               </div>
 
               {!isEditing ? (
-                <div className="text-sm font-bold text-gray-800">
+                <div className="text-sm font-semibold text-foreground">
                   {user?.city || "Not provided"}
                 </div>
               ) : (
@@ -435,18 +441,18 @@ const Profile = () => {
                       city: e.target.value,
                     }))
                   }
-                  className="w-24 bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
+                  className="w-24 mb-2 rounded-lg border border-border bg-muted px-3 py-1 text-foreground"
                 />
               )}
             </div>
             <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                <Globe className="w-5 h-5 " />
-                <h4 className="">Region</h4>
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <Globe className="h-4 w-4 shrink-0" />
+                <h4 className="min-w-0 truncate">Region</h4>
               </div>
 
               {!isEditing ? (
-                <div className="text-sm font-bold text-gray-600">
+                <div className="text-sm font-semibold text-foreground">
                   {user?.region || "Not provided"}
                 </div>
               ) : (
@@ -459,18 +465,18 @@ const Profile = () => {
                       region: e.target.value,
                     }))
                   }
-                  className="w-24 bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
+                  className="w-24 mb-2 rounded-lg border border-border bg-muted px-3 py-1 text-foreground"
                 />
               )}
             </div>
             <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                <User className="w-5 h-5 " />
-                <h4 className="">Age</h4>
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <User className="h-4 w-4 shrink-0" />
+                <h4 className="min-w-0 truncate">Age</h4>
               </div>
 
               {!isEditing ? (
-                <div className="text-sm font-bold text-blue-600">
+                <div className="text-sm font-semibold text-blue-700">
                   {user?.age || "Not provided"} years old
                 </div>
               ) : (
@@ -483,7 +489,7 @@ const Profile = () => {
                       age: e.target.value,
                     }))
                   }
-                  className="w-24 bg-gray-100 text-gray-800 rounded-lg px-3 py-1 mb-2"
+                  className="w-24 mb-2 rounded-lg border border-border bg-muted px-3 py-1 text-foreground"
                 />
               )}
             </div>
@@ -491,98 +497,110 @@ const Profile = () => {
         </CollapseText>
 
         {isEditing && (
-          <div className="flex gap-4 space-x-0 mt-4">
+          <div className="mt-4 flex gap-2">
             <Button
               onClick={() => setIsEditing(false)}
-              className="bg-card text-foreground border-1 border-gray-300 hover:bg-card"
+              className="border border-border bg-card text-foreground hover:bg-muted"
             >
               Cancel
             </Button>
             <Button
               disabled={saving || !hasChanges}
               onClick={handleSave}
-              className="bg-green-50 text-green-600 font-semibold hover:bg-gray-50 disabled:opacity-50"
+              className="bg-green-100 text-green-700 font-semibold hover:bg-green-200 disabled:opacity-50"
             >
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
             </Button>
           </div>
         )}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {userStats && (
           <>
-            <div className="flex flex-col items-center justify-center p-4 rounded-xl shadow-sm border border-gray-100 text-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
-                role="img"
-                className="h-10 w-10 align-middl text-orange-500"
-                width="1.5em"
-                height="1.5em"
-                preserveAspectRatio="xMidYMid meet"
-                viewBox="0 0 256 256"
-                style={{ fill: "currentColor" }}
-              >
-                <g fill="currentColor">
-                  <path
-                    d="M176 56a24 24 0 1 1-24-24a24 24 0 0 1 24 24"
-                    opacity=".2"
-                  ></path>
-                  <path d="M152 88a32 32 0 1 0-32-32a32 32 0 0 0 32 32m0-48a16 16 0 1 1-16 16a16 16 0 0 1 16-16m67.31 100.68c-.61.28-7.49 3.28-19.67 3.28c-13.85 0-34.55-3.88-60.69-20a169.3 169.3 0 0 1-15.41 32.34a104.3 104.3 0 0 1 31.31 15.81C173.92 186.65 184 207.35 184 232a8 8 0 0 1-16 0c0-41.7-34.69-56.71-54.14-61.85c-.55.7-1.12 1.41-1.69 2.1c-19.64 23.8-44.25 36.18-71.63 36.18a92 92 0 0 1-9.34-.43a8 8 0 0 1 1.6-16c25.92 2.59 48.47-7.49 67-30c12.49-15.14 21-33.61 25.25-47c-38.92-22.66-63.78-3.37-64.05-3.16a8 8 0 1 1-10-12.48c1.5-1.2 37.22-29 89.51 6.57c45.47 30.91 71.93 20.31 72.18 20.19a8 8 0 1 1 6.63 14.56Z"></path>
-                </g>
-              </svg>
-              <div className="text-2xl font-bold text-gray-800">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-700">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                  role="img"
+                  className="h-6 w-6"
+                  width="1.5em"
+                  height="1.5em"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 256 256"
+                  style={{ fill: "currentColor" }}
+                >
+                  <g fill="currentColor">
+                    <path
+                      d="M176 56a24 24 0 1 1-24-24a24 24 0 0 1 24 24"
+                      opacity=".2"
+                    ></path>
+                    <path d="M152 88a32 32 0 1 0-32-32a32 32 0 0 0 32 32m0-48a16 16 0 1 1-16 16a16 16 0 0 1 16-16m67.31 100.68c-.61.28-7.49 3.28-19.67 3.28c-13.85 0-34.55-3.88-60.69-20a169.3 169.3 0 0 1-15.41 32.34a104.3 104.3 0 0 1 31.31 15.81C173.92 186.65 184 207.35 184 232a8 8 0 0 1-16 0c0-41.7-34.69-56.71-54.14-61.85c-.55.7-1.12 1.41-1.69 2.1c-19.64 23.8-44.25 36.18-71.63 36.18a92 92 0 0 1-9.34-.43a8 8 0 0 1 1.6-16c25.92 2.59 48.47-7.49 67-30c12.49-15.14 21-33.61 25.25-47c-38.92-22.66-63.78-3.37-64.05-3.16a8 8 0 1 1-10-12.48c1.5-1.2 37.22-29 89.51 6.57c45.47 30.91 71.93 20.31 72.18 20.19a8 8 0 1 1 6.63 14.56Z"></path>
+                  </g>
+                </svg>
+              </span>
+              <div className="font-nunito text-lg font-extrabold text-foreground">
                 {userStats.totalContests}
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Contests
               </div>
             </div>
-            <div className="bg-card flex flex-col items-center justify-center p-4 rounded-xl shadow-sm border border-gray-100 text-center">
-              <CheckMarkIcon className="w-10 h-10 text-green-500 mb-2" />
-              <div className="text-2xl font-bold text-gray-800">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-green-700">
+                <CheckMarkIcon className="h-6 w-6" />
+              </span>
+              <div className="font-nunito text-lg font-extrabold text-foreground">
                 {userStats.correctAnswers}
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Correct
               </div>
             </div>
-            <div className="bg-card flex flex-col items-center justify-center p-4 rounded-xl shadow-sm border border-gray-100 text-center">
-              <TargetIcon className="w-10 h-10 text-blue-500 mb-2" />
-              <div className="text-2xl font-bold text-gray-800">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+                <TargetIcon className="h-6 w-6" />
+              </span>
+              <div className="font-nunito text-lg font-extrabold text-foreground">
                 {userStats.accuracy}%
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Accuracy
               </div>
             </div>
-            <div className="bg-card flex flex-col items-center justify-center p-4 rounded-xl shadow-sm border border-gray-100 text-center">
-              <TimeIcon className="w-10 h-10 text-purple-500 mb-2" />
-              <div className="text-2xl font-bold text-gray-800">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-purple-100 text-purple-700">
+                <TimeIcon className="h-6 w-6" />
+              </span>
+              <div className="font-nunito text-lg font-extrabold text-foreground">
                 {userStats.averageTime}s
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Avg. Time
               </div>
             </div>
           </>
         )}
       </div>
-      <div className="space-y-6">
-        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-              <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
-              Earned Achievements ({earnedAchievements.length})
-            </h3>
-            <div className="text-sm text-gray-600">
+      <div className="flex flex-col gap-3">
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-yellow-100 text-yellow-700">
+                <Trophy className="h-5 w-5" />
+              </span>
+              <h3 className="font-nunito text-base font-extrabold text-foreground">
+                Earned Achievements ({earnedAchievements.length})
+              </h3>
+            </div>
+            <div className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
               {Math.round(
                 (earnedAchievements.length / achievements.length) * 100
               )}
               % Complete
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {earnedAchievements.map((achievement) => {
               const {
                 icon: IconComponent,
@@ -594,17 +612,24 @@ const Profile = () => {
               return (
                 <div
                   key={achievement.name}
-                  className={`relative p-4 rounded-xl border-2 ${borderColor} ${bgColor} transition-all hover:scale-105 cursor-pointer group`}
+                  className={cn(
+                    "group relative cursor-pointer rounded-2xl border-2 p-3 transition-all hover:scale-105",
+                    borderColor,
+                    bgColor
+                  )}
                 >
-                  <div className="flex items-start space-x-3">
+                  <div className="flex items-start gap-3">
                     <div
-                      className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-lg`}
+                      className={cn(
+                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br",
+                        color
+                      )}
                     >
-                      <IconComponent className="w-6 h-6 text-white" />
+                      <IconComponent className="h-5 w-5 text-white" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className={`font-bold ${textColor}`}>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center justify-between gap-1">
+                        <h4 className={`text-sm font-bold ${textColor}`}>
                           {achievement.name}
                         </h4>
                         {getRarityBadge(
@@ -615,12 +640,12 @@ const Profile = () => {
                             | "legendary"
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">
+                      <p className="text-xs text-muted-foreground">
                         {achievement.description}
                       </p>
                       {formatEarnedDate(achievement.earnedDate) && (
-                        <div className="flex items-center text-xs text-gray-500">
-                          <Calendar className="w-3 h-3 mr-1" />
+                        <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <Calendar className="h-3 w-3 shrink-0" />
                           Earned {formatEarnedDate(achievement.earnedDate)}
                         </div>
                       )}
@@ -632,27 +657,31 @@ const Profile = () => {
             })}
           </div>
         </div>
-        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-            <Lock className="w-5 h-5 mr-2 text-gray-500" />
-            Locked Achievements ({unlockedAchievements.length})
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+              <Lock className="h-5 w-5" />
+            </span>
+            <h3 className="font-nunito text-base font-extrabold text-foreground">
+              Locked Achievements ({unlockedAchievements.length})
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {unlockedAchievements.map((achievement) => {
               const { icon: IconComponent } =
                 achievementStyles[achievement.type];
               return (
                 <div
                   key={achievement.name}
-                  className="relative p-4 rounded-xl border-2 border-gray-200 bg-gray-50 opacity-75 hover:opacity-90 transition-all"
+                  className="relative rounded-2xl border border-border bg-card p-3 opacity-75 transition-all hover:opacity-90"
                 >
-                  <div className="flex items-start space-x-3">
-                    <div className="w-12 h-12 rounded-xl bg-gray-300 flex items-center justify-center">
-                      <IconComponent className="w-6 h-6 text-gray-500" />
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                      <IconComponent className="h-5 w-5" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-bold text-gray-600">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center justify-between gap-1">
+                        <h4 className="text-sm font-bold text-muted-foreground">
                           {achievement.name}
                         </h4>
                         {getRarityBadge(
@@ -663,18 +692,18 @@ const Profile = () => {
                             | "legendary"
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 mb-2">
+                      <p className="text-xs text-muted-foreground">
                         {achievement.description}
                       </p>
                       {achievement.progress && (
-                        <div className="mt-2">
-                          <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                        <div className="mt-1">
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
                             <span>Progress</span>
                             <span>{achievement.progress ?? 0}%</span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="h-1.5 w-full rounded-full bg-border">
                             <div
-                              className="bg-gradient-to-r from-blue-fix-500 to-purple-fix-600 h-2 rounded-full transition-all duration-300"
+                              className="bg-gradient-to-r from-blue-fix-500 to-purple-fix-600 h-1.5 rounded-full transition-all duration-300"
                               style={{ width: `${0}%` }}
                             ></div>
                           </div>

@@ -48,6 +48,7 @@ import {
 import api from "../services/api";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
+import { CardSkeleton, InlineError, EmptyState } from "@/academy/components/States";
 import { getAiRecommendationsFromApi } from "../services/aiService";
 import { useAuth } from "../context/AuthContext";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
@@ -272,33 +273,29 @@ const Statistics: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="mx-auto max-w-xl space-y-3 p-4">
+        <CardSkeleton />
+        <CardSkeleton />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-red-500">
-        <div className="text-lg mb-2">{error}</div>
-        <button
-          onClick={() => setRetryTick((t) => t + 1)}
-          className="px-4 py-2 bg-blue-fix-500 text-white rounded-lg"
-        >
-          Retry
-        </button>
+      <div className="mx-auto max-w-xl p-4">
+        <InlineError message={error} onRetry={() => setRetryTick((t) => t + 1)} />
       </div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-        <div className="text-2xl mb-2">No statistics available yet.</div>
-        <div className="text-sm">
-          Participate in contests to see your statistics!
-        </div>
+      <div className="mx-auto max-w-xl p-4">
+        <EmptyState
+          icon={<BarChart3 className="h-6 w-6" />}
+          title="No statistics available yet."
+          hint="Participate in contests to see your statistics!"
+        />
       </div>
     );
   }
@@ -312,53 +309,61 @@ const Statistics: React.FC = () => {
   const filterOptions = ["subjects", "chapters", "grades"] as const;
 
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-6">
+    <div className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-24">
       {/* Performance Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card p-4 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <BarChart3 className="w-8 h-8 text-blue-500" />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-2xl border border-border bg-card p-3">
+          <div className="mb-2 flex items-center">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+              <BarChart3 className="h-4 w-4" />
+            </span>
           </div>
-          <div className="text-2xl font-bold text-gray-800">
+          <div className="font-nunito text-lg font-extrabold text-foreground">
             {stats.total_contests}
           </div>
-          <div className="text-sm text-gray-600">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Total Contests
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <Target className="w-8 h-8 text-green-500" />
+        <div className="rounded-2xl border border-border bg-card p-3">
+          <div className="mb-2 flex items-center">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-700">
+              <Target className="h-4 w-4" />
+            </span>
           </div>
-          <div className="text-2xl font-bold text-gray-800">
+          <div className="font-nunito text-lg font-extrabold text-foreground">
             {stats.accuracy}%
           </div>
-          <div className="text-sm text-gray-600">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Overall Accuracy
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <TimeIcon className="w-8 h-8 text-purple-500" />
+        <div className="rounded-2xl border border-border bg-card p-3">
+          <div className="mb-2 flex items-center">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+              <TimeIcon className="h-4 w-4" />
+            </span>
           </div>
-          <div className="text-2xl font-bold text-gray-800">
+          <div className="font-nunito text-lg font-extrabold text-foreground">
             {stats.average_time}s
           </div>
-          <div className="text-sm text-gray-600">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Avg. Response Time
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-2xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-8 h-8 text-orange-500" />
+        <div className="rounded-2xl border border-border bg-card p-3">
+          <div className="mb-2 flex items-center">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-900">
+              <TrendingUp className="h-4 w-4" />
+            </span>
           </div>
-          <div className="text-2xl font-bold text-gray-800">
+          <div className="font-nunito text-lg font-extrabold text-foreground">
             {stats.correct_answers}
           </div>
-          <div className="text-sm text-gray-600">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Correct Answers
           </div>
         </div>
@@ -366,11 +371,15 @@ const Statistics: React.FC = () => {
 
       {/* Performance Trend Chart */}
       {performanceTrend.length > 0 && (
-        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-            <TrendingUp className="w-5 h-5 mr-2 text-blue-500" />
-            Performance Trend (Last 6 Months)
-          </h3>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+              <TrendingUp className="h-5 w-5" />
+            </span>
+            <h3 className="font-nunito text-base font-extrabold text-foreground">
+              Performance Trend (Last 6 Months)
+            </h3>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={performanceTrend}>
@@ -409,11 +418,15 @@ const Statistics: React.FC = () => {
 
       {/* Subject Performance Radar */}
       {radarData.length > 0 && (
-        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-            <Brain className="w-5 h-5 mr-2 text-purple-500" />
-            Core Subject Performance
-          </h3>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+              <Brain className="h-5 w-5" />
+            </span>
+            <h3 className="font-nunito text-base font-extrabold text-foreground">
+              Core Subject Performance
+            </h3>
+          </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
@@ -446,15 +459,19 @@ const Statistics: React.FC = () => {
       )}
 
       {/* Performance Breakdown */}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid gap-3 md:grid-cols-2">
         {/* Bar Chart */}
-        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-              <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
-              Performance by{" "}
-              {selectedFilter.charAt(0).toUpperCase() + selectedFilter.slice(1)}
-            </h3>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+                <BarChart3 className="h-5 w-5" />
+              </span>
+              <h3 className="font-nunito text-base font-extrabold text-foreground">
+                Performance by{" "}
+                {selectedFilter.charAt(0).toUpperCase() + selectedFilter.slice(1)}
+              </h3>
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -520,11 +537,15 @@ const Statistics: React.FC = () => {
         </div>
 
         {/* Pie Chart */}
-        <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-            <Target className="w-5 h-5 mr-2 text-green-500" />
-            Accuracy Distribution
-          </h3>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-green-700">
+              <Target className="h-5 w-5" />
+            </span>
+            <h3 className="font-nunito text-base font-extrabold text-foreground">
+              Accuracy Distribution
+            </h3>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -555,13 +576,17 @@ const Statistics: React.FC = () => {
       </div>
 
       {/* Areas for Improvement*/}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid gap-3 md:grid-cols-2">
         {
-          <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <AlertTriangle className="w-5 h-5 mr-2 text-orange-500" />
-              Areas for Improvement
-            </h3>
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-900">
+                <AlertTriangle className="h-5 w-5" />
+              </span>
+              <h3 className="font-nunito text-base font-extrabold text-foreground">
+                Areas for Improvement
+              </h3>
+            </div>
             <div className="space-y-3">
               {improvementAreas.map((area, index) => (
                 <div
@@ -576,10 +601,10 @@ const Statistics: React.FC = () => {
                         </span>
                       </div>
                       <div>
-                        <div className="font-medium text-gray-800">
+                        <div className="font-medium text-foreground">
                           {area.name}
                         </div>
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-muted-foreground">
                           {area.correct}/{area.total} correct • {area.type}
                         </div>
                       </div>
@@ -588,7 +613,7 @@ const Statistics: React.FC = () => {
                       <div className="text-lg font-bold text-orange-600">
                         {area.accuracy}%
                       </div>
-                      <div className="text-xs text-gray-500">Accuracy</div>
+                      <div className="text-xs text-muted-foreground">Accuracy</div>
                     </div>
                   </div>
 
@@ -634,8 +659,8 @@ const Statistics: React.FC = () => {
                       <div className="mt-4 space-y-4">
                         {/* Recommendations */}
                         <div className="bg-card/50 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
-                            <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
+                          <h4 className="mb-2 flex items-center font-semibold text-foreground">
+                            <Lightbulb className="mr-2 h-4 w-4 text-yellow-500" />
                             Key Recommendations
                           </h4>
                           <ul className="space-y-2">
@@ -643,7 +668,7 @@ const Statistics: React.FC = () => {
                               (rec, idx) => (
                                 <li
                                   key={idx}
-                                  className="flex items-start space-x-2 text-sm text-gray-700"
+                                  className="flex items-start space-x-2 text-sm text-foreground"
                                 >
                                   <div className="w-1.5 h-1.5 bg-orange-fix-500 rounded-full mt-2 flex-shrink-0"></div>
                                   <span>{rec}</span>
@@ -655,8 +680,8 @@ const Statistics: React.FC = () => {
 
                         {/* Strategies */}
                         <div className="bg-blue-50 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
-                            <Brain className="w-4 h-4 mr-2 text-blue-500" />
+                          <h4 className="mb-2 flex items-center font-semibold text-foreground">
+                            <Brain className="mr-2 h-4 w-4 text-blue-500" />
                             Study Strategies
                           </h4>
                           <ul className="space-y-2">
@@ -664,7 +689,7 @@ const Statistics: React.FC = () => {
                               (strategy, idx) => (
                                 <li
                                   key={idx}
-                                  className="flex items-start space-x-2 text-sm text-gray-700"
+                                  className="flex items-start space-x-2 text-sm text-foreground"
                                 >
                                   <div className="w-1.5 h-1.5 bg-blue-fix-500 rounded-full mt-2 flex-shrink-0"></div>
                                   <span>{strategy}</span>
@@ -676,8 +701,8 @@ const Statistics: React.FC = () => {
 
                         {/* Resources */}
                         <div className="bg-green-50 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
-                            <BookOpen className="w-4 h-4 mr-2 text-green-500" />
+                          <h4 className="mb-2 flex items-center font-semibold text-foreground">
+                            <BookOpen className="mr-2 h-4 w-4 text-green-500" />
                             Recommended Resources
                           </h4>
                           <div className="space-y-3">
@@ -689,16 +714,16 @@ const Statistics: React.FC = () => {
                                 >
                                   <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                      <div className="font-medium text-gray-800 text-sm">
+                                      <div className="font-medium text-sm text-foreground">
                                         {resource.name}
                                       </div>
-                                      <div className="text-xs text-gray-600 mt-1">
+                                      <div className="mt-1 text-xs text-muted-foreground">
                                         Topic: {resource.topic} • Type:{" "}
                                         {resource.type}
                                       </div>
                                     </div>
                                     <div className="ml-2">
-                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-800">
                                         {resource.platform}
                                       </span>
                                     </div>
@@ -711,8 +736,8 @@ const Statistics: React.FC = () => {
 
                         {/* Practice Plan */}
                         <div className="bg-purple-50 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
-                            <Play className="w-4 h-4 mr-2 text-purple-500" />
+                          <h4 className="mb-2 flex items-center font-semibold text-foreground">
+                            <Play className="mr-2 h-4 w-4 text-purple-500" />
                             Practice Plan
                           </h4>
                           <div className="space-y-3">
@@ -734,7 +759,7 @@ const Statistics: React.FC = () => {
                                       <div className="font-medium text-purple-800 text-sm">
                                         {step.timeframe}
                                       </div>
-                                      <div className="text-sm text-gray-700 mt-1">
+                                      <div className="mt-1 text-sm text-foreground">
                                         {step.focus}
                                       </div>
                                     </div>
@@ -768,11 +793,15 @@ const Statistics: React.FC = () => {
         }
 
         {strengths.length > 0 && (
-          <div className="bg-card rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <CheckCircle className="w-5 h-5 mr-2 text-green-500" />
-              Your Strengths
-            </h3>
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-green-700">
+                <CheckCircle className="h-5 w-5" />
+              </span>
+              <h3 className="font-nunito text-base font-extrabold text-foreground">
+                Your Strengths
+              </h3>
+            </div>
             <div className="space-y-3">
               {strengths.map((strength) => (
                 <div
@@ -784,10 +813,10 @@ const Statistics: React.FC = () => {
                       <Award className="w-4 h-4 text-green-600" />
                     </div>
                     <div>
-                      <div className="font-medium text-gray-800">
+                      <div className="font-medium text-foreground">
                         {strength.name}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         {strength.correct}/{strength.total} correct •{" "}
                         {strength.type}
                       </div>
@@ -797,7 +826,7 @@ const Statistics: React.FC = () => {
                     <div className="text-lg font-bold text-green-600">
                       {strength.accuracy}%
                     </div>
-                    <div className="text-xs text-gray-500">Accuracy</div>
+                    <div className="text-xs text-muted-foreground">Accuracy</div>
                   </div>
                 </div>
               ))}
@@ -821,42 +850,46 @@ const Statistics: React.FC = () => {
       </div>
 
       {/* Study Plan Recommendations */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-100">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-          <BookOpen className="w-5 h-5 mr-2 text-blue-500" />
-          Personalized Study Plan
-        </h3>
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-card/50 p-4 rounded-xl">
-            <div className="text-sm font-medium text-blue-600 mb-2">
+      <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-purple-50 p-4">
+        <div className="mb-4 flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+            <BookOpen className="h-5 w-5" />
+          </span>
+          <h3 className="font-nunito text-base font-extrabold text-foreground">
+            Personalized Study Plan
+          </h3>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl bg-card/70 p-3">
+            <div className="mb-2 text-sm font-medium text-blue-600">
               This Week
             </div>
-            <div className="text-gray-800 font-medium mb-1">
+            <div className="mb-1 font-medium text-foreground">
               Focus on {improvementAreas[0]?.name || "your weakest area"}
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted-foreground">
               Practice 15-20 questions daily
             </div>
           </div>
-          <div className="bg-card/50 p-4 rounded-xl">
-            <div className="text-sm font-medium text-purple-600 mb-2">
+          <div className="rounded-xl bg-card/70 p-3">
+            <div className="mb-2 text-sm font-medium text-purple-600">
               Next Week
             </div>
-            <div className="text-gray-800 font-medium mb-1">
+            <div className="mb-1 font-medium text-foreground">
               Review {improvementAreas[1]?.name || "another weak area"}
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted-foreground">
               Take 2 practice tests
             </div>
           </div>
-          <div className="bg-card/50 p-4 rounded-xl">
-            <div className="text-sm font-medium text-green-600 mb-2">
+          <div className="rounded-xl bg-card/70 p-3">
+            <div className="mb-2 text-sm font-medium text-green-600">
               Goal
             </div>
-            <div className="text-gray-800 font-medium mb-1">
+            <div className="mb-1 font-medium text-foreground">
               Reach 90% Accuracy
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted-foreground">
               In your weak areas
             </div>
           </div>

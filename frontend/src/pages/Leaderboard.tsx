@@ -4,8 +4,8 @@ import { LeaderboardEntry } from "../types";
 import { Trophy, Medal, Award, Clock, Target } from "lucide-react";
 import api from "../services/api";
 import { LeaderboardSkeleton } from "../components/LeaderboardSkeleton";
-import NotFound from "../components/not-found";
-import { safePercent } from "../lib/utils";
+import { EmptyState, InlineError } from "@/academy/components/States";
+import { safePercent, cn } from "../lib/utils";
 
 const avatarColors = [
   "bg-red-fix-500",
@@ -44,6 +44,50 @@ interface UserAvatarProps {
   style?: React.CSSProperties;
 }
 
+const rankChip = (rank: number) =>
+  rank === 1
+    ? "bg-yellow-100 text-yellow-800"
+    : rank === 2
+      ? "bg-gray-200 text-gray-700"
+      : rank === 3
+        ? "bg-amber-100 text-amber-800"
+        : "bg-muted text-muted-foreground";
+
+const RankBadge: React.FC<{ rank: number }> = ({ rank }) => (
+  <span
+    className={cn(
+      "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-sm font-extrabold",
+      rankChip(rank)
+    )}
+  >
+    {rank === 1 ? (
+      <Trophy className="h-5 w-5" />
+    ) : rank === 2 ? (
+      <Medal className="h-5 w-5" />
+    ) : rank === 3 ? (
+      <Award className="h-5 w-5" />
+    ) : (
+      rank
+    )}
+  </span>
+);
+
+const ListAvatar: React.FC<{ name: string; avatar_url?: string | null }> = ({
+  name,
+  avatar_url,
+}) =>
+  avatar_url ? (
+    <img
+      src={avatar_url}
+      alt={name}
+      className="h-9 w-9 shrink-0 rounded-full object-cover"
+    />
+  ) : (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
+      {(name || "S").slice(0, 1).toUpperCase()}
+    </span>
+  );
+
 const UserAvatar: React.FC<UserAvatarProps> = ({
   name,
   avatar_url,
@@ -57,7 +101,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
       <img
         src={avatar_url}
         alt={name}
-        className={`${className} object-cover`}
+        className={cn(className, "object-cover")}
         style={style}
       />
     );
@@ -65,9 +109,11 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
 
   return (
     <div
-      className={`${className} ${getAvatarColor(
-        name
-      )} flex items-center justify-center font-bold text-white`}
+      className={cn(
+        className,
+        getAvatarColor(name),
+        "flex items-center justify-center font-bold text-white"
+      )}
       style={style}
     >
       <span className="text-4xl">{initial}</span>
@@ -135,11 +181,11 @@ const PodiumItem: React.FC<{ user: LeaderboardEntry }> = ({ user }) => {
         />
       </div>
       <div className="text-center">
-        <p className="font-bold text-lg text-gray-900">
+        <p className="truncate font-nunito text-base font-extrabold text-foreground">
           {user.user_name}
         </p>
 
-        <p className="font-bold text-xl text-gray-800 mt-1">
+        <p className="mt-0.5 text-sm font-bold text-muted-foreground">
           {user.score}%
         </p>
       </div>
@@ -192,41 +238,10 @@ const Leaderboard: React.FC = () => {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
 
-  const getRankIcon = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return <Trophy className="w-6 h-6 text-yellow-500" />;
-      case 2:
-        return <Medal className="w-6 h-6 text-gray-400" />;
-      case 3:
-        return <Award className="w-6 h-6 text-amber-600" />;
-      default:
-        return (
-          <div className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded-full text-sm font-bold text-gray-600">
-            {rank}
-          </div>
-        );
-    }
-  };
-
-  // if (loading) {
-  //   return (
-  //     <div className="flex justify-center items-center h-64">
-  //       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-  //     </div>
-  //   );
-  // }
-
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-red-500">
-        <div className="text-lg mb-2">{error}</div>
-        <button
-          onClick={fetchLeaderboard}
-          className="px-4 py-2 bg-blue-fix-500 text-white rounded-lg"
-        >
-          Retry
-        </button>
+      <div className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-24">
+        <InlineError message={error} onRetry={fetchLeaderboard} />
       </div>
     );
   }
@@ -239,28 +254,36 @@ const Leaderboard: React.FC = () => {
   );
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
+    <div className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-24">
+      <div>
+        <h1 className="font-nunito text-2xl font-extrabold text-foreground">
+          Leaderboard
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Global standings for the selected period.
+        </p>
+      </div>
+
       {/* Time Frame Filter */}
-      <div className="sticky top-0 z-30 py-4 rounded-xl bg-gray-100/80 backdrop-blur-lg">
+      <div className="sticky top-0 z-30 rounded-2xl border border-border bg-background/80 p-2 backdrop-blur-lg">
         <div className="overflow-x-auto scrollbar-hide">
-          <div className="flex justify-center space-x-3 px-4 w-max mx-auto">
+          <div className="mx-auto flex w-max justify-center gap-2">
             {(["today", "week", "month", "all"] as const).map((period) => (
               <button
                 key={period}
                 onClick={() => setTimeFrame(period)}
-                className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 ease-in-out
-                    ${
-                      timeFrame === period
-                        ? "bg-violet-fix-600 text-white shadow-md"
-                        : "bg-card/60 text-gray-700 hover:bg-card"
-                    }
-                    hover:scale-[1.03] active:scale-[0.98]
-                  `}
+                className={cn(
+                  "flex h-9 items-center rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-all duration-200 ease-in-out",
+                  timeFrame === period
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground",
+                  "active:scale-[0.98]"
+                )}
               >
                 {period === "all" ? (
                   "All Time"
                 ) : (
-                  <div className="flex flex-col items-center space-y-0 leading-none">
+                  <div className="flex flex-col items-center leading-none">
                     {period !== "today" && (
                       <span className="text-[7px] leading-tight">This </span>
                     )}
@@ -275,10 +298,10 @@ const Leaderboard: React.FC = () => {
       {loading ? (
         <LeaderboardSkeleton />
       ) : (
-        <main className="mt-10 pb-4">
+        <main className="flex flex-col gap-3">
           {/* Top 3 Podium */}
           {topThree.length === 3 && (
-            <div className="flex justify-center items-end gap-4 md:gap-8 mb-12 px-4">
+            <div className="flex items-end justify-center gap-4 px-4 pt-6 md:gap-8">
               {/* Reorder for visual presentation: 2nd, 1st, 3rd */}
               {[topThree[1], topThree[0], topThree[2]].map((entry) => (
                 <PodiumItem key={entry.user_id} user={entry} />
@@ -288,12 +311,15 @@ const Leaderboard: React.FC = () => {
 
           {/* Full Leaderboard */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            <h2 className="font-nunito text-base font-extrabold text-foreground">
               Full Rankings
             </h2>
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               {leaderboard.length === 0 ? (
-                <NotFound text="No standings found" />
+                <EmptyState
+                  icon={<Trophy className="h-6 w-6" />}
+                  title="No standings found"
+                />
               ) : (
                 leaderboard.map((entry) => {
                   const isCurrentUser =
@@ -302,65 +328,60 @@ const Leaderboard: React.FC = () => {
                   return (
                     <div
                       key={entry.user_id}
-                      className={`p-4 rounded-xl shadow-sm transition-all duration-200 ${
+                      className={cn(
+                        "flex items-center gap-3 rounded-2xl border p-3",
                         isCurrentUser
-                          ? "bg-violet-100 border-2 border-violet-400 shadow-lg scale-105"
-                          : "bg-card/70 backdrop-blur-sm border border-gray-200"
-                      }`}
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-card"
+                      )}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {getRankIcon(entry.rank)}
-                          <div>
-                            <div
-                              className={`font-semibold ${
-                                isCurrentUser
-                                  ? "text-blue-800"
-                                  : "text-gray-800"
-                              }`}
-                            >
-                              {entry.user_name}
-                              {isCurrentUser && (
-                                <span className="ml-2 text-sm text-blue-600">
-                                  (You)
-                                </span>
+                      <RankBadge rank={entry.rank} />
+                      <ListAvatar
+                        name={entry.user_name}
+                        avatar_url={entry.imgurl}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-foreground">
+                          {entry.user_name}
+                          {isCurrentUser && (
+                            <span className="ml-1.5 text-xs font-semibold text-muted-foreground">
+                              (You)
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Rank #{entry.rank}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-3">
+                        <div className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Target className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm font-extrabold text-foreground">
+                              {Math.round(
+                                safePercent(
+                                  entry.correct_answers,
+                                  entry.total_questions
+                                )
                               )}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              Rank #{entry.rank}
-                            </div>
+                              %
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {entry.correct_answers}/{entry.total_questions}
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-4">
-                          <div className="text-center">
-                            <div className="flex items-center text-green-600">
-                              <Target className="w-4 h-4 mr-1" />
-                              <span className="font-bold text-gray-600">
-                                {Math.round(
-                                  safePercent(
-                                    entry.correct_answers,
-                                    entry.total_questions
-                                  )
-                                )}
-                                %
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {entry.correct_answers}/{entry.total_questions}
-                            </div>
+                        <div className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm font-bold text-foreground">
+                              {entry.time_taken}
+                            </span>
                           </div>
-
-                          <div className="text-center">
-                            <div className="flex items-center text-blue-600">
-                              <Clock className="w-4 h-4 mr-1" />
-                              <span className="font-bold">
-                                {entry.time_taken}
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Time
-                            </div>
+                          <div className="text-xs text-muted-foreground">
+                            Time
                           </div>
                         </div>
                       </div>
@@ -375,21 +396,21 @@ const Leaderboard: React.FC = () => {
 
       {/* Your Performance Summary */}
       {user && currentUserEntry && (
-        <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl">
-          <h3 className="font-semibold text-gray-800 mb-2">
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h3 className="font-nunito text-base font-extrabold text-foreground">
             Your Performance
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="mt-2 grid grid-cols-2 gap-4">
             <div className="text-center">
-              <div className="text-lg font-bold text-blue-600">
+              <div className="text-lg font-extrabold text-foreground">
                 #{currentUserEntry.rank || "N/A"}
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-xs text-muted-foreground">
                 Current Rank
               </div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-green-600">
+              <div className="text-lg font-extrabold text-foreground">
                 {Math.round(
                   safePercent(
                     currentUserEntry.correct_answers,
@@ -398,7 +419,7 @@ const Leaderboard: React.FC = () => {
                 )}
                 %
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-xs text-muted-foreground">
                 Score
               </div>
             </div>

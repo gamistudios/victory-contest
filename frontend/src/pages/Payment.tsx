@@ -1,12 +1,4 @@
 import React, { useState, useEffect, useMemo, FC, useCallback } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
 import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -17,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { Upload, CheckCircle, Loader2, HelpCircle, Send, Copy } from "lucide-react";
+import { Upload, CheckCircle, Loader2, HelpCircle, Send, Copy, Lock } from "lucide-react";
+import { CardSkeleton, EmptyState, InlineError } from "@/academy/components/States";
 import { useTelegram } from "../hooks/useTelegram";
 import { toast } from "sonner";
 import { sendPaymentInfo, getPaymentSettings } from "../services/paymentServices";
@@ -338,85 +331,83 @@ const Payment: FC = () => {
   if (successInfo) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 font-sans">
-        <Card className="w-full max-w-lg text-center">
-          <CardContent className="p-6 pt-6">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">
-              {successInfo.free ? "Order Confirmed!" : "Payment Submitted!"}
-            </h2>
-            <p className="text-muted-foreground mb-6">
-              {successInfo.free
-                ? `Thank you, ${successInfo.name}. The coupon covered the full price, so your premium is active now.`
-                : `Thank you, ${successInfo.name}. Your payment information has been received and is pending review.`}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 text-center">
+          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-2">
+            {successInfo.free ? "Order Confirmed!" : "Payment Submitted!"}
+          </h2>
+          <p className="text-muted-foreground mb-6">
+            {successInfo.free
+              ? `Thank you, ${successInfo.name}. The coupon covered the full price, so your premium is active now.`
+              : `Thank you, ${successInfo.name}. Your payment information has been received and is pending review.`}
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-background h-full flex items-center justify-center">
-      <Card className="w-full max-w-lg h-full shadow-none bg-transparent border-none">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span>Secure Payment </span>
+    <div className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-24">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+            <Lock className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-nunito text-2xl font-extrabold text-foreground">Secure Payment </span>
 
-            <Drawer>
-              <DrawerTrigger asChild>
-                <button aria-label="Help">
-                  <HelpCircle className="cursor-pointer" />
-                </button>
-              </DrawerTrigger>
+              <Drawer>
+                <DrawerTrigger asChild>
+                  <button aria-label="Help">
+                    <HelpCircle className="cursor-pointer" />
+                  </button>
+                </DrawerTrigger>
 
-              <DrawerContent>
-                <DrawerHeader>
-                  <DrawerTitle>Payment Methods</DrawerTitle>
-                  <DrawerDescription>
-                    Please use one of the following accounts to complete your
-                    payment.
-                  </DrawerDescription>
-                </DrawerHeader>
+                <DrawerContent>
+                  <DrawerHeader>
+                    <DrawerTitle>Payment Methods</DrawerTitle>
+                    <DrawerDescription>
+                      Please use one of the following accounts to complete your
+                      payment.
+                    </DrawerDescription>
+                  </DrawerHeader>
 
-                <div className="p-4">
-                  <div className="space-y-4">
-                    {banksLoading ? (
-                      <p className="text-sm text-muted-foreground">
-                        Loading payment methods...
-                      </p>
-                    ) : banksError ? (
-                      <p className="text-sm text-destructive">
-                        Could not load payment methods. Please try again.
-                      </p>
-                    ) : banks.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No payment methods are currently available.
-                      </p>
-                    ) : (
-                      banks.map((bank) => (
-                        <div key={bank.id}>
-                          <p className="font-semibold">{bank.name}</p>
-                          <p className="text-sm text-gray-600">
-                            Account Number: {bank.account_number}
-                          </p>
-                          {bank.description && (
-                            <p className="text-sm text-gray-600">
-                              {bank.description}
+                  <div className="p-4">
+                    <div className="space-y-4">
+                      {banksLoading ? (
+                        <CardSkeleton />
+                      ) : banksError ? (
+                        <InlineError message="Could not load payment methods. Please try again." />
+                      ) : banks.length === 0 ? (
+                        <EmptyState title="No payment methods are currently available." />
+                      ) : (
+                        banks.map((bank) => (
+                          <div key={bank.id}>
+                            <p className="text-sm font-semibold text-foreground">{bank.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Account Number: {bank.account_number}
                             </p>
-                          )}
-                        </div>
-                      ))
-                    )}
+                            {bank.description && (
+                              <p className="text-sm text-muted-foreground">
+                                {bank.description}
+                              </p>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              </DrawerContent>
-            </Drawer>
-          </CardTitle>
-          <CardDescription>
-            Complete your payment by filling out the details below.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+                </DrawerContent>
+              </Drawer>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Complete your payment by filling out the details below.
+            </p>
+          </div>
+        </div>
+      </div>
+        <div className="rounded-2xl border border-border bg-card p-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
@@ -445,19 +436,10 @@ const Payment: FC = () => {
                 </SelectContent>
               </Select>
               {banksError && (
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-destructive">
-                    Could not load the payment methods.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={loadBanks}
-                  >
-                    Retry
-                  </Button>
-                </div>
+                <InlineError
+                  message="Could not load the payment methods."
+                  onRetry={loadBanks}
+                />
               )}
               {!banksLoading && !banksError && banks.length === 0 && (
                 <p className="text-sm text-muted-foreground">
@@ -470,13 +452,13 @@ const Payment: FC = () => {
               )}
             </div>
             {selectedMethod?.account_number && (
-              <div className="animate-in fade-in duration-300 rounded-xl border-2 border-amber-400 bg-amber-50 p-3">
+              <div className="animate-in fade-in duration-300 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-amber-700">
                       Transfer to this account
                     </p>
-                    <p className="font-mono text-base font-semibold break-all text-gray-900">
+                    <p className="font-mono text-base font-semibold break-all text-amber-900">
                       {selectedMethod.account_number}
                     </p>
                     <p className="text-sm font-semibold text-amber-800">
@@ -570,22 +552,21 @@ const Payment: FC = () => {
               {isSubmitting ? "Processing..." : "Submit Payment"}
             </Button>
           </form>
-        </CardContent>
+        </div>
         {allowStars && (
           <>
-            <span className="text-center">or</span>
-            <CardFooter className="flex-col items-start text-xs text-muted-foreground">
+            <span className="text-center text-xs text-muted-foreground">or</span>
+            <div className="rounded-2xl border border-border bg-card p-4">
               <div
                 onClick={handlePayWithTG}
-                className=" gap-2 rounded-lg bg-info flex items-center text-info-foreground p-3 mx-auto text-sm"
+                className="mx-auto flex items-center gap-2 rounded-xl bg-info p-3 text-sm text-info-foreground"
               >
-                <Send className="text-white w-6 h-6" />
+                <Send className="w-6 h-6" />
                 Pay with Telegram
               </div>
-            </CardFooter>
+            </div>
           </>
         )}
-      </Card>
     </div>
   );
 };
