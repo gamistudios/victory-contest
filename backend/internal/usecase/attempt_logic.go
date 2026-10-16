@@ -21,6 +21,12 @@ var (
 	ErrVersionConflict  = errors.New("version_conflict")
 	ErrAttemptNotFound  = errors.New("attempt_not_found")
 	ErrForbidden        = errors.New("forbidden")
+	// ErrAssessmentNotFound is the missing-assessment case of a Phase 2 read or
+	// start: a client typo, not a server fault, so it must not surface as 500.
+	ErrAssessmentNotFound = errors.New("assessment_not_found")
+	// ErrInvalidAction is a bad admin attempt action (unknown verb, or a
+	// destructive verb with no reason).
+	ErrInvalidAction = errors.New("invalid_action")
 )
 
 // parseAttemptTime reuses parseContestTime so every layout the dashboard accepts

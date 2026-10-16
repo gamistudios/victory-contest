@@ -110,7 +110,7 @@ func toPublic(qs []domain.Question) []PublicQuestion {
 func (u *AttemptUsecase) Start(contestID, studentID string) (*StartResult, error) {
 	c, err := u.contests.GetContestByID(contestID)
 	if err != nil || c == nil {
-		return nil, fmt.Errorf("assessment not found")
+		return nil, ErrAssessmentNotFound
 	}
 	id := domain.AttemptID(contestID, studentID)
 	now := u.now()
@@ -212,7 +212,7 @@ func (u *AttemptUsecase) Submit(attemptID, studentID string, final map[string]in
 	}
 	c, err := u.contests.GetContestByID(a.ContestID)
 	if err != nil || c == nil {
-		return nil, fmt.Errorf("assessment not found")
+		return nil, ErrAssessmentNotFound
 	}
 	now := u.now()
 	if exp, ok := parseAttemptTime(a.ExpiresAt); ok && now.After(exp.Add(AttemptGrace)) {
@@ -319,7 +319,7 @@ func (u *AttemptUsecase) Result(attemptID, studentID string) (*ResultView, error
 	}
 	c, err := u.contests.GetContestByID(a.ContestID)
 	if err != nil || c == nil {
-		return nil, fmt.Errorf("assessment not found")
+		return nil, ErrAssessmentNotFound
 	}
 	a, err = u.lazyFinalise(*c, a)
 	if err != nil {
@@ -390,14 +390,16 @@ func (u *AttemptUsecase) RunSweeper(interval time.Duration, stop <-chan struct{}
 func (u *AttemptUsecase) AttemptCounts() (map[string]int, error) { return u.attempts.CountsByContest() }
 
 // AdminAttempts lists attempts for an assessment, optionally filtered by label.
+// The result is always a slice: the admin table maps over it, so a no-match
+// filter must read as "[]" rather than "null".
 func (u *AttemptUsecase) AdminAttempts(contestID, label string) ([]domain.Attempt, error) {
 	list, err := u.attempts.ListByContest(contestID)
-	if err != nil || label == "" {
-		return list, err
+	if err != nil {
+		return nil, err
 	}
-	var out []domain.Attempt
+	out := []domain.Attempt{}
 	for _, a := range list {
-		if a.Label() == label {
+		if label == "" || a.Label() == label {
 			out = append(out, a)
 		}
 	}
@@ -421,7 +423,7 @@ func (u *AttemptUsecase) AdminAction(id, action, reason string) (*domain.Attempt
 	switch action {
 	case "exclude":
 		if reason == "" {
-			return nil, fmt.Errorf("reason is required")
+			return nil, fmt.Errorf("%w: reason is required to exclude an attempt", ErrInvalidAction)
 		}
 		a.Excluded, a.ExcludedReason = true, reason
 	case "waive_penalty":
@@ -430,7 +432,7 @@ func (u *AttemptUsecase) AdminAction(id, action, reason string) (*domain.Attempt
 		// handled below
 	case "reset":
 		if reason == "" {
-			return nil, fmt.Errorf("reason is required")
+			return nil, fmt.Errorf("%w: reason is required to reset an attempt", ErrInvalidAction)
 		}
 		log.Printf("AUDIT attempt reset id=%s student=%s reason=%q", a.ID, a.StudentID, reason)
 		if a.SubmissionID != "" {
@@ -440,12 +442,12 @@ func (u *AttemptUsecase) AdminAction(id, action, reason string) (*domain.Attempt
 		}
 		return a, u.attempts.Delete(a.ID)
 	default:
-		return nil, fmt.Errorf("unknown action %q", action)
+		return nil, fmt.Errorf("%w: unknown action %q", ErrInvalidAction, action)
 	}
 	if action == "waive_penalty" || action == "regrade" {
 		c, err := u.contests.GetContestByID(a.ContestID)
 		if err != nil || c == nil {
-			return nil, fmt.Errorf("assessment not found")
+			return nil, ErrAssessmentNotFound
 		}
 		qs, err := u.loadQuestions(c.Questions)
 		if err != nil {

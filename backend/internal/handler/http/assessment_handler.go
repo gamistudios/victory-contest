@@ -60,10 +60,12 @@ func (h *AssessmentHandler) fail(c *gin.Context, err error) {
 		code, status = "attempt_finalised", http.StatusConflict
 	case errors.Is(err, usecase.ErrVersionConflict):
 		code, status = "version_conflict", http.StatusConflict
-	case errors.Is(err, usecase.ErrAttemptNotFound):
+	case errors.Is(err, usecase.ErrAttemptNotFound), errors.Is(err, usecase.ErrAssessmentNotFound):
 		code, status = "not_found", http.StatusNotFound
 	case errors.Is(err, usecase.ErrForbidden):
 		code, status = "forbidden", http.StatusForbidden
+	case errors.Is(err, usecase.ErrInvalidAction):
+		code, status = "invalid_action", http.StatusBadRequest
 	}
 	var le *usecase.LockedError
 	if errors.As(err, &le) {

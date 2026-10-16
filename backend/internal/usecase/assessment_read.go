@@ -37,12 +37,13 @@ type AssessmentMeta struct {
 }
 
 type MyAttemptInfo struct {
-	ID      string `json:"id"`
-	Status  string `json:"status"`
-	IsLate  bool   `json:"is_late"`
-	Correct int    `json:"correct"`
-	Total   int    `json:"total"`
-	Points  int    `json:"points"`
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	ExpiresAt string `json:"expires_at"` // so the intro can count the resume down (plan §7.2)
+	IsLate    bool   `json:"is_late"`
+	Correct   int    `json:"correct"`
+	Total     int    `json:"total"`
+	Points    int    `json:"points"`
 }
 
 func (u *AttemptUsecase) meta(c domain.Contest, studentID string, mine map[string]domain.Attempt) AssessmentMeta {
@@ -59,7 +60,7 @@ func (u *AttemptUsecase) meta(c domain.Contest, studentID string, mine map[strin
 		}
 	}
 	if a, ok := mine[c.ID]; ok {
-		m.MyAttempt = &MyAttemptInfo{ID: a.ID, Status: a.Status, IsLate: a.IsLate, Correct: a.Correct, Total: a.Total, Points: a.Points}
+		m.MyAttempt = &MyAttemptInfo{ID: a.ID, Status: a.Status, ExpiresAt: a.ExpiresAt, IsLate: a.IsLate, Correct: a.Correct, Total: a.Total, Points: a.Points}
 	}
 	return m
 }
@@ -101,7 +102,7 @@ func (u *AttemptUsecase) ListAssessments(studentID string, f domain.ScopeFilter)
 func (u *AttemptUsecase) GetAssessment(id, studentID string) (*AssessmentMeta, error) {
 	c, err := u.contests.GetContestByID(id)
 	if err != nil || c == nil {
-		return nil, ErrAttemptNotFound
+		return nil, ErrAssessmentNotFound
 	}
 	m := u.meta(*c, studentID, u.myAttempts(studentID))
 	return &m, nil
