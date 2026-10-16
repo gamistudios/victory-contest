@@ -1108,14 +1108,61 @@ Known issue: `dark:` Tailwind variants on the menu icon chips did not take effec
 
 ## Still open
 
-1. Delete the legacy contest pages and add redirects, once every live contest has a Phase 2 `mode` (prod contests are scoped but still have no `mode`).
-2. Handler tests for the new `/assessments` and `/attempts` routes.
-3. ~~Re-run Go and TS builds~~ **Done by the owner (passing).** Re-run `npm run typecheck` in `admin-page-clean` once more after the `TimingFields.tsx` edit below.
-4. Restyle the remaining student screens to the same card system: assessment `Intro`, `Exam`, `Result`, `Palette`; `Profile`, `Statistics`, `Payment`, `Leaderboard`.
-5. Stepper `AssessmentForm` (deviation 2), if the plan's admin UX is still wanted.
-6. `CountsByContest` scans the whole attempts table; switch to a stored counter if it grows.
-7. Phase 3 (leaderboards by period/program, question bank), and `20261014-004-default-price-plan` once a prod price is configured.
+1. Delete the legacy contest pages and add redirects, once every live contest has a Phase 2 `mode` (prod contests are scoped but still have no `mode`). **Still blocked — see the closeout pass: stamping `mode` is a prod write, and deleting the legacy pages would drop two behaviours the Phase 2 engine does not have yet.**
+2. ~~Handler tests for the new `/assessments` and `/attempts` routes.~~ **Done** — `assessment_routes_test.go`, 10 tests, and they found three real defects (fixed).
+3. ~~Re-run Go and TS builds~~ **Done by the owner (passing).** ~~Re-run `npm run typecheck` in `admin-page-clean`~~ **Done, clean.**
+4. Restyle the remaining student screens to the same card system: assessment `Intro`, `Exam`, `Result`, `Palette`; `Profile`, `Statistics`, `Payment`, `Leaderboard`. **The four assessment screens are done. The four large legacy screens (`Profile` 695, `Statistics` 869, `Payment` 593, `Leaderboard` 412 lines) were deliberately not restyled blind — no browser is available here, and a blind rewrite of 2,500 lines of paid/identity UI is not verifiable work.**
+5. Stepper `AssessmentForm` (deviation 2), if the plan's admin UX is still wanted. **Open — product decision, the extended dialogs are functional.**
+6. `CountsByContest` scans the whole attempts table; switch to a stored counter if it grows. **Open by design — the attempts table is empty in prod today; premature optimisation otherwise.**
+7. Phase 3 (leaderboards by period/program, question bank), and `20261014-004-default-price-plan` once a prod price is configured. **Open — needs the client's price and Phase 2 sign-off.**
 
 ## Admin form clarity fix (2026-10-16)
 
 `admin-page-clean/src/features/assessments/TimingFields.tsx` (shared by Add and Update contest): the "Source / year" pair was squeezed into one row (a tiny unlabeled box next to a "Year" box) and the checkboxes had no explanation. Now a single-column layout with a one-line hint under every field, "Source" and "Exam year" as separate labelled optional fields under an "Optional details (for past exams and entrance exams)" heading, shorter select labels so they no longer truncate, and shuffle options as full-width cards with descriptions. **Source and Year are stored but not displayed to students anywhere yet**; the hint says so. Not compiled after this edit.
+
+# Phase 2 closeout pass (2026-10-16)
+
+Closes "Still open" items 2, 3 and the four assessment screens of item 4. Writing the handler tests was the productive part: they found four defects that the usecase-level tests could not see, because the bugs lived in the HTTP layer and in the error bodies the frontend reads.
+
+## Defects found by the new handler tests (backend)
+
+| Defect | Before | After | File |
+|---|---|---|---|
+| A typo'd assessment id on `GET /api/assessments/:id`, `GET …/intro` or `POST …/start` | `500` with `{"error":"assessment not found"}` — a client mistake billed as a server fault, and the frontend's generic "something went wrong" branch | `ErrAssessmentNotFound` sentinel → `404 {"code":"not_found"}` | `usecase/attempt_usecase.go`, `usecase/assessment_read.go`, `handler/http/assessment_handler.go` |
+| `AdminAction` with an unknown verb, or `exclude`/`reset` with no reason | `500` | `ErrInvalidAction` → `400 {"code":"invalid_action"}` and the reason is required for the two destructive verbs | `usecase/attempt_usecase.go` |
+| An attempt id that does not exist / another student's attempt | `500` | `ErrAttemptNotFound` → `404`, `ErrForbidden` → `403` | `usecase/attempt_logic.go`, handler `fail()` |
+| `GET /api/admin/assessments/:id/attempts?label=…` with no matches | `null`, which the admin table maps over | always a slice, so an empty filter reads as `[]` | `usecase/attempt_usecase.go` |
+| `intro.my_attempt` had no deadline | the Resume card could not show how much time is left on a self-paced attempt | `expires_at` added to `MyAttemptInfo` | `usecase/assessment_read.go` |
+
+## Handler tests (new file)
+
+`backend/internal/handler/http/assessment_routes_test.go` — 10 tests, httptest + `gin.TestMode`, in-memory fakes for the six repositories (the attempt fake reproduces the DynamoDB preconditions: conditional create, version-checked `PutAnswers`, conditional finalise), so the tests assert the same status codes and JSON bodies the real handlers produce. Attempt ids contain `#`, so every URL is built through a `%23` helper — gin routes on the decoded path.
+
+`TestAssessmentListIsMetadataOnlyAndScopeFiltered` (no question bodies leak, grade-10 students do not see grade-12), `TestIntroCarriesMyAttemptAndLock`, `TestStartStatusMap` (403 not-open/closed, 402 locked + `lock` body, 409 already-attempted + `attempt_id`, resume of an in-progress attempt is 200 `resumed: true`, a finalised attempt 409, an expired one 410), `TestAssessmentRoutesRequireStudentSession`, `TestAdminAttemptRoutesRequireAdminCookie` (a student bearer token is not an admin session), `TestAutosaveStatusMap` (409 `version_conflict`, 410 past grace, 409 `attempt_finalised`), `TestSubmitGradesServerSide` (the client cannot report points), `TestResultAnswerVisibility` (answers and editorial gated by `AnswersVisible` / `EditorialVisible`), `TestLeaderboardRanksPointsThenDuration`, `TestAdminAttemptRoutesAndActions` (counts, label filter incl. `[]`, CSV headers + sanitised filename + quoted comma reason, exclude / waive penalty 45→50 / regrade / reset deleting the submission row and allowing a fresh start).
+
+## Student app: Phase 2 screens to parity
+
+| Change | File |
+|---|---|
+| Closed-window state (`global` mode past the end with no attempt in progress) and the premium lock now opens the shared `premium_contest` sheet instead of linking bare `/payment`; Resume shows `· N min left` from `my_attempt.expires_at` | `Intro.tsx` |
+| `ScreenshotProtection` (anti-cheat) and tap-to-zoom images wired into the live exam; autosave no longer hammers a dead attempt — `attempt_expired` / `attempt_finalised` stop the retry loop and route to the result page | `Exam.tsx`, new `ZoomImage.tsx` |
+| Option images rendered on the result and practice screens; option rows stay plain buttons because a zoom dialog cannot nest inside one | `Result.tsx`, `Retake.tsx` |
+| Palette legend / aria labels; leaderboard ranks show the number for positions past 3 | `Palette.tsx`, `AssessmentLeaderboard.tsx` |
+| `errData(err)` / `errCode(err)` moved to `services/api.ts` as the single typed reader of the uniform `{ error, code, … }` body, replacing four ad-hoc `any` casts. This also clears every `no-explicit-any` lint error in the repo | `services/api.ts`, `features/assessments/api.ts`, `pages/MyPrograms.tsx`, `shared/pricing/PlanPicker.tsx` |
+
+## Gates
+
+- `gofmt -l` clean on all touched Go files (the 107 the repo flags are pre-existing CRLF working copies, not this pass).
+- `go build ./...`, `go vet ./...` exit 0; `go test -count=1 ./internal/handler/... ./internal/usecase/... ./internal/domain/...` → `ok handler/http`, `ok usecase`, `ok domain`.
+- `admin-page-clean`: `npm run typecheck` clean (this re-checks the owner's `TimingFields.tsx` edit).
+- `frontend`: `npx tsc -b` exit 0, `npx eslint src` 0 errors / 5 pre-existing warnings, `npm run build` succeeds.
+- Not viewed in a browser: this environment has no reachable dev server for the Telegram-shaped UI, so the screen changes above are compiled-and-read, not visually verified. The four legacy screens listed under item 4 are untouched for the same reason.
+
+## The legacy-page deletion (item 1) is blocked on more than a `mode` stamp
+
+Two behaviours exist only on the legacy path, so removing it today loses them:
+
+1. **The roster write.** `POST /api/submission/` (legacy) records the student into `contest-registration/isActive`. The Phase 2 engine writes attempts, not registrations, and nothing ports that row.
+2. **Editorial for everyone after `EndTime`.** The legacy editorial page is readable by any student once the contest closes. Phase 2 gates it on `EditorialVisible`, which an admin must set.
+
+And while both UIs are live over the same 50 contests, a student can be recorded twice: the legacy submission row and a Phase 2 attempt are separate stores with separate leaderboards and separate admin lists. `SubmitLegacy` only bridges rows stamped by Phase 2, so an empty `mode` leaves both paths open. Deleting the legacy pages is therefore a product decision (port the two behaviours, then stamp `mode` in prod in one write), not a cleanup I should do unasked.
