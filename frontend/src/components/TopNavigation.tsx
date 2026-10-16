@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { useTelegram } from "../hooks/useTelegram";
 import { ThemeToggle } from "./ThemeToggle";
-import { Bell, Settings, Lock, SlidersHorizontal } from "lucide-react";
+import { Bell, Lock, SlidersHorizontal, User, BarChart3, Layers, ChevronRight } from "lucide-react";
 import { SettingsSheet } from "../academy/components/SettingsSheet";
 import NotificationCenter from "./NotificationCenter";
 import { useNotification } from "../context/NotificationContext";
@@ -23,6 +24,29 @@ import { useAuth } from "../context/AuthContext";
 import { isEntitled, useEntitlements } from "@/shared/pricing/api";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
 import { getAiSettings } from "../services/aiService";
+/** One row of the account menu: tinted icon chip + label (+ optional hint). */
+const MenuRow: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  hint?: string;
+  tone?: string;
+  active?: boolean;
+  onSelect: () => void;
+  className?: string;
+}> = ({ icon, label, hint, tone = "bg-muted text-foreground", active, onSelect, className }) => (
+  <DropdownMenuItem
+    onSelect={onSelect}
+    className={cn("cursor-pointer gap-3 rounded-xl px-2 py-2", active && "bg-accent", className)}
+  >
+    <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", tone)}>{icon}</span>
+    <span className="min-w-0 flex-1">
+      <span className="block truncate text-sm font-semibold leading-tight">{label}</span>
+      {hint && <span className="block truncate text-xs text-muted-foreground">{hint}</span>}
+    </span>
+    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+  </DropdownMenuItem>
+);
+
 const TopNavigation: React.FC = () => {
   const { user: tgUser, hapticFeedback } = useTelegram();
   const { user } = useAuth();
@@ -69,6 +93,8 @@ const TopNavigation: React.FC = () => {
       return "Leaderboard";
     } else if (pathname === "/statistics") {
       return "Statistics";
+    } else if (pathname === "/programs") {
+      return "My Programs";
     } else if (pathname === "/profile") {
       return "Profile";
     } else if (pathname === "/contest") {
@@ -121,6 +147,8 @@ const TopNavigation: React.FC = () => {
       </div>
     );
   };
+
+  const menuActive = ["/profile", "/statistics", "/programs", "/payment-history"].includes(location.pathname);
 
   const handleNotificationClick = () => {
     hapticFeedback("selection");
@@ -189,66 +217,98 @@ const TopNavigation: React.FC = () => {
               </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  {/* This is your exact button, used as the trigger */}
                   <button
-                    aria-label="Open menu"
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="Open account menu"
+                    className={cn(
+                      "inline-flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      menuActive
+                        ? "bg-blue-50 text-blue-600"
+                        : "bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}
                   >
-                    <Settings size={18} aria-hidden="true" />
+                    <User size={18} aria-hidden="true" />
                   </button>
                 </DropdownMenuTrigger>
 
-                {/* The dropdown content is styled to look professional */}
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal text-xs text-muted-foreground">
-                    Advanced Options
+                <DropdownMenuContent className="w-72 rounded-2xl p-2" align="end" forceMount>
+                  <div className="flex items-center gap-3 rounded-xl bg-muted/60 p-3">
+                    <div className="shrink-0">{getProfileImage()}</div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-foreground">
+                        {tgUser?.first_name || "Student"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.is_premium ? "Premium member" : "Free plan"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <DropdownMenuLabel className="px-2 pb-1 pt-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                    My account
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
                   <DropdownMenuGroup>
-                    <DropdownMenuItem
+                    <MenuRow
+                      icon={<User className="h-5 w-5" />}
+                      label="Profile"
+                      hint="Your details & settings"
+                      tone="bg-blue-100 text-blue-700"
+                      active={location.pathname === "/profile"}
+                      onSelect={() => navigate("/profile")}
+                    />
+                    <MenuRow
+                      icon={<BarChart3 className="h-5 w-5" />}
+                      label="Statistics"
+                      hint="Your progress & scores"
+                      tone="bg-green-100 text-green-700"
+                      active={location.pathname === "/statistics"}
+                      onSelect={() => navigate("/statistics")}
+                    />
+                    <MenuRow
+                      icon={<Layers className="h-5 w-5" />}
+                      label="My programs"
+                      hint="Enrolments & access"
+                      tone="bg-purple-100 text-purple-700"
+                      active={location.pathname === "/programs"}
+                      onSelect={() => navigate("/programs")}
+                    />
+                  </DropdownMenuGroup>
+
+                  <DropdownMenuSeparator className="my-2" />
+                  <DropdownMenuLabel className="px-2 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                    Advanced options
+                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    <MenuRow
+                      icon={aiLocked ? <Lock className="h-5 w-5" /> : <BotIcon className="h-6 w-6" />}
+                      label={`AI Practice${aiLocked ? " (Premium)" : ""}`}
+                      tone={aiLocked ? "bg-yellow-100 text-yellow-700" : "bg-muted text-foreground"}
                       onSelect={handleAiPracticeClick}
-                      className={`cursor-pointer ${aiLocked ? "opacity-70" : ""}`}
-                    >
-                      {aiLocked ? (
-                        <Lock className="mr-2 h-5 w-5 text-yellow-500" />
-                      ) : (
-                        <BotIcon className="mr-2 h-6 w-6" />
-                      )}
-                      <span>
-                        AI Practice{aiLocked ? " (Premium)" : ""}
-                      </span>
-                    </DropdownMenuItem>
+                      className={aiLocked ? "opacity-80" : ""}
+                    />
                     {!user?.is_premium && (
-                      <DropdownMenuItem
+                      <MenuRow
+                        icon={<UpgradeIcon className="h-6 w-6" />}
+                        label="Upgrade"
+                        hint="Unlock everything"
+                        tone="bg-yellow-100 text-yellow-700"
                         onSelect={handleUpgradeClick}
-                        className="cursor-pointer"
-                      >
-                        <UpgradeIcon className="mr-2 h-6 w-6 text-yellow-500" />
-                        <span>Upgrade</span>
-                      </DropdownMenuItem>
+                      />
                     )}
-                    <DropdownMenuItem
+                    <MenuRow
+                      icon={<SlidersHorizontal className="h-5 w-5" />}
+                      label="Learning settings"
                       onSelect={() => setShowReading(true)}
-                      className="cursor-pointer"
-                    >
-                      <SlidersHorizontal className="mr-2 h-5 w-5" />
-                      <span>Learning settings</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      // disabled={true}
+                    />
+                    <MenuRow
+                      icon={<PaymentHistoryIcon className="h-6 w-6" />}
+                      label="Payments"
                       onSelect={handlePaymentsClick}
-                      className="cursor-pointer"
-                    >
-                      <PaymentHistoryIcon className="mr-2 h-6 w-6 text-foreground" />
-                      <span>Payments</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
+                    />
+                    <MenuRow
+                      icon={<FeedbackIcon className="h-6 w-6" />}
+                      label="Give feedback"
                       onSelect={handleFeedbackClick}
-                      className="cursor-pointer"
-                    >
-                      <FeedbackIcon className="mr-2 h-6 w-6" />
-                      <span>Give Feedback</span>
-                    </DropdownMenuItem>
+                    />
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>

@@ -1,9 +1,8 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, GraduationCap, ClipboardList } from "lucide-react";
+import { GraduationCap, ClipboardList } from "lucide-react";
 import HomeIcon from "../assets/home-09-stroke-rounded.svg?react";
 import AwardIcon from "../assets/award-04-stroke-rounded.svg?react";
-import AccountIcon from "../assets/account-setting-02-stroke-rounded (1).svg?react";
 const BottomNavigation: React.FC = () => {
   const location = useLocation();
 
@@ -33,20 +32,6 @@ const BottomNavigation: React.FC = () => {
         return <AwardIcon className={className} />;
       },
       label: "Leaderboard",
-    },
-    {
-      path: "/statistics",
-      icon: () => {
-        return <BarChart3 className="mb-1 transition-all duration-200" />;
-      },
-      label: "Stats",
-    },
-    {
-      path: "/profile",
-      icon: ({ className }: { className: string }) => {
-        return <AccountIcon className={className} />;
-      },
-      label: "Profile",
     },
   ];
 
