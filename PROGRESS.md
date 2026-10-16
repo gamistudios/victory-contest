@@ -1,3 +1,5 @@
+=== BEGINNING OF PHASE 0 & PHASE ONE ===
+
 # Implementation progress: Phase 0 and Phase 1
 
 Plan: `PROPOSED-IMPLEMENTATION-PLAN.md` (revision 4). Date: 2026-10-14.
@@ -557,3 +559,486 @@ The fourteenth pass made one city read as one place, and the client then found t
 - Neighbourhood-level places students type (e.g. `Bole`) still stay separate until an admin folds them; `locnorm` will not decide that one.
 - Older `TestLocalDynamo*` cases in `internal/repository` still assume tables `cmd/setup-tables` creates. Pre-existing, unrelated.
 - Unchanged from earlier passes: the `-004` default price plan (needs `MIGRATE_PRICING_ETB`), the admin responsive/PWA E2E at 390/768/1280, the AI practice loop and chat vision (parked for client sign-off), and the markdown/KaTeX rendering plan.
+
+## DEPLOYED & TESTED AS IT IS
+
+### PHASE 1 COMPLETION SUMMARY:
+### COMMIT LOGS:
+5ba5366 (HEAD -> main, origin/main, origin/HEAD) docs(progress): record fifteenth pass — region/city removal, unlink write, save guard
+354784c feat(admin): merge, unlink or delete any region and city from the list
+713ef06 feat(locations): removing an entry moves or unlinks its students
+e69f8f6 feat(backend): a student write that can take a location link off
+fc56403 docs(progress): record fourteenth pass — canonical locations, merge layer, migration 005
+ba8eda4 feat(admin): clustered free-text rows, link-to-listed promote, and a merge-city sheet
+335b54f feat(migrations): 20261014-005 folds duplicate cities and relinks their students
+43ce235 fix(locations): one canonical city per place, promote merges instead of duplicating
+c92edd6 docs(progress): record thirteenth pass — whole-birr money, deploy shims, promote/migration key fixes
+750b6a7 fix(backend): stop writing DynamoDB key attributes on student updates
+b99cf4e Revert "docs(progress): rewrite as a single current-state handoff reference"
+2104418 docs(progress): rewrite as a single current-state handoff reference
+5e6785c refactor(pricing): all money is whole ETB birr — drop the santim sub-unit
+dc34cbc docs(env): document the phase 0/1 boot-migration variables
+0a09ea3 fix(backend): transitional compat shims so the deployed old frontend survives a backend-first deploy
+cc856ae docs: record twelfth pass — full local gate run, six wiring defects fixed, deployment notes
+ca38197 fix(admin): pricing/enrollment/location services call /api-prefixed paths
+496653f fix(backend): pricing snapshot guard, location validation, revoked/lifetime premium reads
+4cf4cb3 fix(frontend): free-coupon payment flow and premium-contest 402 sheet
+3b3570f fix(admin): Programs confirm dialog onConfirm return type (tsc -b + vite build pass)
+d2002f9 fix(backend): resolve Phase 0/1 compile error and normalize gofmt
+b528f2b feat: add progress documentation and implement Phase 0 and Phase 1 features
+f22a5ba chore: remove obsolete documentation files & Addition of Proposed Implementation Plan
+
+### FILES THAT ARE CHANGED:
+Updating 74e4c8f..5ba5366
+Fast-forward
+ .env.example                                       |   24 +
+ ACADEMY_BACKEND_NOTES.md                           |   57 -
+ ACADEMY_INTEGRATION.md                             |   29 -
+ CHANGE_SUMMARY.md                                  |  293 ----
+ DOCKER_IMPLEMENTATION_SUMMARY.md                   |  352 ----
+ PROGRESS.md                                        |  559 +++++++
+ PROPOSED-IMPLEMENTATION-PLAN.md                    | 1681 ++++++++++++++++++++
+ README.md                                          |  116 +-
+ admin-page-clean/src/App.tsx                       |    7 +
+ admin-page-clean/src/academy/admin/AdminLayout.tsx |    3 +-
+ admin-page-clean/src/academy/admin/ContentTree.tsx |   50 +-
+ admin-page-clean/src/academy/admin/Programs.tsx    |  273 ++++
+ .../src/academy/admin/editor/BasicsTab.tsx         |    4 +-
+ admin-page-clean/src/academy/admin/routes.tsx      |    2 +
+ .../src/academy/admin/tree/SubjectCard.tsx         |   22 +-
+ admin-page-clean/src/academy/admin/tree/forms.tsx  |  106 +-
+ admin-page-clean/src/academy/lib/theme.ts          |    8 +
+ .../src/components/common/ScopePicker.tsx          |   89 ++
+ .../src/components/common/Sidentmenu.tsx           |    6 +
+ .../src/components/contests/AddContest.tsx         |   15 +-
+ .../src/components/contests/Contest.tsx            |    3 +-
+ .../src/components/contests/ContestStatistics.tsx  |    6 +-
+ .../components/contests/UpdateContestDialog.tsx    |   11 +-
+ .../src/components/payment/approved-tabs.tsx       |    8 +
+ .../src/components/payment/columns.tsx             |   26 +-
+ .../src/components/payment/pending-tab.tsx         |   12 +-
+ .../src/components/questions/AddQuestionMethod.tsx |   34 +-
+ .../src/components/questions/QuestionTable.tsx     |   27 +
+ .../src/components/questions/Questions.tsx         |   98 +-
+ .../src/components/users/UserAccessSheet.tsx       |  139 ++
+ admin-page-clean/src/components/users/Users.tsx    |  124 +-
+ admin-page-clean/src/hooks/useCatalogLists.ts      |   54 +
+ admin-page-clean/src/pages/BulkEnrolment.tsx       |  154 ++
+ admin-page-clean/src/pages/Locations.tsx           |  417 +++++
+ admin-page-clean/src/pages/Pricing.tsx             |  202 +++
+ .../src/services/academy/academyApi.ts             |   10 +
+ admin-page-clean/src/services/catalogServices.ts   |   22 +
+ admin-page-clean/src/services/paymentServices.ts   |   26 +-
+ admin-page-clean/src/services/pricingServices.ts   |   85 +
+ admin-page-clean/src/services/questionServices.ts  |   11 +
+ admin-page-clean/src/types/academy.ts              |   17 +-
+ admin-page-clean/src/types/models.ts               |   15 +
+ backend/.env.example                               |   12 +
+ backend/cmd/migrate-enrollments/main.go            |   41 +
+ backend/cmd/migrate-grade/main.go                  |   41 +
+ backend/cmd/migrate-location-dedupe/main.go        |   43 +
+ backend/cmd/migrate-locations/main.go              |   40 +
+ backend/cmd/migrate-pricing/main.go                |   46 +
+ backend/cmd/migrate/main.go                        |   67 +
+ backend/internal/domain/academy.go                 |   61 +
+ backend/internal/domain/admin.go                   |   24 +-
+ backend/internal/domain/contest.go                 |    3 +
+ backend/internal/domain/grade.go                   |   40 +
+ backend/internal/domain/locations.go               |   64 +
+ backend/internal/domain/pricing.go                 |   92 ++
+ backend/internal/domain/pyament.go                 |    8 +
+ backend/internal/domain/question.go                |    8 +-
+ backend/internal/domain/scope.go                   |   84 +
+ backend/internal/domain/scope_test.go              |  122 ++
+ backend/internal/domain/student.go                 |   16 +
+ backend/internal/handler/http/academy_handler.go   |   48 +
+ .../internal/handler/http/achievement_handler.go   |    2 +-
+ backend/internal/handler/http/ai_handler_test.go   |    8 +-
+ backend/internal/handler/http/article_handler.go   |  364 +++--
+ backend/internal/handler/http/auth.go              |   30 +
+ backend/internal/handler/http/catalog_handler.go   |  174 ++
+ .../handler/http/catalog_locations_http_test.go    |  374 +++++
+ backend/internal/handler/http/contest_handler.go   |   83 +
+ .../handler/http/contest_registration_handler.go   |   29 +-
+ .../internal/handler/http/enrollment_handler.go    |  146 ++
+ backend/internal/handler/http/image_handler.go     |   90 +-
+ backend/internal/handler/http/payment_handler.go   |   86 +-
+ backend/internal/handler/http/pricing_handler.go   |  234 +++
+ backend/internal/handler/http/question_handler.go  |   70 +
+ backend/internal/handler/http/router.go            |  140 +-
+ backend/internal/handler/http/student_handler.go   |   31 +-
+ .../internal/handler/http/submission_handler.go    |   19 +-
+ backend/internal/locnorm/locnorm.go                |  193 +++
+ backend/internal/locnorm/locnorm_test.go           |  163 ++
+ backend/internal/migrations/enrollments.go         |  115 ++
+ backend/internal/migrations/grade.go               |  118 ++
+ backend/internal/migrations/location_dedupe.go     |  252 +++
+ .../migrations/location_dedupe_local_test.go       |  194 +++
+ .../internal/migrations/location_dedupe_test.go    |  120 ++
+ backend/internal/migrations/locations.go           |   33 +
+ backend/internal/migrations/pricing.go             |   82 +
+ backend/internal/migrations/prod_key_local_test.go |  190 +++
+ backend/internal/migrations/registry.go            |   53 +
+ backend/internal/migrations/runner.go              |  252 +++
+ backend/internal/migrations/runner_test.go         |   37 +
+ backend/internal/migrations/util.go                |   95 ++
+ backend/internal/migrations/util_test.go           |   45 +
+ .../repository/ai_provider_dynamo_local_test.go    |    2 +-
+ backend/internal/repository/payment_dynamo.go      |   25 +
+ backend/internal/repository/pricing_dynamo.go      |  218 +++
+ backend/internal/repository/question_dynamo.go     |   66 +
+ .../internal/repository/reference_data_dynamo.go   |   61 +
+ .../student_clear_location_local_test.go           |   81 +
+ backend/internal/repository/student_dynamo.go      |  104 +-
+ .../repository/student_patch_expression_test.go    |   96 ++
+ .../student_promote_prod_key_local_test.go         |  146 ++
+ backend/internal/repository/submission_dynamo.go   |    7 +
+ backend/internal/schema/tables.go                  |   13 +-
+ backend/internal/usecase/academy_programs_admin.go |  181 +++
+ backend/internal/usecase/academy_programs_seed.go  |  118 ++
+ backend/internal/usecase/academy_usecase.go        |  115 +-
+ backend/internal/usecase/access.go                 |  116 ++
+ backend/internal/usecase/access_test.go            |   64 +
+ backend/internal/usecase/admin_usecase.go          |   80 +-
+ backend/internal/usecase/ai_settings_usecase.go    |   10 +-
+ backend/internal/usecase/catalog.go                | 1061 ++++++++++++
+ backend/internal/usecase/catalog_merge_test.go     |  432 +++++
+ backend/internal/usecase/catalog_remove_test.go    |  346 ++++
+ backend/internal/usecase/contest_usecase.go        |   17 +-
+ backend/internal/usecase/enrollment_test.go        |   65 +
+ backend/internal/usecase/enrollment_usecase.go     |  195 +++
+ .../internal/usecase/enrollment_usecase_test.go    |   79 +
+ backend/internal/usecase/interfaces.go             |    8 +
+ backend/internal/usecase/locations_seed.json       |  271 ++++
+ backend/internal/usecase/payment_usecase.go        |  122 +-
+ backend/internal/usecase/pricing_logic.go          |  284 ++++
+ backend/internal/usecase/pricing_logic_test.go     |  184 +++
+ backend/internal/usecase/pricing_usecase.go        |  399 +++++
+ backend/internal/usecase/pricing_usecase_test.go   |   60 +
+ backend/internal/usecase/question_usecase.go       |   10 +
+ backend/internal/usecase/student_usecase.go        |   63 +-
+ backend/internal/usecase/submission_usecase.go     |   29 +-
+ docs/ARCHITECTURE.md                               |    9 +
+ DEPLOYMENT.md => docs/DEPLOYMENT.md                |    0
+ DOCKER_QUICKSTART.md => docs/DOCKER.md             |    0
+ frontend/src/App.tsx                               |    2 +
+ frontend/src/academy/components/UpgradeSheet.tsx   |    5 +-
+ frontend/src/academy/lib/theme.ts                  |    8 +
+ frontend/src/academy/pages/Courses.tsx             |    4 +-
+ frontend/src/academy/pages/Home.tsx                |   11 +-
+ frontend/src/academy/pages/Module.tsx              |    2 +-
+ frontend/src/components/ContestCard.tsx            |    5 +-
+ frontend/src/components/LeaderboardModal.tsx       |    5 +-
+ frontend/src/components/PremiumSheet.tsx           |   41 +-
+ frontend/src/components/TopNavigation.tsx          |    9 +-
+ frontend/src/context/PremiumSheetContext.tsx       |    6 +-
+ frontend/src/lib/premium.ts                        |   13 +
+ frontend/src/pages/AIPractice.tsx                  |    8 +-
+ frontend/src/pages/Contest.tsx                     |   30 +-
+ frontend/src/pages/Home.tsx                        |    5 +-
+ frontend/src/pages/MyPrograms.tsx                  |  107 ++
+ frontend/src/pages/Payment.tsx                     |   58 +-
+ frontend/src/pages/Profile.tsx                     |    2 +
+ frontend/src/pages/Statistics.tsx                  |    2 +-
+ frontend/src/pages/StudentRegisteration.tsx        |  495 +++---
+ frontend/src/shared/pricing/PlanPicker.tsx         |  125 ++
+ frontend/src/shared/pricing/api.ts                 |   86 +
+ frontend/src/shared/scope/LocationFields.tsx       |   65 +
+ frontend/src/shared/scope/ProgramPicker.tsx        |   62 +
+ frontend/src/shared/scope/catalog.ts               |  107 ++
+ frontend/src/types/academy.ts                      |   13 +-
+ frontend/src/types/index.ts                        |    5 +
+ 157 files changed, 14661 insertions(+), 1636 deletions(-)
+ delete mode 100644 ACADEMY_BACKEND_NOTES.md
+ delete mode 100644 ACADEMY_INTEGRATION.md
+ delete mode 100644 CHANGE_SUMMARY.md
+ delete mode 100644 DOCKER_IMPLEMENTATION_SUMMARY.md
+ create mode 100644 PROGRESS.md
+ create mode 100644 PROPOSED-IMPLEMENTATION-PLAN.md
+ create mode 100644 admin-page-clean/src/academy/admin/Programs.tsx
+ create mode 100644 admin-page-clean/src/components/common/ScopePicker.tsx
+ create mode 100644 admin-page-clean/src/components/users/UserAccessSheet.tsx
+ create mode 100644 admin-page-clean/src/hooks/useCatalogLists.ts
+ create mode 100644 admin-page-clean/src/pages/BulkEnrolment.tsx
+ create mode 100644 admin-page-clean/src/pages/Locations.tsx
+ create mode 100644 admin-page-clean/src/pages/Pricing.tsx
+ create mode 100644 admin-page-clean/src/services/catalogServices.ts
+ create mode 100644 admin-page-clean/src/services/pricingServices.ts
+ create mode 100644 backend/cmd/migrate-enrollments/main.go
+ create mode 100644 backend/cmd/migrate-grade/main.go
+ create mode 100644 backend/cmd/migrate-location-dedupe/main.go
+ create mode 100644 backend/cmd/migrate-locations/main.go
+ create mode 100644 backend/cmd/migrate-pricing/main.go
+ create mode 100644 backend/cmd/migrate/main.go
+ create mode 100644 backend/internal/domain/grade.go
+ create mode 100644 backend/internal/domain/locations.go
+ create mode 100644 backend/internal/domain/pricing.go
+ create mode 100644 backend/internal/domain/scope.go
+ create mode 100644 backend/internal/domain/scope_test.go
+ create mode 100644 backend/internal/handler/http/catalog_handler.go
+ create mode 100644 backend/internal/handler/http/catalog_locations_http_test.go
+ create mode 100644 backend/internal/handler/http/enrollment_handler.go
+ create mode 100644 backend/internal/handler/http/pricing_handler.go
+ create mode 100644 backend/internal/locnorm/locnorm.go
+ create mode 100644 backend/internal/locnorm/locnorm_test.go
+ create mode 100644 backend/internal/migrations/enrollments.go
+ create mode 100644 backend/internal/migrations/grade.go
+ create mode 100644 backend/internal/migrations/location_dedupe.go
+ create mode 100644 backend/internal/migrations/location_dedupe_local_test.go
+ create mode 100644 backend/internal/migrations/location_dedupe_test.go
+ create mode 100644 backend/internal/migrations/locations.go
+ create mode 100644 backend/internal/migrations/pricing.go
+ create mode 100644 backend/internal/migrations/prod_key_local_test.go
+ create mode 100644 backend/internal/migrations/registry.go
+ create mode 100644 backend/internal/migrations/runner.go
+ create mode 100644 backend/internal/migrations/runner_test.go
+ create mode 100644 backend/internal/migrations/util.go
+ create mode 100644 backend/internal/migrations/util_test.go
+ create mode 100644 backend/internal/repository/pricing_dynamo.go
+ create mode 100644 backend/internal/repository/reference_data_dynamo.go
+ create mode 100644 backend/internal/repository/student_clear_location_local_test.go
+ create mode 100644 backend/internal/repository/student_patch_expression_test.go
+ create mode 100644 backend/internal/repository/student_promote_prod_key_local_test.go
+ create mode 100644 backend/internal/usecase/academy_programs_admin.go
+ create mode 100644 backend/internal/usecase/academy_programs_seed.go
+ create mode 100644 backend/internal/usecase/access.go
+ create mode 100644 backend/internal/usecase/access_test.go
+ create mode 100644 backend/internal/usecase/catalog.go
+ create mode 100644 backend/internal/usecase/catalog_merge_test.go
+ create mode 100644 backend/internal/usecase/catalog_remove_test.go
+ create mode 100644 backend/internal/usecase/enrollment_test.go
+ create mode 100644 backend/internal/usecase/enrollment_usecase.go
+ create mode 100644 backend/internal/usecase/enrollment_usecase_test.go
+ create mode 100644 backend/internal/usecase/locations_seed.json
+ create mode 100644 backend/internal/usecase/pricing_logic.go
+ create mode 100644 backend/internal/usecase/pricing_logic_test.go
+ create mode 100644 backend/internal/usecase/pricing_usecase.go
+ create mode 100644 backend/internal/usecase/pricing_usecase_test.go
+ create mode 100644 docs/ARCHITECTURE.md
+ rename DEPLOYMENT.md => docs/DEPLOYMENT.md (100%)
+ rename DOCKER_QUICKSTART.md => docs/DOCKER.md (100%)
+ create mode 100644 frontend/src/pages/MyPrograms.tsx
+ create mode 100644 frontend/src/shared/pricing/PlanPicker.tsx
+ create mode 100644 frontend/src/shared/pricing/api.ts
+ create mode 100644 frontend/src/shared/scope/LocationFields.tsx
+ create mode 100644 frontend/src/shared/scope/ProgramPicker.tsx
+ create mode 100644 frontend/src/shared/scope/catalog.ts
+
+=== END OF PHASE ONE ===
+
+=== BEGINNING OF PHASE TWO ===
+
+---
+
+# Update 2026-10-16 (Phase 2, first pass, 5-minute box): attempt engine backend
+
+**Nothing in this pass was compiled, vetted, gofmt-ed or tested** (no Go toolchain, by instruction). New code was written by hand against the existing interfaces; run `cd backend && gofmt -l . && go build ./... && go test ./...` first. Expect possible alignment-only gofmt diffs and a few compile fixes.
+
+## Done (backend)
+
+| Plan item | Where |
+|---|---|
+| Contest fields (`Kind`, `Mode`, `DurationMinutes`, `LatePenaltyPercent`, `Reveal`, shuffle flags, `Year`, `Source`) + enums and `EffectiveMode/Kind/Reveal` (legacy empty mode reads as `global`). `Scope` already existed as `*Scope` from Phase 1 | `domain/contest.go` |
+| `Attempt` model, status constants, deterministic id `{contest}#{student}#1`, admin `Label()` | `domain/attempt.go` (new) |
+| Submission: `Scope`, `AttemptID`, `StartedAt`, `IsLate`, `PenaltyPercent`, `Points`, `DurationSeconds` (`Score` stays raw correct count) | `domain/submission.go` |
+| `attempts` table + GSIs `student_id-index`, `contest_id-index`, `status-expires_at-index` | `schema/tables.go` |
+| Attempt repository: conditional create, versioned autosave, conditional finalise, put, delete, queries by student / contest / expired | `repository/attempt_dynamo.go` (new) |
+| Pure rules: start window, `expires_at`, lateness by submit time, penalty, points formula, effective submit time for auto-submits, `AnswersVisible`, grading, typed contest validation | `usecase/attempt_logic.go` + `attempt_logic_test.go` (new; tests include the plan's worked example) |
+| Attempt usecase: Start (resume, 409 `already_attempted`, shuffled order, stream snapshot), Autosave (+30 s grace), Submit (idempotent), lazy finalise, Result (answers only if visible), sweeper, admin list/get and `exclude` / `waive_penalty` / `regrade` / `reset` (audit log line) | `usecase/attempt_usecase.go` (new) |
+| Routes: `POST /api/assessments/:id/start`, `PUT /api/attempts/:id/answers`, `POST /api/attempts/:id/submit`, `GET /api/attempts/:id/result`, admin `GET /api/admin/assessments/:id/attempts`, `GET|PATCH /api/admin/attempts/:id` | `handler/http/assessment_handler.go` (new), `router.go` |
+| Sweeper goroutine every 60 s, stopped on SIGINT/SIGTERM | `router.go` (`RunAttemptSweeper`), `main.go` |
+| Contest create: typed Phase 2 validation; defaults to `self_paced` + 10% penalty **only when `duration_minutes` is sent or `mode` is set** (deliberate deviation: the current admin form sends neither, and forcing self-paced would break contest creation until the form is updated) | `usecase/contest_usecase.go` |
+
+## NOT done in Phase 2
+
+- `GET /api/assessments`, `GET /api/assessments/:id` (list/intro with `lock` and `my_attempt`) and `GET /api/assessments/:id/leaderboard`.
+- Access check on Start: `AttemptUsecase.Access` hook exists but is **not wired** to `Decide`/pricing, so premium assessments are not gated by the new routes yet.
+- `SubmitLegacy` bridge for `POST /api/submission/`; `submission_usecase` editorial still uses `ContestHasEnded` (not switched to `AnswersVisible`).
+- Typed `ContestPatch` replacing the reflection PATCH (D11), including `ValidateScope`; `UpdateContest` has no Phase 2 validation yet.
+- CSV export of attempts; leaderboard update and badge evaluation on finalise (Phase 3 for leaderboards).
+- Repository/usecase tests with fakes and DynamoDB Local for attempts.
+- Admin app: `AssessmentForm`, `AttemptsTab`, `ContestList` columns, services/types. **Not started.**
+- Student app: `AssessmentList`, `Intro`, `Exam`/`Palette`/`Timer`, `useServerClock`, `Result`, `Retake`, `api.ts`, route changes and redirects. **Not started.**
+
+## Files changed or added
+
+Changed: `domain/{contest,submission}.go`, `schema/tables.go`, `usecase/contest_usecase.go`, `handler/http/router.go`, `main.go`.
+New: `domain/attempt.go`, `repository/attempt_dynamo.go`, `usecase/{attempt_logic,attempt_logic_test,attempt_usecase}.go`, `handler/http/assessment_handler.go`.
+
+---
+
+# Update 2026-10-16 (Phase 2, second pass, 5-minute box): reads, leaderboard, access gate
+
+Still **not compiled, vetted, gofmt-ed or tested** (no toolchain, by instruction). Run `gofmt -l . && go build ./... && go test ./...` in `backend/`.
+
+## Done in this pass
+
+- `GET /api/assessments` (scope filter query params `program_id`, `stream_id`, `subject_id`, `chapter_id`; metadata only, plus `lock` and `my_attempt`), `GET /api/assessments/:id` (intro data), `GET /api/assessments/:id/leaderboard` (ranks by points, ties on duration; excludes abandoned and excluded attempts). Files: `usecase/assessment_read.go` (new), `handler/http/assessment_handler.go`.
+- Access gate wired: `AttemptUsecase.Access` now calls the existing `ContestHandler.studentLocked` (so `Decide` per program when the contest has a Scope, any-entitlement fallback otherwise). Start returns **402** with the `lock` object; list and intro carry `lock`. File: `router.go`, `usecase.LockedError`.
+
+## Still open in Phase 2 (updated list)
+
+- `SubmitLegacy` bridge for `POST /api/submission/`; editorial visibility in `submission_usecase` still uses `ContestHasEnded` rather than `AnswersVisible`.
+- Typed `ContestPatch` (D11) replacing the reflection PATCH, with `ValidateScope` and Phase 2 validation on update.
+- Attempts CSV export; badge evaluation on finalise; leaderboard side effects beyond the per-assessment board (Phase 3).
+- Tests with fakes / DynamoDB Local for the attempt repository, usecase, and the new read endpoints.
+- `ListAssessments` status filtering is a minimal rule (skips `inactive` / `draft`); confirm against how contests use `status`.
+- Admin app (`AssessmentForm`, `AttemptsTab`, `ContestList` columns, services/types) and student app (`AssessmentList`, `Intro`, `Exam`/`Palette`/`Timer`, `useServerClock`, `Result`, `Retake`, `api.ts`, routes and redirects): **not started.**
+
+New file this pass: `backend/internal/usecase/assessment_read.go`. Changed: `handler/http/assessment_handler.go`, `handler/http/router.go`.
+
+---
+
+# Update 2026-10-16 (Phase 2, third pass): bridge, typed patch, CSV, admin + student apps
+
+Still **not compiled, vetted, gofmt-ed, type-checked or tested** (no toolchain, by instruction). Run `cd backend && gofmt -l . && go build ./... && go test ./...`, then `tsc -b` / `vite build` in `frontend/` and `admin-page-clean/`. Some one-line `if` bodies in `domain/contest.go` (`ContestPatch.Apply`) will be reformatted by gofmt.
+
+## Backend (new in this pass)
+
+| Item | Where |
+|---|---|
+| `SubmitLegacy` bridge: `POST /api/submission/` for contests with a Phase 2 `mode` creates a completed attempt (window check, server grading, client `time_spend` ignored); legacy rows (empty mode) keep the old path unchanged. Window errors answer 403 | `usecase/attempt_usecase.go`, `handler/http/submission_handler.go`, `router.go` |
+| Editorial visibility via `EditorialVisible` (Phase 2: only students who finished, per `AnswersVisible`; legacy: old `ContestHasEnded` rule) | `usecase/attempt_logic.go`, `submission_usecase.go` |
+| Typed `domain.ContestPatch` (pointer fields) applied in `PATCH /contest/:id`; stored Scope and Phase 2 fields are now carried over on every patch; scope program required; Phase 2 validation when `mode` is set. The old string-field map for the legacy fields is **kept** (not refactored) | `domain/contest.go`, `handler/http/contest_handler.go` |
+| Attempts CSV: `GET /api/admin/assessments/:id/attempts.csv?label=` | `handler/http/assessment_handler.go` |
+| Badge evaluation for the finalised attempt only (`OnSubmission` hook → `AwardBadges`) | `usecase/attempt_usecase.go`, `submission_usecase.go`, `router.go` |
+| `parseTime` now reuses `parseContestTime`, so zone-less timestamps the admin form sends are read like the dashboard reads them | `usecase/attempt_logic.go` |
+
+## Student app (new)
+
+`features/assessments/{api.ts,AssessmentList,Intro,Exam,Palette,Timer,Result,Retake,AssessmentLeaderboard}`, `shared/data/useServerClock.ts`. Routes added in `App.tsx`: `/practice`, `/assessment/:id` (intro), `/assessment/:id/exam`, `/assessment/:id/leaderboard`, `/attempt/:id/result`. Exam: server-clock timer, palette, flagging, 1.5 s debounced autosave with version conflict handling, resume, auto-submit at expiry. Result: points breakdown, answers countdown that flips on its own, "Practice again (not recorded)" graded locally with no API call. `ContestCard` sends `mode === "self_paced"` contests to `/assessment/:id`; `Contest` type gained `mode`, `duration_minutes`, `late_penalty_percent`.
+
+## Admin app (new)
+
+`services/assessmentServices.ts`; `features/assessments/{AttemptsTab,TimingFields}.tsx`; route `contest/:id/attempts`. `AddContest` now has the timing step (kind, mode default self-paced, time limit, late penalty default 10, reveal, shuffle, source/year) and validates a self-paced time limit and end after start. `ContestList` shows kind, mode, access and scope badges and an Attempts link for self-paced contests. Types extended in `types/models.ts`.
+
+## Deviations from the plan (deliberate)
+
+- The student routes use `/assessment/:id/exam` (contest id) rather than `/attempt/:id`, because the attempt does not exist until Start; the attempt id (`{contest}#{student}#1`) is URL-encoded in `/attempt/:id/result`.
+- Old `/contest`, `/registration`, `/contest-editorial` routes are **not** redirected: legacy (empty-mode) contests still depend on them. Remove them once all contests are migrated.
+- `AddContest` was extended rather than replaced by a new `AssessmentForm`; `UpdateContestDialog` was **not** updated and cannot edit the Phase 2 fields yet (the API accepts them via PATCH).
+
+## Still open
+
+- Tests: fakes/DynamoDB Local tests for the attempt repository, usecase, read endpoints, `SubmitLegacy` and the PATCH carry-over; handler tests for the new routes.
+- `UpdateContestDialog` Phase 2 fields; admin `ContestList` filters from `useScopeFilter` and an attempts-count column (type field exists, backend does not return it).
+- Student app: a Practice tab entry in navigation (route `/practice` exists, no menu link yet); `ContestStudentRegistration`/`Contest`/`ContestEditorial`/`useContestTimer` are not deleted (still used by legacy contests).
+- `ValidateScope` against the catalog (patch only checks `program_id` is non-empty).
+- Leaderboard rework by period/program (Phase 3).
+
+---
+
+# Update 2026-10-16 (Phase 2, fourth pass): remaining non-test items
+
+Still **not compiled, vetted, gofmt-ed, type-checked or tested** (no toolchain, by instruction). Tests were skipped on request.
+
+## Done in this pass
+
+- **Catalog scope validation (was: only `program_id` non-empty):** `usecase.ValidateScopeAgainst` checks the program is active, a specific stream is offered by it (`common` always allowed), the subject exists, and the chapter exists and belongs to the subject. Applied on `POST /contest/add` and on `PATCH /contest/:id` when a scope is provided. If the catalog cannot be read the check is skipped (admins are not blocked by a read failure). Files: `usecase/scope_validate.go` (new), `contest_handler.go`, `router.go`.
+- **Attempt counts:** `AttemptRepository.CountsByContest` (projected scan), `AttemptUsecase.AttemptCounts`, admin route `GET /api/admin/attempt-counts`. Files: `repository/attempt_dynamo.go`, `usecase/attempt_usecase.go`, `assessment_handler.go`.
+- **Admin contest list:** program and kind filters (new `hooks/useScopeFilter.ts`, catalog-driven) in `Contest.tsx`; `ContestList` applies them and shows an attempts-count badge; `services/assessmentServices.ts` has `getAttemptCounts`.
+- **Admin `UpdateContestDialog`:** now shows the same `TimingFields` for Phase 2 contests (legacy contests see a note instead) and validates the self-paced time limit; the stored Phase 2 values are loaded into the form.
+- **Student navigation:** Practice entry in the bottom nav (`/practice`, also active on `/assessment/*` and `/attempt/*`) and a "Practice" page title in the top nav.
+
+## Still open
+
+- Tests (deliberately skipped this pass): attempt repository/usecase/read endpoints/`SubmitLegacy`/PATCH carry-over, new handler routes, `ValidateScopeAgainst`.
+- The bottom nav now has six entries; check it on a 360 px screen and drop or merge one if it is crowded.
+- Legacy student pages (`ContestStudentRegistration`, `Contest`, `ContestEditorial`, `useContestTimer`) and the old `/contest`, `/registration`, `/contest-editorial` routes are intentionally **kept**: contests with an empty `mode` still run on them. Delete them (and add redirects) only after every live contest has been migrated to a Phase 2 mode.
+- `CountsByContest` scans the whole attempts table; fine at current scale, switch to a stored counter if the table grows large.
+- Leaderboard rework by period/program is Phase 3.
+
+---
+
+# Update 2026-10-16 (Phase 2, fifth pass, 5-minute box): contest migration written, production NOT migrated
+
+**Nothing was compiled or run** (no Go toolchain in this sandbox). **No production write was made.**
+
+## Production migration: blocked, honestly reported
+
+- The sandbox could not resolve `dynamodb.eu-north-1.amazonaws.com`, even after appending the host to `.wget-hsts` (that file only affects wget/curl HSTS, not the sandbox egress proxy). Allow `*.amazonaws.com` in the sandbox network settings, or run from a machine with network access.
+- The `.env` credentials were therefore never used.
+- Phase 0/1 migrations `-001` to `-005` run on boot (`AUTO_MIGRATE`); `-001`, `-002` and `-005` are still unrecorded in the live ledger according to the fifteenth pass. Phase 2 adds no automatic data migration.
+
+## Added
+
+| Item | Files | Notes |
+|---|---|---|
+| `migrate-contest-scope` (plan 10.2, contests) | `internal/migrations/contest_scope.go`, `contest_scope_test.go`, `cmd/migrate-contest-scope/main.go` | Contests with no `scope` get `{program_id: grade-<n>, stream_id: common}` and `kind=contest`, from the legacy `grade` text. `mode` stays empty (legacy global), `type`, start and end are untouched. Unmappable grades are reported, not guessed. Dry run by default; `-apply` writes a JSON backup first, uses conditional `attribute_not_exists(scope)` writes on the full composite key. **Deliberately not in `Registry()`**, so it never runs on boot |
+
+## Behaviour to know before `-apply`
+
+A scoped premium contest is gated by `Decide` for that program instead of "any active entitlement". Legacy payments become all-programs grants, so existing premium students keep access; students with no entitlement for `grade-<n>` do not.
+
+## Run order
+
+1. `cd backend && gofmt -l . && go build ./... && go vet ./... && go test ./...`
+2. `go run ./cmd/migrate -status` (read-only ledger check)
+3. `go run ./cmd/migrate-contest-scope` (dry run), review, then `-apply` only on explicit approval
+4. Deploy; the boot runner applies pending `-001`/`-002`/`-005`
+
+## Still open
+
+Phase 2 tests (attempt repository/usecase/read endpoints/`SubmitLegacy`/`ValidateScopeAgainst`), bottom-nav crowding check at 360 px, deletion of legacy contest pages after all contests are migrated, `CountsByContest` scan, Phase 3 leaderboards. Not reviewed line by line this pass: the staged Phase 2 code was read only through the progress notes.
+
+---
+
+# Update 2026-10-16 (Phase 2, sixth pass): Phase 2 reviewed and tested, **production contests migrated**
+
+Everything below was compiled, vetted and run on a machine with the Go toolchain and network access. **The production `contests` table was written** (50 rows, conditional, backed up first) — the run order from the fifth pass was followed exactly.
+
+## Production state, read-only first
+
+`go run ./cmd/migrate -status` against `eu-north-1` (production credentials from the repo-root `.env`):
+
+| Migration | Live status |
+|---|---|
+| `20261014-001-grade-9-12` | **applied** 2026-10-14T13:40:15Z — `scanned=377 changed=148 unmapped=7` |
+| `20261014-002-student-enrollments` | **applied** — `migrated=370 unknown=7` |
+| `20261014-003-seed-locations` | **applied** — `already stored (14 regions)` |
+| `20261014-004-default-price-plan` | pending (deferred: `MIGRATE_PRICING_ETB` is not set on prod) |
+| `20261014-005-location-dedupe` | **applied** 2026-10-15 — `relinked=217 dropped=1` |
+
+Correction to the fifth pass and to the fifteenth pass note: `-001`, `-002` and `-005` are **already recorded as applied in the live ledger**. They are only pending in local/dev databases. Nothing new is applied on the next prod boot.
+
+`attempts` does **not** exist in production yet (the live table list has 27 tables, none of them `attempts`). It is created by `schema.EnsureTables` on boot (`internal/handler/http/router.go:100`), with all three GSIs, so the next deploy of this code creates it. No manual table creation was done.
+
+## Contest scope back-fill (plan 10.2) — applied
+
+```
+go run ./cmd/migrate-contest-scope            # dry run
+go run ./cmd/migrate-contest-scope -apply -backup-dir <outside the repo>
+```
+
+- Dry run: `contests=50 already-scoped=0 to-change=50 unmapped=0`. Every live contest carries `grade: "12"`, so all 50 map to `grade-12/common`; nothing needed guessing.
+- Apply: `changed=50 failed=0`. Backup of the 50 change rows written to `%LOCALAPPDATA%\Temp\victory-migration-backups\migrate-contest-scope-20261016T052023Z.json` (deliberately **outside** the repository — `migration-backups` is not gitignored, and these rows are production data).
+- Re-run afterwards: `already-scoped=50 to-change=0` — idempotent, as designed.
+- Spot check (`Qu3DLncJF8JH34jsEgMCUg`): now has `scope {program_id: grade-12, stream_id: common}` and `kind: contest`; `grade`, `type`, `status`, `start_time`, `end_time` unchanged, and **no `mode` attribute was written** (empty = legacy global, so the old pages keep serving these contests).
+- Still run by hand: `contest_scope` stays out of `Registry()`.
+
+Consequence now live on prod: a scoped premium contest is gated by `Decide` for `grade-12` rather than "any active entitlement". Legacy payments became all-programs grants, so existing premium students keep access.
+
+## Review of the staged Phase 2 code — defects found and fixed
+
+| Fix | File | Why it mattered |
+|---|---|---|
+| `ListAssessments` no longer filters by `status` | `internal/usecase/assessment_read.go` | The admin form defaults new contests to `status: "inactive"` (`AddContest.tsx:97`) and the legacy app derives open/ended from the times, so the filter would have hidden nearly every real contest from the student app |
+| Sanitised CSV download filename | `internal/handler/http/assessment_handler.go` | The contest id went straight into a `Content-Disposition` header — header injection via a crafted id |
+| Strict stream check in `ValidateScopeAgainst` | `internal/usecase/scope_validate.go` | `ValidateEnrollment` normalises common-only programs, so a `freshman`/`natural-science` scope passed validation against a program that never offers that stream; `programAllowsStream` now checks the offered streams literally |
+| `parseTime` → `parseAttemptTime` | `internal/usecase/attempt_logic.go`, `attempt_usecase.go`, `attempt_logic_test.go` | Phase 2 redeclared `parseTime` in package `usecase`; the build was broken |
+
+## Tests completed (plan 10.6, the fifth pass's "still open")
+
+| File | Tests | Covers |
+|---|---|---|
+| `internal/usecase/attempt_usecase_test.go` (575 lines) | 13 | injected clock: start, resume, 409 on a second attempt, closed window, grace boundary, auto-submit from `expires_at`, autosave version conflict and foreign student, submit/finalise idempotency, submission row + badge hook, `Result` draft-answer nulling and editorial gating, sweeper, admin exclude/waive/regrade/reset, `SubmitLegacy` fallthrough on `ErrNotPhase2` |
+| `internal/usecase/assessment_read_test.go` (146) | 4 | list scope/lock/`my_attempt`, intro, leaderboard ordering (abandoned and excluded dropped), `EditorialVisible` bridge |
+| `internal/usecase/scope_validate_test.go` (62) | 2 | valid and invalid scopes against a program/stream catalog, nil catalog stays lenient |
+| `internal/domain/contest_patch_test.go` (77) | 2 | PATCH carry-over, zero-pointer patch reports no change, scope is copied not aliased, `clear_scope`, `Effective*` defaults on legacy rows |
+| `internal/repository/attempt_dynamo_local_test.go` (143) | 1 | DynamoDB Local (dynalite): conditional create → `ErrAlreadyAttempted`, stale version → `ErrVersionConflict`, double finalise → `ErrAttemptFinalised`, autosave after finalise fails, both list GSIs. Skips unless `AWS_ENDPOINT_URL_DYNAMODB` is set, so CI is unaffected. Ran and passed locally |
+
+Gates: `gofmt` clean on every touched file, `go build ./...`, `go vet ./...`, `go test ./...` fully green; `npx tsc -b` (student app) and `npm run typecheck` (admin app) clean.
+
+## Still open
+
+Bottom-nav crowding at 360 px, deleting the legacy contest pages (now that all 50 prod contests are scoped, but they still have no `mode`), `CountsByContest` full scan, Phase 3 leaderboards, and `20261014-004-default-price-plan` whenever a prod price is configured.
