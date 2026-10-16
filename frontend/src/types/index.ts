@@ -245,7 +245,7 @@ export interface Contest {
   active_contestant: Student[];
   questions: Question[];
   type: "free" | "premium";
-  /** Phase 2: "self_paced" contests use the Intro/Exam/Result flow; empty/"global" keep the legacy flow. */
+  /** Phase 2 timing mode; every mode runs on the Intro/Exam/Result flow. */
   mode?: "self_paced" | "global";
   duration_minutes?: number;
   late_penalty_percent?: number;

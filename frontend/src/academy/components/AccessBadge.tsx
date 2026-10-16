@@ -2,7 +2,7 @@ import { CheckCircle, Lock, Star } from "lucide-react";
 import type { Access } from "@/types/academy";
 import { cn } from "@/lib/utils";
 
-/** Same Free / Premium pill language as victory-contest's ContestCard. */
+/** Same Free / Premium pill language as the contest screens. */
 export function AccessBadge({ access, locked, compact, className }: { access: Access; locked?: boolean; compact?: boolean; className?: string }) {
   if (access === "free") {
     return (
