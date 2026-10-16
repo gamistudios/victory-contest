@@ -44,6 +44,17 @@ export interface Contest {
   prize: string;
   status: string;
   type: "free" | "premium";
+  /** Phase 2 assessment settings (all optional; empty mode = legacy global). */
+  kind?: string;
+  mode?: "self_paced" | "global";
+  duration_minutes?: number;
+  late_penalty_percent?: number;
+  reveal?: "at_end" | "on_submit";
+  shuffle_questions?: boolean;
+  shuffle_options?: boolean;
+  year?: string;
+  source?: string;
+  attempts_count?: number;
 }
 export interface APIContest extends Omit<Contest, "questions"> {
   questions: string[];

@@ -1,7 +1,9 @@
 // src/components/contests/ContestList.tsx
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { getAttemptCounts } from "@/services/assessmentServices";
+import { matchesScopeFilter } from "@/hooks/useScopeFilter";
 
 // Shadcn/ui & Lucide Icons
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,8 +37,10 @@ const getContestStatus = (
 export function ContestList({
   filters,
 }: {
-  filters: { grades: string[]; subjects: string[] };
+  filters: { grades: string[]; subjects: string[]; programs?: string[]; kinds?: string[] };
 }) {
+  const navigate = useNavigate();
+  const { data: attemptCounts } = useQuery({ queryKey: ["attempt-counts"], queryFn: getAttemptCounts, retry: false });
   const { data: contests, status } = useQuery({
     queryKey: ["contests"],
     queryFn: getContests,
@@ -45,6 +49,7 @@ export function ContestList({
   const filteredContests = useMemo(() => {
     if (!contests) return [];
     return contests.filter((contest) => {
+      if (!matchesScopeFilter(contest, { programs: filters.programs ?? [], kinds: filters.kinds ?? [] })) return false;
       const gradeMatch =
         filters.grades.length === 0 || filters.grades.includes(contest.grade);
       const subjectMatch =
@@ -105,6 +110,14 @@ export function ContestList({
                     <CardTitle className="text-base font-bold break-words group-hover:text-primary sm:text-lg">
                       {contest.title}
                     </CardTitle>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="rounded bg-muted px-1.5 py-0.5">{(contest.kind ?? "contest").replace("_", " ")}</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5">{contest.mode === "self_paced" ? "self-paced" : "global"}</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5">{contest.type}</span>
+                      {contest.scope?.program_id && <span className="rounded bg-muted px-1.5 py-0.5">{contest.scope.program_id}{contest.scope.stream_id ? ` · ${contest.scope.stream_id}` : ""}</span>}
+                      {attemptCounts && <span className="rounded bg-muted px-1.5 py-0.5">{attemptCounts[contest.id ?? ""] ?? 0} attempts</span>}
+                      {contest.mode === "self_paced" && <button type="button" className="underline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/dashboard/contest/${contest.id}/attempts`); }}>Attempts</button>}
+                    </div>
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="h-4 w-4" />

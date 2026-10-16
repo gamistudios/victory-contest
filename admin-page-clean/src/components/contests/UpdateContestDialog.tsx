@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner';
 import { ScopePicker } from '@/components/common/ScopePicker';
 import { useCatalogLists } from "@/hooks/useCatalogLists";
+import TimingFields from "@/features/assessments/TimingFields";
 
 
 interface UpdateContestDialogProps {
@@ -81,6 +82,15 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
         prize: contest.prize || '',
         type: contest.type || 'free',
         scope: contest.scope,
+        kind: contest.kind,
+        mode: contest.mode,
+        duration_minutes: contest.duration_minutes,
+        late_penalty_percent: contest.late_penalty_percent,
+        reveal: contest.reveal,
+        shuffle_questions: contest.shuffle_questions,
+        shuffle_options: contest.shuffle_options,
+        year: contest.year,
+        source: contest.source,
       });
     }
   }, [open, contest]);
@@ -128,6 +138,10 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
       return;
     }
     
+    if (formData.mode === "self_paced" && !(formData.duration_minutes && formData.duration_minutes > 0)) {
+      toast.error('Self-paced assessments need a time limit');
+      return;
+    }
     setTimeError('');
 
     setIsLoading(true);
@@ -172,6 +186,14 @@ export const UpdateContestDialog: React.FC<UpdateContestDialogProps> = ({
                 placeholder="Contest title"
               />
             </div>
+
+            {contest?.mode ? (
+              <TimingFields value={formData} onChange={(p) => setFormData((f) => ({ ...f, ...p }))} disabled={isLoading} />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                This is a legacy contest (global timing). Create a new assessment to use self-paced mode.
+              </p>
+            )}
 
             <ScopePicker
               value={formData.scope}

@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ScopePicker } from "@/components/common/ScopePicker";
+import TimingFields from "@/features/assessments/TimingFields";
 import type { Scope } from "../../types/models";
 
 // Define action types for the reducer
@@ -49,6 +50,7 @@ type Action =
       value: dayjs.Dayjs | null;
     }
   | { type: "SET_SCOPE"; value: Scope | undefined }
+  | { type: "SET_PHASE2"; value: Partial<Contest> }
   | { type: "RESET_FORM" };
 
 // Reducer function to manage contest state
@@ -58,6 +60,8 @@ const contestReducer = (state: Contest, action: Action): Contest => {
       return { ...state, [action.field]: action.value };
     case "SET_SCOPE":
       return { ...state, scope: action.value };
+    case "SET_PHASE2":
+      return { ...state, ...action.value };
     case "SET_TIME": {
       if (!state.start_time || !action.value) {
         toast.error("Please select a date first.");
@@ -91,6 +95,12 @@ const initialState: Contest = {
   prize: "",
   type: "free",
   status: "inactive",
+  // Phase 2 defaults (plan §5.4.1): self-paced, 60 min, 10% late penalty.
+  kind: "contest",
+  mode: "self_paced",
+  duration_minutes: 60,
+  late_penalty_percent: 10,
+  reveal: "at_end",
 };
 
 export default function AddContest() {
@@ -154,6 +164,15 @@ export default function AddContest() {
       toast.error(
         "Please fill in all required fields: Title, Grade, Subject, and select at least one question."
       );
+      return;
+    }
+
+    if ((contest.mode ?? "self_paced") === "self_paced" && !(contest.duration_minutes && contest.duration_minutes > 0)) {
+      toast.error("Self-paced assessments need a time limit.");
+      return;
+    }
+    if (contest.start_time && contest.end_time && dayjs(contest.end_time).isBefore(dayjs(contest.start_time))) {
+      toast.error("The end time must be after the start time.");
       return;
     }
 
@@ -281,6 +300,8 @@ export default function AddContest() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <TimingFields value={contest} onChange={(p) => dispatch({ type: "SET_PHASE2", value: p })} disabled={isLoading} />
 
               <ScopePicker
                 value={contest.scope}

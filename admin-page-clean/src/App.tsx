@@ -8,6 +8,7 @@ import Home from "./components/home/Home";
 import ContestById from "./components/contests/ContestById";
 import AddQuestions from "./components/questions/AddQuestions";
 import AddContest from "./components/contests/AddContest";
+import AttemptsTab from "./features/assessments/AttemptsTab";
 import Login from "./components/auth/Login";
 import RootLayout from "./components/RootLoyout";
 import RouteError from "./components/RouteError";
@@ -53,6 +54,7 @@ const router = createBrowserRouter(
           { path: "", element: <Home /> },
           { path: "contest", element: <Contest /> },
           { path: "contest/:id", element: <ContestById /> },
+          { path: "contest/:id/attempts", element: <AttemptsTab /> },
           { path: "questions", element: <QuestionsPage /> },
           { path: "articles", element: <ArticlesPage /> },
           { path: "users", element: <UserListPage /> },
