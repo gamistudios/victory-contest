@@ -134,13 +134,31 @@ func TestEditorialVisibleBridge(t *testing.T) {
 		t.Fatal("legacy rule unchanged: after end everyone (even non-participants) sees the editorial")
 	}
 	p2 := domain.Contest{ID: "p", Mode: domain.ContestModeGlobal, EndTime: end}
-	if EditorialVisible(p2, false, t0.Add(2*time.Hour)) {
-		t.Fatal("phase 2: a student who never took it must not read answers first")
+	// A window contest cannot be started after it closes, so publishing its
+	// answers to students who never took it leaks nothing — the legacy editorial
+	// page served them exactly this, and the Phase 2 route has to keep it.
+	if !EditorialVisible(p2, false, t0.Add(2*time.Hour)) {
+		t.Fatal("phase 2 global: a closed window is public reading")
+	}
+	if EditorialVisible(p2, false, t0) {
+		t.Fatal("phase 2 global: still hidden while the window is open")
 	}
 	if !EditorialVisible(p2, true, t0.Add(2*time.Hour)) {
 		t.Fatal("phase 2: finishers see answers at the until-time")
 	}
 	if EditorialVisible(p2, true, t0) {
 		t.Fatal("phase 2: not before the until-time")
+	}
+	// Self-paced papers stay answerable after the end time (late attempts take a
+	// penalty), so their answers never go public.
+	sp := domain.Contest{ID: "s", Mode: domain.ContestModeSelfPaced, DurationMinutes: 30, EndTime: end}
+	if EditorialVisible(sp, false, t0.Add(2*time.Hour)) {
+		t.Fatal("phase 2 self-paced: a non-participant must never read the answers")
+	}
+	// An admin who chose "answers right after you submit" keeps them private to
+	// finishers even once the window closes.
+	os := domain.Contest{ID: "o", Mode: domain.ContestModeGlobal, EndTime: end, Reveal: domain.RevealOnSubmit}
+	if EditorialVisible(os, false, t0.Add(2*time.Hour)) {
+		t.Fatal("reveal=on_submit: an ended window must not publish the answers")
 	}
 }

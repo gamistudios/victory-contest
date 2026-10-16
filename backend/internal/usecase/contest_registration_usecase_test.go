@@ -222,3 +222,75 @@ func TestAddContestRegistrationRejectsDuplicates(t *testing.T) {
 		t.Fatalf("fresh add: id=%q err=%v", id, err)
 	}
 }
+
+func TestEnsureActive(t *testing.T) {
+	t.Run("creates the row when the student never registered", func(t *testing.T) {
+		repo := newInactiveRepo()
+		uc := &contestRegistrationUsecase{repo: repo}
+		if err := uc.EnsureActive("c1", "s9"); err != nil {
+			t.Fatalf("EnsureActive: %v", err)
+		}
+		if len(repo.added) != 1 {
+			t.Fatalf("added %d rows, want 1", len(repo.added))
+		}
+		row := repo.added[0]
+		if row.ContestID != "c1" || row.StudentID != "s9" || !row.IsActive || row.ID == "" {
+			t.Fatalf("row = %+v, want c1/s9 active with an id", row)
+		}
+	})
+
+	t.Run("activates an existing inactive row", func(t *testing.T) {
+		repo := newInactiveRepo()
+		uc := &contestRegistrationUsecase{repo: repo}
+		if err := uc.EnsureActive("c1", "s1"); err != nil {
+			t.Fatalf("EnsureActive: %v", err)
+		}
+		if repo.activateCalls != 1 || len(repo.added) != 0 {
+			t.Fatalf("activateCalls=%d added=%d, want 1/0", repo.activateCalls, len(repo.added))
+		}
+		if !repo.rows[regKey("c1", "s1")].IsActive {
+			t.Fatal("row is still inactive")
+		}
+	})
+
+	t.Run("an already active row writes nothing", func(t *testing.T) {
+		repo := newInactiveRepo()
+		uc := &contestRegistrationUsecase{repo: repo}
+		if err := uc.EnsureActive("c1", "s1"); err != nil {
+			t.Fatalf("first: %v", err)
+		}
+		if err := uc.EnsureActive("c1", "s1"); err != nil {
+			t.Fatalf("second: %v", err)
+		}
+		if repo.activateCalls != 1 || len(repo.added) != 0 {
+			t.Fatalf("activateCalls=%d added=%d, want 1/0", repo.activateCalls, len(repo.added))
+		}
+	})
+
+	t.Run("a repository read failure is surfaced", func(t *testing.T) {
+		repo := newInactiveRepo()
+		repo.getErr = errors.New("dynamo down")
+		uc := &contestRegistrationUsecase{repo: repo}
+		if err := uc.EnsureActive("c1", "s1"); err == nil {
+			t.Fatal("want the read error, got nil")
+		}
+	})
+}
+
+func TestRegisterAcceptsAnExistingRow(t *testing.T) {
+	repo := newInactiveRepo()
+	uc := &contestRegistrationUsecase{repo: repo}
+
+	if err := uc.Register("c1", "s1"); err != nil {
+		t.Fatalf("re-registering an existing student: %v", err)
+	}
+	if len(repo.added) != 0 {
+		t.Fatalf("duplicate register wrote %d rows, want 0", len(repo.added))
+	}
+	if err := uc.Register("c1", "s2"); err != nil {
+		t.Fatalf("fresh register: %v", err)
+	}
+	if len(repo.added) != 1 || repo.added[0].IsActive {
+		t.Fatalf("added = %+v, want one inactive row (activation happens on entry)", repo.added)
+	}
+}

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+	"log"
 	"sort"
 	"time"
 
@@ -33,7 +34,11 @@ type AssessmentMeta struct {
 	Source             string         `json:"source,omitempty"`
 	Lock               interface{}    `json:"lock,omitempty"`
 	MyAttempt          *MyAttemptInfo `json:"my_attempt,omitempty"`
-	ServerNow          string         `json:"server_now"`
+	// Registered is the roster flag the legacy contest card gated joining on.
+	// Only the single-assessment read fills it: the list never pays a read per row.
+	Registered        bool   `json:"registered,omitempty"`
+	NeedsRegistration bool   `json:"needs_registration"`
+	ServerNow         string `json:"server_now"`
 }
 
 type MyAttemptInfo struct {
@@ -51,7 +56,8 @@ func (u *AttemptUsecase) meta(c domain.Contest, studentID string, mine map[strin
 		ID: c.ID, Title: c.Title, Description: c.Description, Kind: c.EffectiveKind(), Mode: c.EffectiveMode(),
 		Access: c.Type, Scope: c.Scope, StartTime: c.StartTime, EndTime: c.EndTime,
 		DurationMinutes: c.DurationMinutes, LatePenaltyPercent: c.LatePenaltyPercent, Reveal: c.EffectiveReveal(),
-		QuestionCount: len(c.Questions), Year: c.Year, Source: c.Source, ServerNow: u.now().Format(time.RFC3339),
+		QuestionCount: len(c.Questions), Year: c.Year, Source: c.Source,
+		NeedsRegistration: c.NeedsRegistration(), ServerNow: u.now().Format(time.RFC3339),
 	}
 	if u.Access != nil {
 		var le *LockedError
@@ -105,7 +111,60 @@ func (u *AttemptUsecase) GetAssessment(id, studentID string) (*AssessmentMeta, e
 		return nil, ErrAssessmentNotFound
 	}
 	m := u.meta(*c, studentID, u.myAttempts(studentID))
+	if u.Roster != nil && c.NeedsRegistration() {
+		registered, err := u.Roster.CheckRegistrationsByContestAndStudent(id, studentID)
+		if err != nil {
+			// A failed roster read reads as "not registered", and registering is
+			// idempotent, so the student's next tap heals it.
+			log.Printf("roster read for assessment %s student %s: %v", id, studentID, err)
+		}
+		m.Registered = registered
+	}
 	return &m, nil
+}
+
+// AssessmentEditorial is the answers-and-explanations read for a student who is
+// NOT looking at their own result: the legacy editorial page served any student
+// once a contest ended, and deleting that page must not take the rule with it.
+type AssessmentEditorial struct {
+	Title        string             `json:"title"`
+	Visible      bool               `json:"visible"`
+	Participated bool               `json:"participated"`
+	Message      string             `json:"message,omitempty"`
+	Editorial    []domain.Editorial `json:"editorial,omitempty"`
+	ServerNow    string             `json:"server_now"`
+}
+
+func (u *AttemptUsecase) AssessmentEditorial(id, studentID string) (*AssessmentEditorial, error) {
+	c, err := u.contests.GetContestByID(id)
+	if err != nil || c == nil {
+		return nil, ErrAssessmentNotFound
+	}
+	participated := false
+	if a, err := u.attempts.Get(domain.AttemptID(id, studentID)); err == nil && a != nil {
+		participated = a.Finalised()
+	} else if err != nil {
+		log.Printf("editorial participation read %s/%s: %v", id, studentID, err)
+	}
+	out := &AssessmentEditorial{Title: c.Title, Participated: participated, ServerNow: u.now().Format(time.RFC3339)}
+	if len(c.Questions) == 0 {
+		out.Message = "This assessment has no questions yet, so there is no editorial to show."
+		return out, nil
+	}
+	if !EditorialVisible(*c, participated, u.now()) {
+		out.Message = "The editorial unlocks once the assessment has ended — correct answers cannot be shown while it is still open."
+		return out, nil
+	}
+	qs, err := u.loadQuestions(c.Questions)
+	if err != nil {
+		return nil, err
+	}
+	out.Visible = true
+	out.Editorial = make([]domain.Editorial, 0, len(qs))
+	for _, q := range qs {
+		out.Editorial = append(out.Editorial, domain.Editorial{Question: q})
+	}
+	return out, nil
 }
 
 // LeaderboardRow ranks by points; ties break on duration (plan §5.5).

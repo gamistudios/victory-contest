@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -178,12 +179,57 @@ func (f *fakeHTTPSubmissions) GetSubmissionsByStudent(string) ([]domain.Submissi
 	return f.rows, nil
 }
 
+// fakeHTTPRoster stands in for the contest-registration table, which the admin
+// dashboard counts per contest and trends by RegisteredAt.
+type fakeHTTPRoster struct {
+	rows      map[string]*domain.ContestRegistration // keyed contest|student
+	activated []string
+	err       error
+}
+
+func regKeyOf(contestID, studentID string) string { return contestID + "|" + studentID }
+
+func (r *fakeHTTPRoster) CheckRegistrationsByContestAndStudent(contestID, studentID string) (bool, error) {
+	if r.err != nil {
+		return false, r.err
+	}
+	_, ok := r.rows[regKeyOf(contestID, studentID)]
+	return ok, nil
+}
+
+func (r *fakeHTTPRoster) Register(contestID, studentID string) error {
+	if r.err != nil {
+		return r.err
+	}
+	k := regKeyOf(contestID, studentID)
+	if _, ok := r.rows[k]; ok {
+		return nil
+	}
+	r.rows[k] = &domain.ContestRegistration{ID: "reg-" + k, ContestID: contestID, StudentID: studentID}
+	return nil
+}
+
+func (r *fakeHTTPRoster) EnsureActive(contestID, studentID string) error {
+	if r.err != nil {
+		return r.err
+	}
+	k := regKeyOf(contestID, studentID)
+	if reg, ok := r.rows[k]; ok {
+		reg.IsActive = true
+	} else {
+		r.rows[k] = &domain.ContestRegistration{ID: "reg-" + k, ContestID: contestID, StudentID: studentID, IsActive: true}
+	}
+	r.activated = append(r.activated, k)
+	return nil
+}
+
 // --- fixture -------------------------------------------------------------
 
 type assessFixture struct {
 	engine      *gin.Engine
 	attempts    *fakeHTTPAttempts
 	submissions *fakeHTTPSubmissions
+	roster      *fakeHTTPRoster
 	contests    map[string]*domain.Contest
 	locked      bool // when true, Start answers 402 for every contest
 }
@@ -200,7 +246,11 @@ var nowish = time.Now().UTC().Truncate(time.Second)
 func rfc(t time.Time) string { return t.Format(time.RFC3339) }
 
 func newAssessFixture() *assessFixture {
-	return &assessFixture{attempts: &fakeHTTPAttempts{rows: map[string]*domain.Attempt{}}, contests: map[string]*domain.Contest{}}
+	return &assessFixture{
+		attempts: &fakeHTTPAttempts{rows: map[string]*domain.Attempt{}},
+		roster:   &fakeHTTPRoster{rows: map[string]*domain.ContestRegistration{}},
+		contests: map[string]*domain.Contest{},
+	}
 }
 
 // addContest registers a two-question contest with an explicit mode and window.
@@ -229,6 +279,7 @@ func (f *assessFixture) serve() *gin.Engine {
 	subs := &fakeHTTPSubmissions{}
 	f.submissions = subs
 	uc := usecase.NewAttemptUsecase(f.attempts, contests, questions, students, subs)
+	uc.Roster = f.roster
 	uc.Access = func(_ string, c domain.Contest) error {
 		if f.locked {
 			return &usecase.LockedError{Lock: map[string]any{"reason": "premium", "contest_id": c.ID}}
@@ -1103,4 +1154,116 @@ func TestAdminAttemptRoutesAndActions(t *testing.T) {
 	}
 	// ... and the student may start that assessment again.
 	f.start(t, "late", "s3")
+}
+
+func TestRegisterRouteKeepsTheRoster(t *testing.T) {
+	f := newAssessFixture()
+	f.addContest("a1", domain.ContestModeGlobal, nowish.Add(-time.Hour), nowish.Add(time.Hour), 0)
+
+	// The route belongs to a signed-in student.
+	code, body := f.call(t, http.MethodPost, "/api/assessments/a1/register", "", "")
+	mustStatus(t, code, http.StatusUnauthorized, body)
+
+	code, intro := f.call(t, http.MethodGet, "/api/assessments/a1", "", "s1")
+	mustStatus(t, code, http.StatusOK, intro)
+	if intro["registered"] == true {
+		t.Fatal("registered must be absent/false before the student signs up")
+	}
+
+	// Signing up twice is not an error and does not double-book.
+	for i := 0; i < 2; i++ {
+		code, body = f.call(t, http.MethodPost, "/api/assessments/a1/register", "", "s1")
+		mustStatus(t, code, http.StatusOK, body)
+	}
+	if n := len(f.roster.rows); n != 1 {
+		t.Fatalf("roster rows = %d, want 1", n)
+	}
+	code, intro = f.call(t, http.MethodGet, "/api/assessments/a1", "", "s1")
+	mustStatus(t, code, http.StatusOK, intro)
+	if intro["registered"] != true {
+		t.Fatalf("intro after register: %v", intro["registered"])
+	}
+
+	// Starting an attempt writes the roster row the legacy exam page wrote on
+	// entry, so a student who skipped the registration page is still counted.
+	f.start(t, "a1", "s2")
+	reg, ok := f.roster.rows[regKeyOf("a1", "s2")]
+	if !ok || !reg.IsActive {
+		t.Fatalf("roster row after start = %+v (present=%v), want active", reg, ok)
+	}
+
+	// A roster outage must never keep a student out of an exam.
+	broken := newAssessFixture()
+	broken.addContest("a1", domain.ContestModeGlobal, nowish.Add(-time.Hour), nowish.Add(time.Hour), 0)
+	broken.roster.err = errors.New("dynamo down")
+	code, body = broken.call(t, http.MethodPost, "/api/assessments/a1/start", "", "s1")
+	mustStatus(t, code, http.StatusOK, body)
+}
+
+func TestEditorialRouteUnlocksOnlyWhenThePaperIsSafeToPublish(t *testing.T) {
+	f := newAssessFixture()
+	closed := nowish.Add(-2 * time.Hour)
+	f.addContest("closed", domain.ContestModeGlobal, nowish.Add(-4*time.Hour), closed, 0)
+	f.addContest("live", domain.ContestModeGlobal, nowish.Add(-time.Hour), nowish.Add(time.Hour), 0)
+	f.addContest("late", domain.ContestModeSelfPaced, nowish.Add(-4*time.Hour), closed, 30)
+
+	// While a window is open, no answers go out — the legacy page guarded this
+	// too, so an early finisher cannot farm the remaining questions.
+	code, body := f.call(t, http.MethodGet, "/api/assessments/live/editorial", "", "s1")
+	mustStatus(t, code, http.StatusOK, body)
+	if body["visible"] == true || body["editorial"] != nil {
+		t.Fatalf("live window must publish nothing: %v", body)
+	}
+	if msg, _ := body["message"].(string); msg == "" {
+		t.Fatal("a locked editorial must say why")
+	}
+
+	// An ended window is public reading, including for students who never took it.
+	code, body = f.call(t, http.MethodGet, "/api/assessments/closed/editorial", "", "s1")
+	mustStatus(t, code, http.StatusOK, body)
+	items, ok := body["editorial"].([]any)
+	if body["visible"] != true || !ok || len(items) != 2 {
+		t.Fatalf("ended window for a non-participant: %v", body)
+	}
+	first := items[0].(map[string]any)
+	if answer, ok := first["answer"]; !ok || answer == nil {
+		t.Fatalf("editorial item must carry the answer: %v", first)
+	}
+
+	// A self-paced paper stays answerable after its end time (late attempts take
+	// the penalty), so its answers never go public.
+	code, body = f.call(t, http.MethodGet, "/api/assessments/late/editorial", "", "s1")
+	mustStatus(t, code, http.StatusOK, body)
+	if body["visible"] == true || body["editorial"] != nil {
+		t.Fatalf("self-paced non-participant must not read answers: %v", body)
+	}
+
+	// A typo'd assessment id is a 404, not a 500.
+	code, body = f.call(t, http.MethodGet, "/api/assessments/nope/editorial", "", "s1")
+	mustStatus(t, code, http.StatusNotFound, body)
+}
+
+func TestPracticeItemsSkipTheRoster(t *testing.T) {
+	f := newAssessFixture()
+	drill := f.addContest("drill", domain.ContestModeSelfPaced, nowish.Add(-time.Hour), nowish.Add(time.Hour), 20)
+	drill.Kind = domain.ContestKindPractice
+
+	// Register is a no-op for study material, so the admin registration stats
+	// keep counting contests rather than every practice tap.
+	code, body := f.call(t, http.MethodPost, "/api/assessments/drill/register", "", "s1")
+	mustStatus(t, code, http.StatusOK, body)
+	if len(f.roster.rows) != 0 {
+		t.Fatalf("roster rows after registering for a practice item = %d, want 0", len(f.roster.rows))
+	}
+
+	// Starting one writes no roster row either, and the intro never asks.
+	f.start(t, "drill", "s1")
+	if len(f.roster.rows) != 0 {
+		t.Fatalf("roster rows after starting a practice item = %d, want 0", len(f.roster.rows))
+	}
+	code, intro := f.call(t, http.MethodGet, "/api/assessments/drill", "", "s2")
+	mustStatus(t, code, http.StatusOK, intro)
+	if intro["needs_registration"] == true {
+		t.Fatal("a practice item must not ask students to register")
+	}
 }

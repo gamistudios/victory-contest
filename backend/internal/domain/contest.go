@@ -62,6 +62,17 @@ func (c Contest) EffectiveKind() string {
 	return c.Kind
 }
 
+// NeedsRegistration is the two kinds students sign up for. Practice and past
+// exams are study material you open and do; the legacy contest page only ever
+// served the competing kinds, so their roster rows stay meaningful.
+func (c Contest) NeedsRegistration() bool {
+	switch c.EffectiveKind() {
+	case ContestKindPractice, ContestKindPastExam:
+		return false
+	}
+	return true
+}
+
 // EffectiveReveal applies the per-kind default (plan §5.4.1).
 func (c Contest) EffectiveReveal() string {
 	if c.Reveal == RevealAtEnd || c.Reveal == RevealOnSubmit {

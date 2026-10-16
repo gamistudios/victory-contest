@@ -169,14 +169,20 @@ func ValidateContestPhase2(c *domain.Contest) error {
 
 // EditorialVisible is the legacy-editorial form of AnswersVisible (plan §5.4.2).
 // Legacy contests (empty mode) keep the old rule: answers unlock at EndTime.
-// Phase 2 contests: only students who finished see answers, per AnswersVisible;
-// someone who never attempted can never read them first.
+// Phase 2 contests: a student who finished sees them per AnswersVisible. A
+// student who never attempted gets the legacy page's rule back for window
+// (global) contests — that paper can no longer be started, so publishing its
+// answers leaks nothing. Self-paced contests keep accepting late attempts, so
+// their answers stay private to the students who took them.
 func EditorialVisible(c domain.Contest, participated bool, now time.Time) bool {
 	if c.Mode == "" {
 		return ContestHasEnded(c.EndTime)
 	}
-	if !participated {
-		return false
+	if participated {
+		return AnswersVisible(c, domain.Attempt{Status: domain.AttemptSubmitted}, now)
 	}
-	return AnswersVisible(c, domain.Attempt{Status: domain.AttemptSubmitted}, now)
+	end, ok := parseAttemptTime(c.EndTime)
+	return c.Mode == domain.ContestModeGlobal &&
+		c.EffectiveReveal() != domain.RevealOnSubmit &&
+		ok && !now.Before(end)
 }

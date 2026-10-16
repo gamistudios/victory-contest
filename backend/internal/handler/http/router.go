@@ -142,6 +142,9 @@ func NewServer() *Server {
 	achievementUsecase := usecase.NewAchievementUsecase(achievementRepo)
 	bankUsecase := usecase.NewBankUsecase(bankRepo)
 	contestRegistrationUsecase := usecase.NewContestRegistrationUsecase(contestRegistrationRepo)
+	// The legacy exam page wrote the registration roster on entry and its card
+	// gated joining on it; the attempt engine now owns both moves.
+	attemptUsecase.Roster = contestRegistrationUsecase
 	paymentUsecase := usecase.NewPaymentUsecases(paymentRepo)
 	aiUsecase := usecase.NewAiUsecase(submissionRepo, aiProviderRepo, questionRepo)
 	aiProviderUsecase := usecase.NewAiProviderUsecase(aiProviderRepo)

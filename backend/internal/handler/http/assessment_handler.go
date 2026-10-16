@@ -30,6 +30,8 @@ func (h *AssessmentHandler) RegisterRoutes(api *gin.RouterGroup, adminAuth gin.H
 	as.GET("/:id", h.Get)
 	as.GET("/:id/leaderboard", h.Leaderboard)
 	as.POST("/:id/start", h.Start)
+	as.POST("/:id/register", h.Register)
+	as.GET("/:id/editorial", h.Editorial)
 	at := api.Group("/attempts", h.studentAuth)
 	at.PUT("/:id/answers", h.Autosave)
 	at.POST("/:id/submit", h.Submit)
@@ -121,6 +123,27 @@ func (h *AssessmentHandler) Start(c *gin.Context) {
 		if errors.Is(err, usecase.ErrAlreadyAttempted) {
 			c.Set("attempt_id_hint", c.Param("id")+"#"+sid+"#1")
 		}
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// Register signs the student onto the assessment's roster, the step the legacy
+// contest card required before joining. It is idempotent by design.
+func (h *AssessmentHandler) Register(c *gin.Context) {
+	if err := h.uc.Register(c.Param("id"), studentID(c)); err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"registered": true})
+}
+
+// Editorial serves the answers walkthrough to a student looking at a closed
+// assessment they never attempted; the result screen keeps its own path.
+func (h *AssessmentHandler) Editorial(c *gin.Context) {
+	res, err := h.uc.AssessmentEditorial(c.Param("id"), studentID(c))
+	if err != nil {
 		h.fail(c, err)
 		return
 	}

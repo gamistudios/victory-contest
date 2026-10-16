@@ -42,6 +42,18 @@ type AttemptUsecase struct {
 	// OnSubmission, when set, runs after each submission row is written
 	// (badge evaluation for THIS attempt only). Errors are logged.
 	OnSubmission SubmitHook
+	// Roster, when set, is the contest-registration table. The legacy exam page
+	// wrote it on entry and its card let a student join only after they had
+	// signed up, so the Phase 2 routes need the same three moves.
+	Roster Roster
+}
+
+// Roster is the contest-registration side of an assessment, satisfied by
+// ContestRegistrationUsecase.
+type Roster interface {
+	CheckRegistrationsByContestAndStudent(contestID, studentID string) (bool, error)
+	Register(contestID, studentID string) error
+	EnsureActive(contestID, studentID string) error
 }
 
 func NewAttemptUsecase(a AttemptRepository, c ContestRepository, q QuestionRepository, s StudentRepository, sub SubmissionRepository) *AttemptUsecase {
@@ -106,6 +118,36 @@ func toPublic(qs []domain.Question) []PublicQuestion {
 	return out
 }
 
+// Register records the student on the assessment's roster. It is the legacy
+// registration page's write, and it deliberately does not check the premium
+// lock or the window: signing up was never access, and Start still gates both.
+func (u *AttemptUsecase) Register(contestID, studentID string) error {
+	if u.Roster == nil {
+		return nil
+	}
+	c, err := u.contests.GetContestByID(contestID)
+	if err != nil || c == nil {
+		return ErrAssessmentNotFound
+	}
+	if !c.NeedsRegistration() {
+		return nil
+	}
+	return u.Roster.Register(contestID, studentID)
+}
+
+// noteRoster makes the roster write the legacy exam page left behind when a
+// student entered a contest. The admin dashboard counts registrations per
+// contest and trends their dates, so the write has to follow the attempt
+// engine. It is never fatal: a stats row must not block a student's exam.
+func (u *AttemptUsecase) noteRoster(c domain.Contest, studentID string) {
+	if u.Roster == nil || !c.NeedsRegistration() {
+		return
+	}
+	if err := u.Roster.EnsureActive(c.ID, studentID); err != nil {
+		log.Printf("roster write for contest %s student %s: %v", c.ID, studentID, err)
+	}
+}
+
 // Start creates the first attempt or resumes the in-progress one.
 func (u *AttemptUsecase) Start(contestID, studentID string) (*StartResult, error) {
 	c, err := u.contests.GetContestByID(contestID)
@@ -128,6 +170,7 @@ func (u *AttemptUsecase) Start(contestID, studentID string) (*StartResult, error
 		if err != nil {
 			return nil, err
 		}
+		u.noteRoster(*c, studentID)
 		return &StartResult{Attempt: *ex, Questions: toPublic(ordered(qs, ex.Order)), ServerNow: now.Format(time.RFC3339), Resumed: true}, nil
 	}
 	if err := CheckStartWindow(*c, now); err != nil {
@@ -165,6 +208,7 @@ func (u *AttemptUsecase) Start(contestID, studentID string) (*StartResult, error
 	if err := u.attempts.Create(a); err != nil {
 		return nil, err
 	}
+	u.noteRoster(*c, studentID)
 	return &StartResult{Attempt: a, Questions: toPublic(ordered(qs, order)), ServerNow: now.Format(time.RFC3339)}, nil
 }
 

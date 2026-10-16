@@ -14,6 +14,13 @@ type ContestRegistrationUsecase interface {
 	GetRegisterationForContest(contest_id string) ([]domain.ContestRegistration, error)
 	CheckRegistrationsByContestAndStudent(contestID, studentID string) (bool, error)
 	CheckStudentActiveInContest(contestId, studentId string) (*bool, error)
+	// EnsureActive is the roster write the legacy exam page made when a student
+	// entered a contest. Phase 2 calls it on start so the admin dashboard's
+	// per-contest registration count and registration trend keep their source.
+	EnsureActive(contestID, studentID string) error
+	// Register signs a student up for a contest. Idempotent: an existing row is
+	// success, not a conflict, because the caller's intent is already met.
+	Register(contestID, studentID string) error
 }
 
 // Sentinel errors so the HTTP layer can map distinct outcomes:
@@ -104,6 +111,34 @@ func NewContestRegistrationUsecase(repo ContestRegistrationRepository) ContestRe
 	return &contestRegistrationUsecase{repo: repo}
 }
 
+// EnsureActive marks the (contest, student) registration active, creating the
+// row when the student never went through a registration page. Starting an
+// attempt is a stronger claim than signing up, so a row written here is active
+// from the start. Like the legacy activation this is read-then-write on a
+// generated primary key, so two students racing on the same pair is the only
+// way a duplicate row appears; it is not worth a new table design.
+func (u *contestRegistrationUsecase) EnsureActive(contestID, studentID string) error {
+	registration, err := u.repo.GetRegistrationsByContestAndStudent(contestID, studentID)
+	if err != nil {
+		return err
+	}
+	if registration == nil {
+		_, err := u.repo.AddContestRegistration(domain.ContestRegistration{
+			ID:           GenerateUniqueId(),
+			ContestID:    contestID,
+			StudentID:    studentID,
+			IsActive:     true,
+			RegisteredAt: time.Now().In(time.Local),
+		})
+		return err
+	}
+	if registration.IsActive {
+		return nil
+	}
+	registration.IsActive = true
+	return u.activate(*registration)
+}
+
 // AddContestRegistration rejects a duplicate registration for the same
 // (contest, student) pair with ErrAlreadyRegisteredForContest (mapped to 409
 // by the handler) instead of silently creating a second row.
@@ -126,10 +161,23 @@ func (u *contestRegistrationUsecase) AddContestRegistration(registrationDto doma
 	return u.repo.AddContestRegistration(registration)
 }
 
+// Register creates the (contest, student) row the way the legacy registration
+// page did — inactive until the student enters the contest — and treats an
+// existing row as success rather than the 409 the legacy route returns,
+// because a student asking to join a contest they are already in is not an error.
+func (u *contestRegistrationUsecase) Register(contestID, studentID string) error {
+	if _, err := u.AddContestRegistration(domain.ContestRegistrationDto{ContestID: contestID, StudentID: studentID}); err != nil {
+		if errors.Is(err, ErrAlreadyRegisteredForContest) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 func (u *contestRegistrationUsecase) UpdateContestRegistration(id string, update domain.ContestRegistration) error {
 	return u.repo.UpdateContestRegistration(id, update)
 }
-
 func (u *contestRegistrationUsecase) DeleteContestRegistration(id string) error {
 	return u.repo.DeleteContestRegistration(id)
 }
