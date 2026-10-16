@@ -216,7 +216,9 @@ export default function ContestCard({ contest }: { contest: Contest }) {
                   },
                 }}
                 to={
-                  canJoin
+                  contest.mode === "self_paced"
+                    ? `/assessment/${encodeURIComponent(contest.id)}`
+                    : canJoin
                     ? `/contest?con=${contest.id}`
                     : canRegister
                     ? `/registration?con=${contest.id}`

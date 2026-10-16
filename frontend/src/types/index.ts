@@ -245,6 +245,10 @@ export interface Contest {
   active_contestant: Student[];
   questions: Question[];
   type: "free" | "premium";
+  /** Phase 2: "self_paced" contests use the Intro/Exam/Result flow; empty/"global" keep the legacy flow. */
+  mode?: "self_paced" | "global";
+  duration_minutes?: number;
+  late_penalty_percent?: number;
   /** Optional program scope; premium contests are unlocked per program. */
   scope?: { program_id: string; stream_id: string; subject_id?: string; chapter_id?: string };
   /** Present only when the server says this student is locked out. */

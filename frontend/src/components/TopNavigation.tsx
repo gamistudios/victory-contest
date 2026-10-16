@@ -79,6 +79,8 @@ const TopNavigation: React.FC = () => {
       return "Student Registration";
     } else if (pathname === "/contest-editorial") {
       return "Contest Editorial";
+    } else if (pathname.startsWith("/practice") || pathname.startsWith("/assessment") || pathname.startsWith("/attempt")) {
+      return "Practice";
     } else if (pathname === "/ai-practice") {
       return "Ai";
     } else if (pathname === "/feedback") {

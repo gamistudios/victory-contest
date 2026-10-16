@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, GraduationCap } from "lucide-react";
+import { BarChart3, GraduationCap, ClipboardList } from "lucide-react";
 import HomeIcon from "../assets/home-09-stroke-rounded.svg?react";
 import AwardIcon from "../assets/award-04-stroke-rounded.svg?react";
 import AccountIcon from "../assets/account-setting-02-stroke-rounded (1).svg?react";
@@ -20,6 +20,12 @@ const BottomNavigation: React.FC = () => {
       icon: () => <GraduationCap className="mb-1 transition-all duration-200" />,
       label: "Learn",
       match: (p: string) => p.startsWith("/academy"),
+    },
+    {
+      path: "/practice",
+      icon: () => <ClipboardList className="mb-1 transition-all duration-200" />,
+      label: "Practice",
+      match: (p: string) => p.startsWith("/practice") || p.startsWith("/assessment") || p.startsWith("/attempt"),
     },
     {
       path: "/leaderboard",

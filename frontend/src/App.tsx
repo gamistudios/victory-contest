@@ -1,4 +1,9 @@
 import MyPrograms from "./pages/MyPrograms";
+import AssessmentList from "./features/assessments/AssessmentList";
+import Intro from "./features/assessments/Intro";
+import Exam from "./features/assessments/Exam";
+import Result from "./features/assessments/Result";
+import AssessmentLeaderboard from "./features/assessments/AssessmentLeaderboard";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { useTelegram } from "./hooks/useTelegram";
 import Layout from "./components/Layout";
@@ -71,6 +76,11 @@ function App() {
             <Route path="register" element={<RegistrationForm />} />
             <Route path="payment" element={<Payment />} />
             <Route path="programs" element={<MyPrograms />} />
+            <Route path="practice" element={<AssessmentList />} />
+            <Route path="assessment/:id" element={<Intro />} />
+            <Route path="assessment/:id/exam" element={<Exam />} />
+            <Route path="assessment/:id/leaderboard" element={<AssessmentLeaderboard />} />
+            <Route path="attempt/:id/result" element={<Result />} />
             <Route
               path="payment-history"
               element={<UserPaymentHistoryPage />}
