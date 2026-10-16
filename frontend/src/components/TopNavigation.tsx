@@ -12,7 +12,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
@@ -28,22 +27,17 @@ import { getAiSettings } from "../services/aiService";
 const MenuRow: React.FC<{
   icon: React.ReactNode;
   label: string;
-  hint?: string;
   tone?: string;
   active?: boolean;
   onSelect: () => void;
   className?: string;
-}> = ({ icon, label, hint, tone = "bg-muted text-foreground", active, onSelect, className }) => (
+}> = ({ icon, label, tone = "bg-muted text-foreground", active, onSelect, className }) => (
   <DropdownMenuItem
     onSelect={onSelect}
-    className={cn("cursor-pointer gap-3 rounded-xl px-2 py-2", active && "bg-accent", className)}
+    className={cn("cursor-pointer gap-2.5 rounded-lg px-1.5 py-1", active && "bg-accent", className)}
   >
-    <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", tone)}>{icon}</span>
-    <span className="min-w-0 flex-1">
-      <span className="block truncate text-sm font-semibold leading-tight">{label}</span>
-      {hint && <span className="block truncate text-xs text-muted-foreground">{hint}</span>}
-    </span>
-    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", tone)}>{icon}</span>
+    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{label}</span>
   </DropdownMenuItem>
 );
 
@@ -230,83 +224,74 @@ const TopNavigation: React.FC = () => {
                   </button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent className="w-72 rounded-2xl p-2" align="end" forceMount>
-                  <div className="flex items-center gap-3 rounded-xl bg-muted/60 p-3">
-                    <div className="shrink-0">{getProfileImage()}</div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-foreground">
+                <DropdownMenuContent className="max-h-[calc(100vh-6rem)] w-60 overflow-y-auto rounded-2xl p-1.5" align="end" forceMount>
+                  <DropdownMenuItem
+                    onSelect={() => navigate("/profile")}
+                    aria-label="Open profile"
+                    className={cn("cursor-pointer gap-2.5 rounded-xl bg-muted/60 p-2", location.pathname === "/profile" && "bg-accent")}
+                  >
+                    <div className="shrink-0 [&>*]:h-9 [&>*]:w-9">{getProfileImage()}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold leading-tight text-foreground">
                         {tgUser?.first_name || "Student"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {user?.is_premium ? "Premium member" : "Free plan"}
+                        {user?.is_premium ? "Premium" : "Free plan"} · View profile
                       </p>
                     </div>
-                  </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  </DropdownMenuItem>
 
-                  <DropdownMenuLabel className="px-2 pb-1 pt-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                    My account
-                  </DropdownMenuLabel>
-                  <DropdownMenuGroup>
+                  <DropdownMenuGroup className="mt-1">
                     <MenuRow
-                      icon={<User className="h-5 w-5" />}
-                      label="Profile"
-                      hint="Your details & settings"
-                      tone="bg-blue-100 text-blue-700"
-                      active={location.pathname === "/profile"}
-                      onSelect={() => navigate("/profile")}
-                    />
-                    <MenuRow
-                      icon={<BarChart3 className="h-5 w-5" />}
+                      icon={<BarChart3 className="h-4 w-4" />}
                       label="Statistics"
-                      hint="Your progress & scores"
-                      tone="bg-green-100 text-green-700"
+                      tone="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300"
                       active={location.pathname === "/statistics"}
                       onSelect={() => navigate("/statistics")}
                     />
                     <MenuRow
-                      icon={<Layers className="h-5 w-5" />}
+                      icon={<Layers className="h-4 w-4" />}
                       label="My programs"
-                      hint="Enrolments & access"
-                      tone="bg-purple-100 text-purple-700"
+                      tone="bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
                       active={location.pathname === "/programs"}
                       onSelect={() => navigate("/programs")}
                     />
                   </DropdownMenuGroup>
 
-                  <DropdownMenuSeparator className="my-2" />
-                  <DropdownMenuLabel className="px-2 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                    Advanced options
-                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="my-1" />
                   <DropdownMenuGroup>
                     <MenuRow
-                      icon={aiLocked ? <Lock className="h-5 w-5" /> : <BotIcon className="h-6 w-6" />}
+                      icon={aiLocked ? <Lock className="h-4 w-4" /> : <BotIcon className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />}
                       label={`AI Practice${aiLocked ? " (Premium)" : ""}`}
-                      tone={aiLocked ? "bg-yellow-100 text-yellow-700" : "bg-muted text-foreground"}
+                      tone={aiLocked ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300" : "bg-emerald-100 dark:bg-emerald-950"}
                       onSelect={handleAiPracticeClick}
                       className={aiLocked ? "opacity-80" : ""}
                     />
                     {!user?.is_premium && (
                       <MenuRow
-                        icon={<UpgradeIcon className="h-6 w-6" />}
+                        icon={<UpgradeIcon className="h-5 w-5 text-yellow-600 dark:text-yellow-300" />}
                         label="Upgrade"
-                        hint="Unlock everything"
-                        tone="bg-yellow-100 text-yellow-700"
+                        tone="bg-yellow-100 dark:bg-yellow-950"
                         onSelect={handleUpgradeClick}
                       />
                     )}
                     <MenuRow
-                      icon={<SlidersHorizontal className="h-5 w-5" />}
+                      icon={<SlidersHorizontal className="h-4 w-4" />}
                       label="Learning settings"
+                      tone="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
                       onSelect={() => setShowReading(true)}
                     />
                     <MenuRow
-                      icon={<PaymentHistoryIcon className="h-6 w-6" />}
+                      icon={<PaymentHistoryIcon className="h-5 w-5 text-sky-600 dark:text-sky-300" />}
                       label="Payments"
+                      tone="bg-sky-100 dark:bg-sky-950"
                       onSelect={handlePaymentsClick}
                     />
                     <MenuRow
-                      icon={<FeedbackIcon className="h-6 w-6" />}
+                      icon={<FeedbackIcon className="h-5 w-5 text-pink-600 dark:text-pink-300" />}
                       label="Give feedback"
+                      tone="bg-pink-100 dark:bg-pink-950"
                       onSelect={handleFeedbackClick}
                     />
                   </DropdownMenuGroup>
