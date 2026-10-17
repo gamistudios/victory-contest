@@ -1646,3 +1646,35 @@ This supersedes the "PARTIAL at time-out" pass above. The follow-up agent comple
 | admin `npm run typecheck` (`tsc -b`) | exit 0, no errors |
 | admin `npm run build` (vite) | ✓ built in 4m24s, exit 0 |
 | student app | not touched by Phase 5 (0 staged `frontend/` files); no rebuild needed |
+
+
+# Phase 5 test pass (2026-10-17) — the last open gap closed
+
+The previous pass flagged "no automated tests for Phase 5 code" as the main remaining gap. This pass writes
+them and re-runs every gate. 14 new test functions across 5 files, all passing.
+
+## Tests added (backend)
+
+| File | Covers |
+| --- | --- |
+| `usecase/revenue_report_test.go` | `splitWhole` (whole-birr bundle split, remainder to first sorted program, exact sum, empty → `all_programs`); `BuildRevenueReport` (ETB revenue excludes refunds/grants/100%-coupon/stars; `LegacyPayments` from the student-reported amount rounded to whole birr; by-program/coupon/month/plan groupings; Addis UTC+3 month bucketing; program filter clamps a bundle to the assigned half). |
+| `usecase/contest_scope_analytics_test.go` | `BuildScopeAnalytics` (only finalised, counted, in-scope attempts; totals/avg/median/pass-rate, integer points, program/region buckets sorted by attempts, competency mastery per subject/chapter, score distribution bins, rule-based summary); program filter; `attemptInScope` (unscoped-legacy rule + common-stream-vs-enrolled-stream exclusion); `parseRangeBound` (empty / bare-date start / end-of-day inclusive / RFC3339 / `ErrBadAnalyticsRange`). |
+| `usecase/entitlement_reminder_test.go` | `RunOnce` matrix (pre ≤7d, grace inside window, not-due, grace-over, lifetime-skipped, unparseable → error); deterministic-id double-notify guard (second run `Skipped`, a renewal is a new cycle and re-sends); conditional-put errors counted. |
+| `usecase/pricing_sale_test.go` | `ValidatePlan` sale rules (real discount accepted; unparseable/inverted window, missing end, empty prices, sale ≥ base, negative, and sale currency absent from base all rejected; nil sale still valid). |
+| `handler/http/phase5_access_test.go` | `studentOwnerOrAdminAuth(secret,"user_id")` on `GET /api/payment/:user_id` (401 anonymous, 200 own, 403 foreign = the IDOR fix, 200 admin cookie, 401 student-as-admin); `requireRole` (super + listed role pass, unlisted role 403, no cookie 401, missing admin row fails closed 401); `requireProgram` (assigned admin off-program 403 / on-program 200, super unrestricted). |
+
+## Gates (this pass, all run and green)
+
+| Gate | Result |
+| --- | --- |
+| `go build ./...` | clean |
+| `go vet ./...` | clean (no unkeyed-field / format warnings) |
+| `go test ./...` | ok — every package (domain, handler/http, migrations, repository, schema, usecase, locnorm) |
+| `go test ./internal/usecase ./internal/handler/http` (new tests, `-v -count=1`) | 14/14 PASS |
+| student / admin frontends | unchanged by this pass (tests only); no re-run needed |
+
+Phase 5 is complete: all six items implemented (both halves), the two build blockers and the two real
+defects (`ValidatePlan` sale, `payment/:user_id` IDOR) fixed and now covered by regression tests, every gate
+green, and the whole batch deployed to production (live build confirmed via read-only probes).
+
+=== END OF PHASE FIVE ===
