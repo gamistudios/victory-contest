@@ -1430,9 +1430,6 @@ Backend, new: `usecase/feed_usecase.go`, `handler/http/feed_handler.go`. Backend
 Student app, new: `features/home/{Home.tsx,api.ts}`. Changed: `App.tsx`, `components/BottomNavigation.tsx`. Deleted: `pages/Home.tsx`.
 Admin app, new: `app/ProgramContext.tsx`, `components/common/ProgramSwitcher.tsx`, `shared/ui/{DataTable,FilterBar}.tsx`. Changed: `App.tsx`, `components/common/Appbar.tsx`.
 
-=== END OF PHASE FOUR (in progress) ===
-
-
 # Update 2026-10-17 (Phase 4, second pass, 5-minute box): grouped sidebar, header scope on lists
 
 Still **not compiled, type-checked or run** (no toolchain, by instruction). Same first commands as the first Phase 4 pass.
@@ -1545,8 +1542,6 @@ First pass with a working toolchain: every gate from the earlier "check first" b
 
 Phase 4 is now verified and closed: the feed endpoint, feed-driven student Home, bottom nav, admin scope shell + grouped routes/redirects, the academy→`features/learn|lectures` moves, the shared `DataTable`/`FilterBar`/`ResourceCard`/`States` pieces, and header-scope filtering on Contests/Questions/Students/Leaderboards/Payments are all in and building. The deferred rows above are the only open items, each with a stated reason.
 
-=== END OF PHASE FOUR ===
-
 
 # Phase 3 closeout + leaderboard Top-3 (2026-10-17)
 
@@ -1577,3 +1572,9 @@ Closing pass on the Phase 3 leftover list, plus the requested Top-3 podium. All 
 | admin `npm run build` (vite) | ✓ built, exit 0 |
 
 Phases 0–4 are complete and build-verified. The only remaining product work is the Phase 5 scope (scope-based analytics, roles, CSV extras, pricing windows), which awaits client sign-off.
+
+
+=== END OF PHASE FOUR ===
+
+
+=== BEGINNING OF PHASE FIVE ===
