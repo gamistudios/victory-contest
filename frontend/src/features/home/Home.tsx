@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BarChart3, BookOpen, Calendar, ChevronRight, ClipboardList, HelpCircle, Lock, PlayCircle, CheckCircle2, Sparkles } from "lucide-react";
+import { BarChart3, BookOpen, Calendar, ChevronRight, ClipboardList, HelpCircle, Lock, PlayCircle, CheckCircle2, Sparkles, ChevronDown, Check } from "lucide-react";
 import { useTelegram } from "../../hooks/useTelegram";
 import { usePremiumSheet } from "../../context/PremiumSheetContext";
 import { CardSkeleton, EmptyState } from "@/shared/ui/States";
@@ -9,6 +9,7 @@ import { enc, type AssessmentMeta } from "../assessments/api";
 import { fetchFeed, type Feed } from "./api";
 import { myEnrollments, type Enrollment } from "@/shared/pricing/api";
 import { useCatalog } from "@/shared/scope/catalog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn, safeFormatDistanceToNow } from "../../lib/utils";
 import { ArticleListForHome } from "../../components/article/ArticleList";
 import WelcomeCarousel from "../../components/WelcomeCarousell";
@@ -93,17 +94,15 @@ const Home: React.FC = () => {
   const joinedIds = useMemo(() => enrollments.map((e) => e.program_id), [enrollments]);
   const defaultProgram = joinedIds.includes(primaryId) ? primaryId : joinedIds[0] ?? "";
 
-  // Keep the selection valid: a stale/unknown/empty value falls back to the primary (else first) enrolled program.
+  // Once enrolments are known, a stored value must be a joined program (or "mine" with 2+); otherwise land on
+  // the primary/first joined program. Explore picks are session-only, so Home always opens on the student's own program.
+  const validated = useRef(false);
   useEffect(() => {
-    if (!enrollReady) return;
-    const isJoined = joinedIds.includes(program);
-    const isAll = program === "mine" && joinedIds.length >= 2;
-    const isExplore = !!program && program !== "mine" && !isJoined && !!catalog?.programs.some((p) => p.id === program && p.is_active);
-    if (isJoined || isAll || isExplore) return;
-    // Wait for the catalog before discarding a possible Explore id.
-    if (program && program !== "mine" && !catalog) return;
-    if (program !== defaultProgram) setProgram(defaultProgram);
-  }, [enrollReady, joinedIds, defaultProgram, program, catalog]);
+    if (!enrollReady || validated.current) return;
+    validated.current = true;
+    const ok = joinedIds.includes(program) || (program === "mine" && joinedIds.length >= 2);
+    if (!ok && program !== defaultProgram) setProgram(defaultProgram);
+  }, [enrollReady, joinedIds, defaultProgram, program]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,8 +132,9 @@ const Home: React.FC = () => {
   }, [triggerLoading, program, widen, enrollReady, primaryId]);
 
   useEffect(() => {
-    localStorage.setItem("home_program", program);
-  }, [program]);
+    if (!enrollReady) return;
+    if (joinedIds.includes(program) || program === "mine") localStorage.setItem("home_program", program);
+  }, [program, enrollReady, joinedIds]);
 
   const { openContests, pastContests } = useMemo(() => {
     const open: AssessmentMeta[] = [];
@@ -160,18 +160,24 @@ const Home: React.FC = () => {
 
   const loading = feed === null && contestError === null;
 
-  const activePrograms = (catalog?.programs ?? []).filter((p) => p.is_active);
   const nameOf = (id: string) => {
     const p = catalog?.programs.find((x) => x.id === id);
     return p?.short_code || p?.name || id;
   };
-  const joinedChips = joinedIds.map((id) => ({ id, name: nameOf(id) }));
-  const exploreChips = activePrograms.filter((p) => !joinedIds.includes(p.id)).map((p) => ({ id: p.id, name: p.short_code || p.name }));
+  const exploreList = (catalog?.programs ?? []).filter((p) => p.is_active && !joinedIds.includes(p.id));
   const exploring = enrollReady && !!program && program !== "mine" && !joinedIds.includes(program);
   const notJoinedAny = enrollReady && joinedIds.length === 0;
+  const currentLabel = program === "mine" ? "All my programs" : program ? nameOf(program) : "Choose program";
 
-  const chipBase = "inline-flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors";
-  const chipOn = "border-blue-600 bg-blue-600 text-white";
+  const menuItem = (id: string, label: string, tag?: string) => (
+    <DropdownMenuItem key={id} onSelect={() => setProgram(id)} className="flex items-center justify-between gap-3 text-sm">
+      <span className="flex items-center gap-2">
+        {label}
+        {tag && <span className="rounded-full bg-blue-100 px-1.5 text-[10px] font-bold leading-4 text-blue-700">{tag}</span>}
+      </span>
+      {program === id && <Check className="h-4 w-4 text-blue-600" />}
+    </DropdownMenuItem>
+  );
 
   return (
     <div className="p-4 space-y-6">
@@ -182,37 +188,26 @@ const Home: React.FC = () => {
         <ArticleListForHome />
       </div>
 
-      <div className="space-y-2">
-        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5" role="tablist" aria-label="Program">
-          {joinedChips.map((c) => (
-            <button key={c.id} type="button" role="tab" aria-selected={program === c.id} onClick={() => setProgram(c.id)}
-              className={cn(chipBase, program === c.id ? chipOn : "border-border bg-card text-foreground")}>
-              {c.name}
-              {c.id === primaryId && joinedChips.length > 1 && (
-                <span className={cn("rounded-full px-1.5 text-[10px] font-bold leading-4", program === c.id ? "bg-white/25 text-white" : "bg-blue-50 text-blue-700")}>Active</span>
-              )}
-            </button>
-          ))}
-          {joinedChips.length >= 2 && (
-            <button type="button" role="tab" aria-selected={program === "mine"} onClick={() => setProgram("mine")}
-              className={cn(chipBase, program === "mine" ? chipOn : "border-border bg-card text-foreground")}>
-              All my programs
-            </button>
-          )}
-          {exploreChips.length > 0 && (
-            <>
-              {joinedChips.length > 0 && <span className="mx-0.5 h-4 w-px shrink-0 bg-border" aria-hidden="true" />}
-              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Explore</span>
-              {exploreChips.map((c) => (
-                <button key={c.id} type="button" role="tab" aria-selected={program === c.id} onClick={() => setProgram(c.id)}
-                  className={cn(chipBase, program === c.id ? "border-blue-600 bg-blue-50 text-blue-700" : "border-dashed border-border bg-transparent font-medium text-muted-foreground")}>
-                  {c.name}
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-        <div className="flex items-center justify-between gap-3">
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label={`Program: ${currentLabel}`}
+                className={cn("inline-flex min-w-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold", exploring ? "border-dashed border-blue-600 text-blue-700" : "border-border bg-card text-foreground")}>
+                <span className="truncate">{currentLabel}</span>
+                {exploring && <span className="shrink-0 font-medium text-muted-foreground">· exploring</span>}
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto font-nunito-sans">
+              {joinedIds.length > 0 && <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">My programs</DropdownMenuLabel>}
+              {joinedIds.map((id) => menuItem(id, nameOf(id), id === primaryId && joinedIds.length > 1 ? "Active" : undefined))}
+              {joinedIds.length >= 2 && menuItem("mine", "All my programs")}
+              {joinedIds.length > 0 && exploreList.length > 0 && <DropdownMenuSeparator />}
+              {exploreList.length > 0 && <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">Explore</DropdownMenuLabel>}
+              {exploreList.map((p) => menuItem(p.id, p.short_code || p.name))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <div className="inline-flex shrink-0 rounded-full bg-muted p-0.5" role="group" aria-label="Streams">
             {([["My stream", false], ["All streams", true]] as const).map(([label, v]) => (
               <button key={label} type="button" aria-pressed={widen === v} onClick={() => setWiden(v)}
@@ -221,13 +216,13 @@ const Home: React.FC = () => {
               </button>
             ))}
           </div>
-          {(exploring || notJoinedAny) && (
-            <p className="min-w-0 text-right text-xs text-muted-foreground">
-              {exploring ? "Not enrolled in this program." : "You haven't joined a program yet."}{" "}
-              <Link to="/programs" className="font-semibold text-blue-600">Enrol</Link>
-            </p>
-          )}
         </div>
+        {(exploring || notJoinedAny) && (
+          <p className="text-xs text-muted-foreground">
+            {exploring ? "You're previewing a program you haven't joined." : "You haven't joined a program yet."}{" "}
+            <Link to="/programs" className="font-semibold text-blue-600">Enrol</Link>
+          </p>
+        )}
       </div>
 
       {feed && feed.lectures.length > 0 && (
