@@ -1,4 +1,4 @@
-// Private streak panel: current/best streak, completion % and the 30-day calendar (plan §5.10, decisions 16/22).
+// Private streak panel: current/best streak, completion % and the per-day calendar (plan §5.10, decisions 16/22).
 // Shown only to the student themself. No ranking, no points, nothing comparative.
 import { Award, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,11 +32,11 @@ export function StreakStats({ current, best, pct }: { current: number; best: num
   );
 }
 
-export function Calendar30({ days }: { days: HabitToday["calendar"] }) {
+export function CalendarDays({ days }: { days: HabitToday["calendar"] }) {
   return (
     <div>
-      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Your 30 days</p>
-      <ol className="grid grid-cols-6 gap-1.5 sm:grid-cols-10" aria-label="30-day calendar">
+      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Your {days.length} days</p>
+      <ol className={cn("grid grid-cols-6 gap-1.5 sm:grid-cols-10", days.length > 60 && "max-h-72 overflow-y-auto pr-1")} aria-label={`${days.length}-day calendar`}>
         {days.map((d) => (
           <li
             key={d.day}
@@ -70,7 +70,7 @@ export default function Streak({ data, badges = [] }: { data: HabitToday; badges
     <div className="space-y-4">
       <StreakStats current={data.current_streak} best={data.best_streak} pct={data.completion_pct} />
       <BadgeRow badges={badges} />
-      <Calendar30 days={data.calendar} />
+      <CalendarDays days={data.calendar} />
     </div>
   );
 }

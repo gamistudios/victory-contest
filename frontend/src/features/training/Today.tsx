@@ -1,15 +1,16 @@
-// Training: pick a private 30-day track, tick today's checklist, watch your own streak (plan §5.10).
+// Training: pick a private track (any length the admin chose), tick today's checklist, watch your own streak (plan §5.10).
 // Premium tracks the student cannot open show the app's standard locked treatment. No ranking anywhere.
-import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ChevronLeft, Circle, Lock, PlayCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { CheckCircle2, ChevronLeft, Circle } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { errData } from "@/services/api";
 import { usePremiumSheet } from "@/context/PremiumSheetContext";
 import { CardSkeleton, EmptyState, InlineError } from "@/shared/ui/States";
 import Streak from "./Streak";
-import { checkHabit, getHabitMe, getHabitToday, listHabitPlans, startHabit, useTrainingEnabled, type HabitBadge, type HabitPlanView, type HabitToday } from "./api";
+import TrackCard from "./TrackCard";
+import { checkHabit, getHabitMe, getHabitToday, startHabit, useTrainingOverview, type HabitBadge, type HabitPlanView, type HabitToday } from "./api";
 
 const lockedCode = (e: unknown) => (e as { response?: { status?: number } })?.response?.status === 402;
 
@@ -45,7 +46,7 @@ function Checklist({ planId, initial, onBack }: { planId: string; initial: Habit
       <div>
         <h1 className="text-xl font-extrabold text-foreground">{data.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {data.finished ? "You finished this 30-day track." : `Day ${data.day_number} of 30${data.day_title ? ` · ${data.day_title}` : ""}`}
+          {data.finished ? `You finished this ${data.days_count || 30}-day track.` : `Day ${data.day_number} of ${data.days_count || 30}${data.day_title ? ` · ${data.day_title}` : ""}`}
         </p>
       </div>
 
@@ -72,17 +73,11 @@ function Checklist({ planId, initial, onBack }: { planId: string; initial: Habit
 }
 
 export default function TodayPage() {
-  const enabled = useTrainingEnabled();
+  const t = useTrainingOverview();
   const premium = usePremiumSheet();
-  const [plans, setPlans] = useState<HabitPlanView[] | null>(null);
-  const [err, setErr] = useState("");
+  const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState<{ id: string; view: HabitToday } | null>(null);
   const [starting, setStarting] = useState("");
-
-  const load = useCallback(async () => {
-    try { setPlans(await listHabitPlans()); setErr(""); } catch { setErr("Could not load your tracks."); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
 
   const openPlan = async (p: HabitPlanView) => {
     if (p.lock) { premium.open("plan", p.lock.program_id || p.program_id); return; }
@@ -96,36 +91,37 @@ export default function TodayPage() {
     } finally { setStarting(""); }
   };
 
-  if (open) return <div className="mx-auto w-full max-w-xl p-4"><Checklist planId={open.id} initial={open.view} onBack={() => { setOpen(null); void load(); }} /></div>;
+  // Deep link from the Home / Practice cards: /training?plan=<id> opens (and starts, if new) that track once.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    const id = params.get("plan");
+    if (!id || deepLinked.current || t.loading) return;
+    deepLinked.current = true;
+    setParams({}, { replace: true });
+    const p = t.plans.find((x) => x.id === id);
+    if (p) void openPlan(p);
+    else toast.error("That track is not available to you.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, t.loading, t.plans]);
+
+  if (open) return <div className="mx-auto w-full max-w-xl p-4"><Checklist planId={open.id} initial={open.view} onBack={() => { setOpen(null); t.reload(); }} /></div>;
 
   return (
-    <div className="mx-auto w-full max-w-xl space-y-4 p-4">
+    <div className="mx-auto w-full max-w-xl space-y-4 p-4 pb-28">
       <div>
         <h1 className="text-xl font-extrabold text-foreground">Training</h1>
-        <p className="text-sm text-muted-foreground">Small steps every day. Start a 30-day track and keep your streak.</p>
+        <p className="text-sm text-muted-foreground">Small steps every day. Start a track and keep your streak. Only you and your coaches see your progress.</p>
       </div>
-      {err && <InlineError message={err} onRetry={load} />}
-      {!plans && !err && <><CardSkeleton /><CardSkeleton /></>}
-      {plans && plans.length === 0 && (
-        <EmptyState title={enabled ? "No tracks yet" : "Training is not part of your programs"} hint={enabled ? "New tracks will appear here." : "Enrol in the Training program to get started."} />
+      {t.error && <InlineError message="Could not load your tracks." onRetry={t.reload} />}
+      {t.loading && !t.error && <><CardSkeleton /><CardSkeleton /></>}
+      {!t.loading && !t.error && t.plans.length === 0 && (
+        <EmptyState
+          title={t.enabled ? "No tracks yet" : "Training is not part of your programs"}
+          hint={t.enabled ? "New tracks will appear here as soon as they are published." : "Enrol in the Training program to get started."}
+          action={!t.enabled ? <Link to="/programs" className="text-sm font-semibold text-blue-600">Go to My programs</Link> : undefined}
+        />
       )}
-      {plans?.map((p) => (
-        <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
-          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl", p.lock ? "bg-yellow-100 text-yellow-700" : "bg-blue-100 text-blue-700")}>
-            {p.lock ? <Lock className="h-6 w-6" aria-hidden /> : <PlayCircle className="h-6 w-6" aria-hidden />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="truncate font-bold text-foreground">{p.title}</p>
-              {p.access === "premium" && <span className="shrink-0 rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-800">Premium</span>}
-            </div>
-            <p className="text-xs text-muted-foreground">{p.days_count} days{p.started ? ` · 🔥 ${p.current_streak}-day streak` : ""}</p>
-          </div>
-          <Button className="h-11 shrink-0 rounded-xl" variant={p.lock ? "outline" : "default"} disabled={starting === p.id} onClick={() => openPlan(p)}>
-            {p.lock ? "Unlock" : p.started ? "Continue" : "Start"}
-          </Button>
-        </div>
-      ))}
+      {t.plans.map((p) => <TrackCard key={p.id} plan={p} progress={t.progressOf(p.id)} busy={starting === p.id} onOpen={openPlan} />)}
     </div>
   );
 }

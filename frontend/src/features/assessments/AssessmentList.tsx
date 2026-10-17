@@ -5,6 +5,7 @@ import { useCatalog } from "@/shared/scope/catalog";
 import { cn } from "@/lib/utils";
 import { CardSkeleton, EmptyState, InlineError } from "@/features/learn/components/States";
 import { enc, listAssessments, type AssessmentMeta } from "./api";
+import TrainingSection from "../training/TrainingSection";
 
 /** Practice tab: GET /assessments with a program filter. */
 export default function AssessmentList() {
@@ -28,6 +29,8 @@ export default function AssessmentList() {
         <h1 className="font-nunito text-2xl font-extrabold text-foreground">Practice</h1>
         <p className="text-sm text-muted-foreground">Exams and drills to test what you know.</p>
       </div>
+
+      <TrainingSection />
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Program">
         {chips.map((c) => {

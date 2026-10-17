@@ -36,7 +36,7 @@ export default function Oversight() {
   const columns = useMemo<ColumnDef<OversightRow, any>[]>(() => [
     { id: "student", header: "Student", accessorFn: (r) => r.student_name || r.student_id },
     { accessorKey: "plan_title", header: "Track" },
-    { id: "day", header: "Day", accessorFn: (r) => (r.finished ? "Done" : `${Math.max(r.day_number, 1)}/30`) },
+    { id: "day", header: "Day", accessorFn: (r) => (r.finished ? "Done" : `${Math.max(r.day_number, 1)}/${r.days_count || 30}`) },
     { id: "streak", header: "Streak (best)", accessorFn: (r) => `${r.current_streak} (${r.best_streak})` },
     { id: "pct", header: "Completion", accessorFn: (r) => `${r.completion_pct}%` },
     { id: "last", header: "Last active", accessorFn: (r) => when(r.last_active_at) },

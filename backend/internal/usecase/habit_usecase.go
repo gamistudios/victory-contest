@@ -17,7 +17,7 @@ var (
 	ErrHabitNotStarted   = errors.New("habit track not started")
 	ErrHabitInvalid      = errors.New("invalid habit plan")
 	ErrHabitItemUnknown  = errors.New("item is not part of today's checklist")
-	ErrHabitFinished     = errors.New("this 30-day track is finished")
+	ErrHabitFinished     = errors.New("this track is finished")
 	ErrHabitNoFeature    = errors.New("program does not offer habits")
 )
 
@@ -36,7 +36,7 @@ func parseHabitDate(s string) (time.Time, bool) {
 }
 
 // HabitDayNumber is the 1-based day of a run started on start, as of today.
-// Values outside 1..30 mean "not started yet" / "finished".
+// Values outside 1..plan length mean "not started yet" / "finished".
 func HabitDayNumber(start, today string) int {
 	s, ok1 := parseHabitDate(start)
 	t, ok2 := parseHabitDate(today)
@@ -165,6 +165,7 @@ type HabitTodayView struct {
 	Date          string               `json:"date"`
 	StartDate     string               `json:"start_date"`
 	DayNumber     int                  `json:"day_number"`
+	DaysCount     int                  `json:"days_count"`
 	Finished      bool                 `json:"finished"`
 	DayTitle      string               `json:"day_title"`
 	Items         []HabitItemState     `json:"items"`
@@ -193,6 +194,7 @@ type HabitTrackSummary struct {
 	ProgramID     string `json:"program_id"`
 	StartDate     string `json:"start_date"`
 	DayNumber     int    `json:"day_number"`
+	DaysCount     int    `json:"days_count"`
 	Finished      bool   `json:"finished"`
 	CurrentStreak int    `json:"current_streak"`
 	BestStreak    int    `json:"best_streak"`
@@ -253,7 +255,7 @@ func habitCompletionPct(p *domain.HabitPlan, l *domain.HabitLog) int {
 		return 0
 	}
 	done := 0
-	for i := 0; i < domain.HabitTrackDays; i++ {
+	for i := 0; i < p.Length(); i++ {
 		d, _ := habitValidDone(p, l, start.AddDate(0, 0, i).Format(habitDateLayout))
 		done += d
 	}
@@ -271,7 +273,7 @@ func (u *HabitUsecase) buildToday(p *domain.HabitPlan, l *domain.HabitLog) *Habi
 	n := HabitDayNumber(l.StartDate, today)
 	v := &HabitTodayView{
 		PlanID: p.ID, Title: p.Title, Date: today, StartDate: l.StartDate, DayNumber: n,
-		Finished: n > domain.HabitTrackDays, Items: []HabitItemState{},
+		Finished: n > p.Length(), DaysCount: p.Length(), Items: []HabitItemState{},
 		CurrentStreak: l.CurrentStreak, BestStreak: l.BestStreak, TotalDone: l.TotalDone,
 		CompletionPct: habitCompletionPct(p, l), Calendar: []HabitCalendarDay{},
 	}
@@ -281,7 +283,7 @@ func (u *HabitUsecase) buildToday(p *domain.HabitPlan, l *domain.HabitLog) *Habi
 	if best > v.BestStreak {
 		v.BestStreak = best
 	}
-	if d := habitDay(p, n); d != nil && n >= 1 && n <= domain.HabitTrackDays {
+	if d := habitDay(p, n); d != nil && n >= 1 && n <= p.Length() {
 		v.DayTitle = d.Title
 		done := map[string]bool{}
 		for _, id := range l.Done[today] {
@@ -293,7 +295,7 @@ func (u *HabitUsecase) buildToday(p *domain.HabitPlan, l *domain.HabitLog) *Habi
 	}
 	start, ok := parseHabitDate(l.StartDate)
 	if ok {
-		for i := 0; i < domain.HabitTrackDays; i++ {
+		for i := 0; i < p.Length(); i++ {
 			date := start.AddDate(0, 0, i).Format(habitDateLayout)
 			done, total := habitValidDone(p, l, date)
 			c := HabitCalendarDay{Day: i + 1, Date: date, Done: done, Total: total, IsToday: date == today}
@@ -476,7 +478,7 @@ func (u *HabitUsecase) toggleCheckItem(id string, p *domain.HabitPlan, itemID st
 	}
 	today := AddisDate(now)
 	n := HabitDayNumber(l.StartDate, today)
-	if n > domain.HabitTrackDays {
+	if n > p.Length() {
 		return nil, false, ErrHabitFinished
 	}
 	d := habitDay(p, n)
@@ -533,8 +535,17 @@ func (u *HabitUsecase) awardMilestones(studentID string, p *domain.HabitPlan, st
 	if u.achievements == nil {
 		return out
 	}
-	rarity := map[int]string{7: "common", 14: "rare", 30: "epic"}
-	for _, m := range domain.HabitStreakMilestones {
+	rarityOf := func(m int) string {
+		switch {
+		case m >= 30:
+			return "epic"
+		case m >= 14:
+			return "rare"
+		default:
+			return "common"
+		}
+	}
+	for _, m := range domain.HabitMilestones(p.Length()) {
 		if streak < m {
 			continue
 		}
@@ -549,7 +560,7 @@ func (u *HabitUsecase) awardMilestones(studentID string, p *domain.HabitPlan, st
 			ID: id, StudentID: studentID, Earned: "true", Type: domain.HabitBadgeType,
 			Name:        fmt.Sprintf("%d-day streak", m),
 			Description: fmt.Sprintf("%d days in a row on %s", m, p.Title),
-			EarnedDate:  now.UTC().Format(time.RFC3339), Rarity: rarity[m], Progress: 100,
+			EarnedDate:  now.UTC().Format(time.RFC3339), Rarity: rarityOf(m), Progress: 100,
 		}
 		if _, err := u.achievements.AddAchievement(a); err != nil {
 			log.Printf("habit badge %s: %v", id, err)
@@ -596,7 +607,7 @@ func (u *HabitUsecase) Plans(studentID string) ([]HabitPlanView, error) {
 			if !p.IsActive {
 				continue
 			}
-			v := HabitPlanView{ID: p.ID, ProgramID: p.ProgramID, Title: p.Title, Access: p.Access, DaysCount: len(p.Days)}
+			v := HabitPlanView{ID: p.ID, ProgramID: p.ProgramID, Title: p.Title, Access: p.Access, DaysCount: p.Length()}
 			if l, ok := byPlan[p.ID]; ok {
 				v.Started = true
 				v.CurrentStreak, _, _ = ComputeHabitStreaks(l.Done, today)
@@ -652,7 +663,7 @@ func (u *HabitUsecase) summary(p *domain.HabitPlan, l *domain.HabitLog, today st
 	n := HabitDayNumber(l.StartDate, today)
 	return HabitTrackSummary{
 		PlanID: p.ID, Title: p.Title, ProgramID: p.ProgramID, StartDate: l.StartDate, DayNumber: n,
-		Finished: n > domain.HabitTrackDays, CurrentStreak: cur, BestStreak: best, TotalDone: total,
+		Finished: n > p.Length(), DaysCount: p.Length(), CurrentStreak: cur, BestStreak: best, TotalDone: total,
 		CompletionPct: habitCompletionPct(p, l), LastActiveAt: l.LastActiveAt,
 	}
 }
@@ -676,15 +687,27 @@ func (u *HabitUsecase) NormalizePlan(p domain.HabitPlan) (domain.HabitPlan, erro
 	if !u.programHasHabits(p.ProgramID) {
 		return p, fmt.Errorf("%w: program must exist and have the habits feature", ErrHabitNoFeature)
 	}
-	if len(p.Days) == 0 || len(p.Days) > domain.HabitTrackDays {
-		return p, fmt.Errorf("%w: a track has 1 to %d days", ErrHabitInvalid, domain.HabitTrackDays)
+	if p.DaysCount == 0 {
+		// Not chosen: keep the 30-day default, or stretch to the furthest authored day.
+		p.DaysCount = domain.HabitDefaultTrackDays
+		for _, d := range p.Days {
+			if d.Day > p.DaysCount && d.Day <= domain.HabitMaxTrackDays {
+				p.DaysCount = d.Day
+			}
+		}
+	}
+	if p.DaysCount < 1 || p.DaysCount > domain.HabitMaxTrackDays {
+		return p, fmt.Errorf("%w: a track has 1 to %d days", ErrHabitInvalid, domain.HabitMaxTrackDays)
+	}
+	if len(p.Days) == 0 || len(p.Days) > p.DaysCount {
+		return p, fmt.Errorf("%w: a track of %d days needs between 1 and %d authored days", ErrHabitInvalid, p.DaysCount, p.DaysCount)
 	}
 	seenDay := map[int]bool{}
 	seenItem := map[string]bool{}
 	for i := range p.Days {
 		d := &p.Days[i]
-		if d.Day < 1 || d.Day > domain.HabitTrackDays || seenDay[d.Day] {
-			return p, fmt.Errorf("%w: day numbers must be unique, 1..%d", ErrHabitInvalid, domain.HabitTrackDays)
+		if d.Day < 1 || d.Day > p.DaysCount || seenDay[d.Day] {
+			return p, fmt.Errorf("%w: day numbers must be unique, 1..%d", ErrHabitInvalid, p.DaysCount)
 		}
 		seenDay[d.Day] = true
 		d.Title = strings.TrimSpace(d.Title)
@@ -774,6 +797,7 @@ type HabitOversightRow struct {
 	ProgramID     string `json:"program_id"`
 	StartDate     string `json:"start_date"`
 	DayNumber     int    `json:"day_number"`
+	DaysCount     int    `json:"days_count"`
 	Finished      bool   `json:"finished"`
 	CurrentStreak int    `json:"current_streak"`
 	BestStreak    int    `json:"best_streak"`
@@ -816,7 +840,7 @@ func (u *HabitUsecase) Oversight(f HabitOversightFilter) ([]HabitOversightRow, e
 			}
 			rows = append(rows, HabitOversightRow{
 				StudentID: l.StudentID, StudentName: name, PlanID: p.ID, PlanTitle: p.Title, ProgramID: p.ProgramID,
-				StartDate: l.StartDate, DayNumber: sm.DayNumber, Finished: sm.Finished,
+				StartDate: l.StartDate, DayNumber: sm.DayNumber, DaysCount: sm.DaysCount, Finished: sm.Finished,
 				CurrentStreak: sm.CurrentStreak, BestStreak: sm.BestStreak, CompletionPct: sm.CompletionPct,
 				LastActiveAt: l.LastActiveAt, DaysInactive: inactive,
 			})
@@ -916,7 +940,7 @@ func (u *HabitUsecase) RunStreakReminders() (HabitReminderResult, error) {
 			}
 			plans[l.PlanID] = p
 		}
-		if p == nil || !p.IsActive || HabitDayNumber(l.StartDate, today) > domain.HabitTrackDays {
+		if p == nil || !p.IsActive || HabitDayNumber(l.StartDate, today) > p.Length() {
 			continue
 		}
 		cur, _, _ := ComputeHabitStreaks(l.Done, today)

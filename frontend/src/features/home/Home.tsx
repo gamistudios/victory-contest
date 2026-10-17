@@ -14,6 +14,7 @@ import { cn, safeFormatDistanceToNow } from "../../lib/utils";
 import { ArticleListForHome } from "../../components/article/ArticleList";
 import WelcomeCarousel from "../../components/WelcomeCarousell";
 import ErrorState from "../../components/ErrorState";
+import TrainingSection from "../training/TrainingSection";
 import { isAbortedRequest } from "../../services/api";
 import { ensureStudentSession } from "../../services/telegramServices";
 
@@ -187,6 +188,8 @@ const Home: React.FC = () => {
         {sectionHead("Read Articles")}
         <ArticleListForHome />
       </div>
+
+      <TrainingSection limit={3} />
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
