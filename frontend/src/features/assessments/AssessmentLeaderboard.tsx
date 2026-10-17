@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Crown, Timer } from "lucide-react";
-import { CardSkeleton, EmptyState, InlineError } from "@/academy/components/States";
+import { CardSkeleton, EmptyState, InlineError } from "@/features/learn/components/States";
 import { cn } from "@/lib/utils";
 import { assessmentLeaderboard, enc, type LeaderboardRow } from "./api";
 

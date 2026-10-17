@@ -4,8 +4,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { InlineError } from "@/academy/components/States";
-import { Field, FormSheet, PageTitle, Panel, PanelTitle, Segmented, errMsg, inputCls } from "@/academy/admin/components/kit";
+import { InlineError } from "@/features/lectures/components/States";
+import { Field, FormSheet, PageTitle, Panel, PanelTitle, Segmented, errMsg, inputCls } from "@/features/lectures/admin/components/kit";
 import * as svc from "@/services/pricingServices";
 import { getAdminCatalog } from "@/services/catalogServices";
 

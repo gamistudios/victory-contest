@@ -1,5 +1,6 @@
 // App.tsx
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
+import { GROUPED, LegacyRedirect } from "./app/routeGroups";
 
 import Dashboard from "./layout/DashboardLayout";
 import Contest from "./components/contests/Contest";
@@ -14,6 +15,7 @@ import QuestionBankPage from "./features/question-bank/QuestionBankPage";
 import Login from "./components/auth/Login";
 import RootLayout from "./components/RootLoyout";
 import RouteError from "./components/RouteError";
+import { ProgramProvider } from "./app/ProgramContext";
 import Pricing from "./pages/Pricing";
 import Locations from "./pages/Locations";
 import BulkEnrolment from "./pages/BulkEnrolment";
@@ -28,7 +30,7 @@ import { PaymentsPage } from "./components/payment/Payment";
 import { PaymentManagementPage } from "./components/settings/PaymentManagement";
 import QuestionsPage from "./components/questions/Questions";
 import ArticlesPage from "./components/articles/ArticlesPage";
-import { adminRoutes as academyAdminRoutes } from "./academy/admin/routes";
+import { adminRoutes as academyAdminRoutes } from "./features/lectures/admin/routes";
 
 // BASE_URL is "/" in dev and "/admin/" in the single-origin production build,
 // so the same route table works in both.
@@ -49,34 +51,38 @@ const router = createBrowserRouter(
         path: "/dashboard",
         element: (
           <NotificationProvider>
-            <Dashboard />
+            <ProgramProvider>
+              <Dashboard />
+            </ProgramProvider>
           </NotificationProvider>
         ),
         children: [
           { path: "", element: <Home /> },
-          { path: "contest", element: <Contest /> },
-          { path: "contest/:id", element: <ContestById /> },
-          { path: "contest/:id/attempts", element: <AttemptsTab /> },
-          { path: "questions", element: <QuestionsPage /> },
-          { path: "leaderboards", element: <LeaderboardsPage /> },
-          { path: "question-bank", element: <QuestionBankPage /> },
-          { path: "articles", element: <ArticlesPage /> },
-          { path: "users", element: <UserListPage /> },
-          { path: "addquestion", element: <AddQuestions /> },
-          { path: "addcontest", element: <AddContest /> },
-          { path: "admins", element: <ApproveAdmin /> },
-          { path: "user/:id", element: <Profile /> },
+          { path: "assessments/contest", element: <Contest /> },
+          { path: "assessments/contest/:id", element: <ContestById /> },
+          { path: "assessments/contest/:id/attempts", element: <AttemptsTab /> },
+          { path: "bank/questions", element: <QuestionsPage /> },
+          { path: "assessments/leaderboards", element: <LeaderboardsPage /> },
+          { path: "bank/question-bank", element: <QuestionBankPage /> },
+          { path: "engage/articles", element: <ArticlesPage /> },
+          { path: "people/users", element: <UserListPage /> },
+          { path: "bank/addquestion", element: <AddQuestions /> },
+          { path: "assessments/addcontest", element: <AddContest /> },
+          { path: "people/admins", element: <ApproveAdmin /> },
+          { path: "people/user/:id", element: <Profile /> },
 
-          { path: "feedback", element: <FeedbackManagement /> },
-          { path: "high-scorers", element: <HighScorersContactList /> },
-          { path: "payment", element: <PaymentsPage /> },
-          { path: "ai", element: <AiManagement /> },
-          { path: "settings/payment", element: <PaymentManagementPage /> },
-          { path: "academy", children: academyAdminRoutes },
-          { path: "pricing", element: <Pricing /> },
-          { path: "locations", element: <Locations /> },
-          { path: "enrolment", element: <BulkEnrolment /> },
-          { path: "grants", element: <Navigate to="/dashboard/enrolment" replace /> },
+          { path: "insights/feedback", element: <FeedbackManagement /> },
+          { path: "insights/high-scorers", element: <HighScorersContactList /> },
+          { path: "money/payment", element: <PaymentsPage /> },
+          { path: "system/ai", element: <AiManagement /> },
+          { path: "money/settings/payment", element: <PaymentManagementPage /> },
+          { path: "programs/academy", children: academyAdminRoutes },
+          { path: "money/pricing", element: <Pricing /> },
+          { path: "system/locations", element: <Locations /> },
+          { path: "people/enrolment", element: <BulkEnrolment /> },
+          { path: "grants", element: <Navigate to="/dashboard/people/enrolment" replace /> },
+          // Old flat paths keep working: redirect to the grouped route (plan 7.3).
+          ...Object.keys(GROUPED).flatMap((k) => [{ path: k, element: <LegacyRedirect /> }, { path: k + "/*", element: <LegacyRedirect /> }]),
           // Without these, a mistyped URL rendered the sidebar and an empty
           // content area with nothing to explain it.
           { path: "*", element: <Navigate to="/dashboard" replace /> },

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CheckCircle2, Trophy, XCircle } from "lucide-react";
 import { useServerClock } from "@/shared/data/useServerClock";
-import { CardSkeleton, InlineError } from "@/academy/components/States";
+import { CardSkeleton, InlineError } from "@/features/learn/components/States";
 import { cn } from "@/lib/utils";
 import { enc, getResult, type ResultView } from "./api";
 import { formatCountdown } from "./Timer";

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import { PremiumSheet } from "@/components/PremiumSheet";
+import { PremiumSheet } from "@/shared/ui/PremiumSheet";
 import type { PremiumSubject } from "@/lib/premium";
 import { useAuth } from "./AuthContext";
 

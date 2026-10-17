@@ -1,4 +1,5 @@
 // src/components/layout/MenuList.ts
+import { groupedPath } from "@/app/routeGroups";
 import {
   LayoutDashboard,
   Users,
@@ -91,7 +92,7 @@ export function ContestIcon({ className }: { className?: string }) {
   );
 }
 
-export const menuList: NavGroup[] = [
+const rawMenu: NavGroup[] = [
   {
     title: "Manage",
     items: [
@@ -203,6 +204,45 @@ export const menuList: NavGroup[] = [
   },
 ];
 
+// Phase 4 (plan 7.3): grouped sidebar. Items are picked from the flat list by id, so
+// paths are unchanged and no redirects are needed. Unknown ids are skipped; any item
+// not placed in a group lands in "More" so nothing disappears from the menu.
+const rawItems: NavItem[] = rawMenu.flatMap((g) => g.items);
+const GROUPS: { title: string; ids: number[] }[] = [
+  { title: "Overview", ids: [1] },
+  { title: "Programs", ids: [13] },
+  { title: "Assessments", ids: [4, 8, 24] },
+  { title: "Question bank", ids: [2, 9, 25] },
+  { title: "People", ids: [6, 23, 10] },
+  { title: "Money", ids: [5, 21, 12] },
+  { title: "Insights", ids: [7] },
+  { title: "Engage", ids: [3] },
+  { title: "System", ids: [11, 22] },
+];
+const placed = new Set<number>();
+const byId = (id: number) => rawItems.find((i) => i.id === id);
+// ids 8 is shared by "Add Contest" and "High Scorers" in the old list; resolve by title.
+const pick = (id: number, group: string): NavItem | undefined => {
+  if (id === 8) return rawItems.find((i) => i.id === 8 && (group === "Assessments" ? i.title === "Add Contest" : i.title === "High Scorers"));
+  return byId(id);
+};
+export const menuList: NavGroup[] = (() => {
+  const out: NavGroup[] = GROUPS.map((g) => ({
+    title: g.title,
+    items: g.ids.map((id) => pick(id, g.title)).filter((i): i is NavItem => !!i),
+  }));
+  out.forEach((g) => g.items.forEach((i) => placed.add(rawItems.indexOf(i))));
+  const rest = rawItems.filter((_, idx) => !placed.has(idx));
+  const insights = out.find((g) => g.title === "Insights");
+  const hs = rawItems.find((i) => i.title === "High Scorers");
+  if (insights && hs && !insights.items.includes(hs)) { insights.items.push(hs); rest.splice(rest.indexOf(hs), 1); }
+  if (rest.length) out.push({ title: "More", items: rest });
+  return out.filter((g) => g.items.length > 0);
+})();
+
 // Remove the Actions section that was referencing undefined navigationItems
 // For backward compatibility, create a flat list from the menuList
+// Sidebar links point at the grouped routes directly (old paths would only redirect).
+menuList.forEach((g) => g.items.forEach((i) => { i.path = groupedPath(i.path); }));
+
 export const flatMenuList: NavItem[] = menuList.flatMap((group) => group.items);

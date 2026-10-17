@@ -48,7 +48,7 @@ import {
 import api from "../services/api";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
-import { CardSkeleton, InlineError, EmptyState } from "@/academy/components/States";
+import { CardSkeleton, InlineError, EmptyState } from "@/features/learn/components/States";
 import { getAiRecommendationsFromApi } from "../services/aiService";
 import { useAuth } from "../context/AuthContext";
 import { usePremiumSheet } from "../context/PremiumSheetContext";

@@ -11,4 +11,5 @@ export interface PaymentRequest {
   createdAt: string; // Using string for simplicity, can be Date object
   updatedAt: string;
   expirationDate?: string;
+  program_ids?: string[]; // programs the plan covered at purchase (absent on legacy rows)
 }

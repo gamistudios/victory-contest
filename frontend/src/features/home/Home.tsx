@@ -1,73 +1,62 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BarChart3, BookOpen, Calendar, ChevronRight, ClipboardList, HelpCircle, Lock, PlayCircle, CheckCircle2, Sparkles } from "lucide-react";
-import { useTelegram } from "../hooks/useTelegram";
-import { useAuth } from "../context/AuthContext";
-import { usePremiumSheet } from "../context/PremiumSheetContext";
-import { CardSkeleton, EmptyState } from "@/academy/components/States";
-import { enc, listAssessments, type AssessmentMeta } from "../features/assessments/api";
-import { cn, safeFormatDistanceToNow, sameGrade } from "../lib/utils";
-import { ArticleListForHome } from "../components/article/ArticleList";
-import WelcomeCarousel from "../components/WelcomeCarousell";
-import ErrorState from "../components/ErrorState";
-import { isAbortedRequest } from "../services/api";
-import { ensureStudentSession } from "../services/telegramServices";
+import { useTelegram } from "../../hooks/useTelegram";
+import { usePremiumSheet } from "../../context/PremiumSheetContext";
+import { CardSkeleton, EmptyState } from "@/shared/ui/States";
+import { ResourceCard } from "@/shared/ui/ResourceCard";
+import { enc, type AssessmentMeta } from "../assessments/api";
+import { fetchFeed, type Feed } from "./api";
+import { useCatalog } from "@/shared/scope/catalog";
+import { cn, safeFormatDistanceToNow } from "../../lib/utils";
+import { ArticleListForHome } from "../../components/article/ArticleList";
+import WelcomeCarousel from "../../components/WelcomeCarousell";
+import ErrorState from "../../components/ErrorState";
+import { isAbortedRequest } from "../../services/api";
+import { ensureStudentSession } from "../../services/telegramServices";
 
 /** Home surfaces the same `contests` table the Phase 2 screens use. Drills and
  *  archived papers belong to the Practice tab, so only competing kinds show here. */
 const onHome = (a: AssessmentMeta) => a.kind !== "practice" && a.kind !== "past_exam";
 
-/** Grade scoping mirrors the legacy home: a `grade-<n>` program is compared on its
- *  digits, and anything unscoped (or a non-grade program) stays visible to all. */
-const forGrade = (a: AssessmentMeta, grade?: string) => {
-  const program = a.scope?.program_id ?? "";
-  if (!grade || !program.startsWith("grade-")) return true;
-  return sameGrade(program.slice("grade-".length), grade);
-};
-
 const AssessmentRow = ({ a }: { a: AssessmentMeta }) => {
   const att = a.my_attempt;
   const inProgress = att?.status === "in_progress";
   const done = !!att && !inProgress;
+  const scopeLabel = [a.scope?.program_id, a.scope?.stream_id && a.scope.stream_id !== "common" ? a.scope.stream_id : ""].filter(Boolean).join(" · ");
   return (
-    <Link
+    <ResourceCard
       to={`/assessment/${enc(a.id)}`}
-      className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-3 transition active:scale-[0.98]"
-    >
-      <span
-        className={cn(
-          "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-          a.lock ? "bg-yellow-100 text-yellow-700" : done ? "bg-green-100 text-green-700" : inProgress ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"
-        )}
-      >
-        {a.lock ? <Lock className="h-6 w-6" /> : done ? <CheckCircle2 className="h-6 w-6" /> : inProgress ? <PlayCircle className="h-6 w-6" /> : <ClipboardList className="h-6 w-6" />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-bold text-foreground">{a.title}</p>
-          {a.lock && <span className="shrink-0 rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-800">Premium</span>}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span className="rounded-full bg-muted px-2 py-0.5 font-semibold capitalize">{a.kind.replace(/_/g, " ")}</span>
+      title={a.title}
+      scope={scopeLabel}
+      access={a.lock ? "premium" : undefined}
+      locked={!!a.lock}
+      leading={
+        <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl", a.lock ? "bg-yellow-100 text-yellow-700" : done ? "bg-green-100 text-green-700" : inProgress ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground")}>
+          {a.lock ? <Lock className="h-6 w-6" /> : done ? <CheckCircle2 className="h-6 w-6" /> : inProgress ? <PlayCircle className="h-6 w-6" /> : <ClipboardList className="h-6 w-6" />}
+        </span>
+      }
+      meta={
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="capitalize">{a.kind.replace(/_/g, " ")}</span>
           <span className="inline-flex items-center gap-1"><HelpCircle className="h-3.5 w-3.5" />{a.question_count}</span>
           {a.start_time && <span>{safeFormatDistanceToNow(a.start_time, "No start time")}</span>}
-        </div>
-        {att && (
-          <p className={cn("mt-1 text-xs font-semibold", inProgress ? "text-blue-700" : "text-green-700")}>
-            {inProgress ? "In progress · tap to resume" : `Completed · ${att.points} pts`}
-          </p>
-        )}
-      </div>
-      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition group-active:translate-x-0.5" aria-hidden />
-    </Link>
+          {att && <span className={cn("font-semibold", inProgress ? "text-blue-700" : "text-green-700")}>{inProgress ? "In progress · tap to resume" : `Completed · ${att.points} pts`}</span>}
+        </span>
+      }
+      trailing={<ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />}
+    />
   );
 };
 
 const Home: React.FC = () => {
   const { user, hideBackButton } = useTelegram();
-  const { user: userInfo } = useAuth();
   const { open: openPremium } = usePremiumSheet();
-  const [assessments, setAssessments] = useState<AssessmentMeta[] | null>(null);
+  const [feed, setFeed] = useState<Feed | null>(null);
+  // "" = my active program, "mine" = all my programs, otherwise an Explore program id.
+  const [program, setProgram] = useState<string>(() => localStorage.getItem("home_program") ?? "");
+  const [widen, setWiden] = useState(false);
+  const { catalog } = useCatalog();
   // Open/ended is decided on the server clock, not this device's.
   const [serverNow, setServerNow] = useState(() => Date.now());
   const [contestError, setContestError] = useState<string | null>(null);
@@ -79,16 +68,16 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    setAssessments(null);
+    setFeed(null);
     setContestError(null);
-    // /assessments is a student read, so the contest list waits on the Telegram
-    // session the provider is exchanging; the old public /contest list never did.
+    // /feed is a student read, so it waits on the Telegram session the provider is exchanging.
+    // Program/stream filtering happens on the server; there is no client-side grade matching.
     ensureStudentSession()
-      .then(() => listAssessments())
-      .then((items) => {
+      .then(() => fetchFeed({ program, stream: widen ? "all" : undefined }))
+      .then((f) => {
         if (cancelled) return;
-        setAssessments(items);
-        const s = items.length ? Date.parse(items[0].server_now) : NaN;
+        setFeed(f);
+        const s = f.assessments.length ? Date.parse(f.assessments[0].server_now) : NaN;
         if (!Number.isNaN(s)) setServerNow(s);
       })
       .catch((e) => {
@@ -99,17 +88,21 @@ const Home: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [triggerLoading]);
+  }, [triggerLoading, program, widen]);
+
+  useEffect(() => {
+    localStorage.setItem("home_program", program);
+  }, [program]);
 
   const { openContests, pastContests } = useMemo(() => {
     const open: AssessmentMeta[] = [];
     const past: AssessmentMeta[] = [];
-    for (const a of assessments?.filter((a) => onHome(a) && forGrade(a, userInfo?.grade)) ?? []) {
+    for (const a of feed?.assessments.filter(onHome) ?? []) {
       const end = a.end_time ? Date.parse(a.end_time) : NaN;
       (Number.isNaN(end) || end <= serverNow ? past : open).push(a);
     }
     return { openContests: open, pastContests: past };
-  }, [assessments, userInfo?.grade, serverNow]);
+  }, [feed, serverNow]);
 
   const sectionHead = (title: string, count?: number) => (
     <div className="mb-4 flex items-center justify-between">
@@ -123,7 +116,7 @@ const Home: React.FC = () => {
     </div>
   );
 
-  const loading = assessments === null && contestError === null;
+  const loading = feed === null && contestError === null;
 
   return (
     <div className="p-4 space-y-6">
@@ -133,6 +126,41 @@ const Home: React.FC = () => {
         {sectionHead("Read Articles")}
         <ArticleListForHome />
       </div>
+
+      <div>
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Program">
+          {[{ id: "", name: "My program" }, { id: "mine", name: "All mine" }].map((o) => (
+            <button key={o.id || "active"} type="button" onClick={() => setProgram(o.id)}
+              className={cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold", program === o.id ? "border-blue-600 bg-blue-50 text-blue-700" : "border-border bg-card text-muted-foreground")}>
+              {o.name}
+            </button>
+          ))}
+          {(catalog?.programs ?? []).filter((p) => p.is_active).map((p) => (
+            <button key={p.id} type="button" onClick={() => setProgram(p.id)}
+              className={cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold", program === p.id ? "border-blue-600 bg-blue-50 text-blue-700" : "border-border bg-card text-muted-foreground")}>
+              {p.short_code || p.name}
+            </button>
+          ))}
+        </div>
+        {feed && !feed.mine && (
+          <p className="mt-2 text-xs text-muted-foreground">Exploring a program you are not enrolled in. <Link to="/programs" className="font-semibold text-blue-600">Enrol</Link></p>
+        )}
+        <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" checked={widen} onChange={(e) => setWiden(e.target.checked)} />
+          Show every stream, not just mine
+        </label>
+      </div>
+
+      {feed && feed.lectures.length > 0 && (
+        <div>
+          {sectionHead("Keep learning")}
+          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+            {feed.lectures.slice(0, 8).map((l) => (
+              <ResourceCard key={l.id} className="w-40 shrink-0 flex-col items-start" to={`/academy/subject/${l.id}`} title={l.name} meta={`${l.progress_percentage}% done`} access={l.access} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         {sectionHead("Upcoming Contests", openContests.length)}

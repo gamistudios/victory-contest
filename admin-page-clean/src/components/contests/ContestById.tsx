@@ -67,7 +67,7 @@ import { Contest, Student } from "@/types/models";
 import { DialogBox } from "../common/DialogBox";
 import { UpdateContestDialog } from "./UpdateContestDialog";
 import QuestionTable from "../questions/QuestionTable";
-import ContestStatistics from "./ContestStatistics";
+import ContestStatistics from "@/features/analytics/AssessmentStatistics";
 import { getSubmissionByContest } from "@/lib/utils";
 
 export default function ContestById() {

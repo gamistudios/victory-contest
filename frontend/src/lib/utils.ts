@@ -12,18 +12,6 @@ export function safePercent(value: number, total: number): number {
 }
 
 /**
- * Compares grades that may arrive in different formats ("9" vs "Grade 9").
- * Grades are created as "1".."13" in registration but stored on contests
- * however admins type them, so only the numeric part is meaningful.
- */
-export function sameGrade(a?: string | null, b?: string | null): boolean {
-  if (!a || !b) return false;
-  const na = a.match(/\d+/)?.[0];
-  const nb = b.match(/\d+/)?.[0];
-  return !!na && !!nb && na === nb;
-}
-
-/**
  * Safely formats a date string to a relative time (e.g., "2 hours ago")
  * @param dateString - The date string to format
  * @param fallback - Fallback text if date is invalid

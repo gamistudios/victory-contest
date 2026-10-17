@@ -1,3 +1,4 @@
+import { useScope } from "@/app/ProgramContext";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -75,6 +76,7 @@ const getPaymentStatus = (
 };
 
 export default function UserListPage() {
+  const headerScope = useScope(); // header "Working in" switcher (plan 5.8)
   const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [status, setStatus] = useState<Status>("pending");
@@ -88,6 +90,11 @@ export default function UserListPage() {
     payment: ALL,
   });
   const [catalog, setCatalog] = useState<AdminCatalog | null>(null);
+  // A chosen header scope drives the program/stream filters; clearing it resets them.
+  useEffect(() => {
+    setFilters((prev) => ({ ...prev, program: headerScope.program || ALL, stream: headerScope.stream || ALL }));
+    setPageIndex(0);
+  }, [headerScope.program, headerScope.stream]);
   const [accessFor, setAccessFor] = useState<Student | null>(null);
   useEffect(() => {
     getAdminCatalog().then(setCatalog).catch(() => setCatalog(null));

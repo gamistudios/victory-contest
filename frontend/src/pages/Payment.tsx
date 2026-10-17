@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Upload, CheckCircle, Loader2, HelpCircle, Send, Copy, Lock } from "lucide-react";
-import { CardSkeleton, EmptyState, InlineError } from "@/academy/components/States";
+import { CardSkeleton, EmptyState, InlineError } from "@/features/learn/components/States";
 import { useTelegram } from "../hooks/useTelegram";
 import { toast } from "sonner";
 import { sendPaymentInfo, getPaymentSettings } from "../services/paymentServices";

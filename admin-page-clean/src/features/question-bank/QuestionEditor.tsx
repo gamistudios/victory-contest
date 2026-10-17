@@ -1,7 +1,7 @@
 // Phase 3 question editor (plan 5.6): Markdown + math with live preview, bank metadata, verified toggle.
 // Saves through the presence-aware PATCH, so only the fields shown here are touched.
 import { useState } from "react";
-import { Markdown } from "@/academy/components/Markdown";
+import { Markdown } from "@/features/lectures/components/Markdown";
 import { updateQuestion, getQuestionUsage } from "@/services/questionServices";
 import type { Question } from "@/types/models";
 import { Button } from "@/components/ui/button";

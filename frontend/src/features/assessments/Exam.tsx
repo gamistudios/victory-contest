@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, Flag, Loader2, AlertTriangle } from "lucide-react";
 import { useServerClock } from "@/shared/data/useServerClock";
 import { errCode, errData } from "@/services/api";
-import { InlineError } from "@/academy/components/States";
+import { InlineError } from "@/features/learn/components/States";
 import ScreenshotProtection from "@/components/ScreenProtection";
 import { cn } from "@/lib/utils";
 import { autosave, enc, startAssessment, submitAttempt, type Attempt, type PublicQuestion } from "./api";

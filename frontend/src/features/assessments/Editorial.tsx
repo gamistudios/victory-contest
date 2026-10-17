@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BookOpen, CheckCircle2 } from "lucide-react";
-import { CardSkeleton, EmptyState, InlineError } from "@/academy/components/States";
+import { CardSkeleton, EmptyState, InlineError } from "@/features/learn/components/States";
 import { cn } from "@/lib/utils";
 import { enc, getAssessmentEditorial, type EditorialView } from "./api";
 import ZoomImage from "./ZoomImage";

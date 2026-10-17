@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { CalendarClock, CheckCircle2, ClipboardList, Clock, HelpCircle, Lock, PlayCircle, Trophy } from "lucide-react";
 import { useServerClock } from "@/shared/data/useServerClock";
 import { usePremiumSheet } from "@/context/PremiumSheetContext";
-import { CardSkeleton, InlineError } from "@/academy/components/States";
+import { CardSkeleton, InlineError } from "@/features/learn/components/States";
 import { cn } from "@/lib/utils";
 import { enc, getAssessment, registerForAssessment, type AssessmentMeta } from "./api";
 import { formatCountdown } from "./Timer";

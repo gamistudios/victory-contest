@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { StatsCards } from "@/components/profile/StatsCards";
-import { PaymentManagement } from "@/components/profile/PaymentManagement";
-import { ContestStatistics } from "@/components/profile/ContestStatistics";
+import { PaymentManagement } from "@/components/profile/StudentPayments";
+import { ContestStatistics } from "@/features/analytics/StudentStatistics";
 import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { Toaster } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";

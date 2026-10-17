@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, ShieldOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { FormSheet, Field, errMsg } from "@/academy/admin/components/kit";
+import { FormSheet, Field, errMsg } from "@/features/lectures/admin/components/kit";
 import * as svc from "@/services/pricingServices";
 import { fetchApprovedPayments } from "@/services/paymentServices";
 import type { AdminCatalog } from "@/services/catalogServices";

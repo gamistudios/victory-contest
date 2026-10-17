@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ChevronRight, ClipboardList, Clock, HelpCircle, Lock, PlayCircle, CheckCircle2, Layers } from "lucide-react";
 import { useCatalog } from "@/shared/scope/catalog";
 import { cn } from "@/lib/utils";
-import { CardSkeleton, EmptyState, InlineError } from "@/academy/components/States";
+import { CardSkeleton, EmptyState, InlineError } from "@/features/learn/components/States";
 import { enc, listAssessments, type AssessmentMeta } from "./api";
 
 /** Practice tab: GET /assessments with a program filter. */

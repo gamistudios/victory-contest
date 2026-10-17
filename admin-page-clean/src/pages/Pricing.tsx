@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Chip, ConfirmDialog, Field, FormSheet, IconBtn, PageTitle, Panel, Segmented, errMsg, inputCls } from "@/academy/admin/components/kit";
+import { Chip, ConfirmDialog, Field, FormSheet, IconBtn, PageTitle, Panel, Segmented, errMsg, inputCls } from "@/features/lectures/admin/components/kit";
 import { getAdminCatalog } from "@/services/catalogServices";
 import type { Program } from "@/types/academy";
 import * as svc from "@/services/pricingServices";

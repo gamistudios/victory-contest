@@ -1,3 +1,4 @@
+import { useScopedPayments } from "./useScopedPayments";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { getApprovedColumns } from "./columns";
@@ -41,7 +42,8 @@ export function ApprovedPaymentsTab() {
         onRevoke: onRevoke,
       }),
     []
-  );
+  );
+  const scoped = useScopedPayments(payments);
 
   if (isLoading) return <div className="p-4">Loading approved payments...</div>;
 
@@ -50,7 +52,7 @@ export function ApprovedPaymentsTab() {
   return (
     <div className="w-full overflow-x-auto">
       <div className="min-w-[42rem]">
-        <DataTable columns={columns} data={payments} />
+        <DataTable columns={columns} data={scoped} />
       </div>
     </div>
   );

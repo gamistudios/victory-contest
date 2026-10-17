@@ -7,7 +7,7 @@ import { CalendarIcon } from "lucide-react";
 
 // Local imports (assuming these are your custom components/types)
 import { addContest } from "@/services/contestServices";
-import Questions from "./Questions";
+import Questions from "../questions/SelectableQuestionsTable";
 import { type Question, type Contest, APIContest } from "../../types/models";
 import { useCatalogLists } from "@/hooks/useCatalogLists";
 import { cn } from "@/lib/utils"; // From shadcn/ui

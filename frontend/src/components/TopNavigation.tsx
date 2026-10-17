@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useTelegram } from "../hooks/useTelegram";
 import { ThemeToggle } from "./ThemeToggle";
 import { Bell, Lock, SlidersHorizontal, User, BarChart3, Trophy, Layers, ChevronRight } from "lucide-react";
-import { SettingsSheet } from "../academy/components/SettingsSheet";
+import { SettingsSheet } from "../features/learn/components/SettingsSheet";
 import NotificationCenter from "./NotificationCenter";
 import { useNotification } from "../context/NotificationContext";
 import {

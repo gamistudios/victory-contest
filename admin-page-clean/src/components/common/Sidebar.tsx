@@ -110,7 +110,7 @@ export function NavLinks({ isCollapsed, onNavigate }: NavLinksProps) {
             {isCollapsed && groupIndex > 0 && <Separator />}
             {group.items.map((item) => {
               const isActive =
-                item.path === "/dashboard/academy"
+                item.path === "/dashboard/programs/academy"
                   ? location.pathname.startsWith(item.path)
                   : location.pathname === item.path;
 

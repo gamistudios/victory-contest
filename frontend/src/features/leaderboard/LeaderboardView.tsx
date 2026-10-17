@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EmptyState, InlineError } from "@/academy/components/States";
+import { EmptyState, InlineError } from "@/features/learn/components/States";
 import { getBoard, getBoardPrograms, type BoardEntry, type BoardPrograms, type BoardView, type Period } from "./api";
 
 const PERIODS: { id: Period; label: string }[] = [

@@ -3,7 +3,7 @@ import { Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Chip, ConfirmDialog, Field, PageTitle, Panel, PanelTitle, errMsg, inputCls } from "@/academy/admin/components/kit";
+import { Chip, ConfirmDialog, Field, PageTitle, Panel, PanelTitle, errMsg, inputCls } from "@/features/lectures/admin/components/kit";
 import { getAllStudents, type StudentRow } from "@/services/studentServices";
 import { getAdminCatalog, type AdminCatalog } from "@/services/catalogServices";
 import { bulkEnroll } from "@/services/pricingServices";

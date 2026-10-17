@@ -21,7 +21,7 @@ import CollapseText from "../components/ui/Collapse";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 import { badges } from "../lib/data";
-import { CardSkeleton } from "@/academy/components/States";
+import { CardSkeleton } from "@/features/learn/components/States";
 import { cn } from "@/lib/utils";
 
 interface AchievementStyle {

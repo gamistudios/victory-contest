@@ -4,8 +4,8 @@ import { CheckCircle2, Crown, GraduationCap, LogOut, Plus, Sparkles, Star } from
 import { Button } from "@/components/ui/button";
 import { errData } from "@/services/api";
 import { cn } from "@/lib/utils";
-import { CardSkeleton, EmptyState, InlineError } from "../academy/components/States";
-import { SectionTitle } from "../academy/components/PageHeader";
+import { CardSkeleton, EmptyState, InlineError } from "../features/learn/components/States";
+import { SectionTitle } from "../features/learn/components/PageHeader";
 import { needsStreamChoice, registrationPrograms, useCatalog } from "../shared/scope/catalog";
 import {
   enroll, inGrace, isEntitled, leaveProgram, myEnrollments, myEntitlements, setPrimaryProgram,

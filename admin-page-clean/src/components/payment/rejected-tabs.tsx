@@ -1,3 +1,4 @@
+import { useScopedPayments } from "./useScopedPayments";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { getRejectColumns } from "./columns";
@@ -33,6 +34,7 @@ export function RejectedPaymentsTab() {
       }),
     []
   );
+  const scoped = useScopedPayments(payments);
 
   if (isLoading) return <div className="p-4">Loading rejected payments...</div>;
 
@@ -41,7 +43,7 @@ export function RejectedPaymentsTab() {
   return (
     <div className="w-full overflow-x-auto">
       <div className="min-w-[46rem]">
-        <DataTable columns={columns} data={payments} />
+        <DataTable columns={columns} data={scoped} />
       </div>
     </div>
   );

@@ -52,6 +52,7 @@ type Server struct {
 	enrollmentHandler          *EnrollmentHandler
 	assessmentHandler          *AssessmentHandler
 	leaderboardHandler         *LeaderboardHandler
+	feedHandler                *FeedHandler
 	attemptUsecase             *usecase.AttemptUsecase
 	jwtSecret                  string
 	aiRequestsPerMinute        int
@@ -290,6 +291,12 @@ func NewServer() *Server {
 		enrollmentHandler:        NewEnrollmentHandler(enrollmentUsecase),
 		assessmentHandler:        NewAssessmentHandler(attemptUsecase),
 		leaderboardHandler:       NewLeaderboardHandler(leaderboardUsecase),
+		feedHandler: NewFeedHandler(usecase.NewFeedUsecase(usecase.FeedSources{
+			Student:     studentRepo.GetStudentByID,
+			Assessments: attemptUsecase.ListAssessments,
+			Subjects:    academyUsecase.Subjects,
+			Board:       leaderboardUsecase.Board,
+		})),
 		attemptUsecase:           attemptUsecase,
 		jwtSecret:                jwtSecret,
 		aiRequestsPerMinute:      aiRequestsPerMinute,
@@ -308,6 +315,7 @@ func NewServer() *Server {
 	server.enrollmentHandler.studentAuth = studentAuthMw
 	server.assessmentHandler.studentAuth = studentAuthMw
 	server.leaderboardHandler.studentAuth = studentAuthMw
+	server.feedHandler.studentAuth = studentAuthMw
 	server.questionHandler.contests = questionHandlerContests
 	server.submissionHandler.boards = leaderboardUsecase
 	server.submissionHandler.legacy = attemptUsecase.SubmitLegacy
@@ -473,6 +481,7 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.enrollmentHandler.RegisterRoutes(api, adminAuthMw)
 	s.assessmentHandler.RegisterRoutes(api, adminAuthMw)
 	s.leaderboardHandler.RegisterRoutes(api, adminAuthMw)
+	s.feedHandler.RegisterRoutes(api)
 	// Victory Academy (Learn): student routes need the student session JWT,
 	// /admin routes the admin cookie; AI routes share the Gemini rate limiter.
 	s.academyHandler.RegisterRoutes(api.Group("/academy"), studentAuth([]byte(s.jwtSecret)), adminAuthMw,

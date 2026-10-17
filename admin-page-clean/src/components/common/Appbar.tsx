@@ -1,5 +1,6 @@
 // src/components/layout/Header.tsx
 import { ThemeToggle } from "./ThemeToggle";
+import ProgramSwitcher from "./ProgramSwitcher";
 import { useState, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -324,6 +325,7 @@ export default function Header({ mobileNav }: { mobileNav?: ReactNode }) {
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
+          <ProgramSwitcher />
           <GlobalSearch />
           <ThemeToggle />
           <NotificationBell />

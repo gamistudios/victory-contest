@@ -1,3 +1,4 @@
+import { useScopedPayments } from "./useScopedPayments";
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { expiredColumns } from "./columns";
@@ -49,6 +50,7 @@ export function ExpiredPaymentsTab() {
       setIsNotifying(false);
     }
   };
+  const scoped = useScopedPayments(payments);
 
   if (isLoading) return <div className="p-4">Loading expired payments...</div>;
 
@@ -67,7 +69,7 @@ export function ExpiredPaymentsTab() {
       </div>
       <div className="w-full overflow-x-auto">
         <div className="min-w-[42rem]">
-          <DataTable columns={expiredColumns} data={payments} />
+          <DataTable columns={expiredColumns} data={scoped} />
         </div>
       </div>
     </div>

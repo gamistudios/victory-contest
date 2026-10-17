@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { useCatalogLists } from "@/hooks/useCatalogLists";
 import QuestionTable from "./QuestionTable";
+import { useScope } from "@/app/ProgramContext";
 import { getAdminCatalog, type AdminCatalog } from "@/services/catalogServices";
 
 // Your existing table component
@@ -58,6 +59,7 @@ const NO_SCOPE = "__none";
 const emptyFilters: Filters = { subjects: [], grades: [], programs: [], streams: [] };
 
 export default function QuestionsPage() {
+  const headerScope = useScope(); // header "Working in" switcher (plan 5.8)
   const { grades, Subjects } = useCatalogLists();
   const [questions, setQuestions] = React.useState<Question[]>([]);
   const [status, setStatus] = React.useState<Status>("pending");
@@ -154,9 +156,15 @@ export default function QuestionsPage() {
         filters.streams.length === 0 ||
         (!!sc && (sc.stream_id === "common" || filters.streams.includes(sc.stream_id)));
 
-      return subjectMatch && gradeMatch && programMatch && streamMatch;
+      const headerMatch =
+        !headerScope.program ||
+        (!!sc &&
+          sc.program_id === headerScope.program &&
+          (!headerScope.stream || sc.stream_id === "common" || sc.stream_id === headerScope.stream));
+
+      return subjectMatch && gradeMatch && programMatch && streamMatch && headerMatch;
     });
-  }, [questions, filters]);
+  }, [questions, filters, headerScope.program, headerScope.stream]);
 
   const handleQuestionDeleted = (deletedQuestionId: string) => {
     setQuestions((prev) => prev.filter((q) => q.id !== deletedQuestionId));

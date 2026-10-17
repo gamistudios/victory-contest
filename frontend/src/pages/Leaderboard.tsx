@@ -4,7 +4,7 @@ import { LeaderboardEntry } from "../types";
 import { Trophy, Medal, Award, Clock, Target } from "lucide-react";
 import api from "../services/api";
 import { LeaderboardSkeleton } from "../components/LeaderboardSkeleton";
-import { EmptyState, InlineError } from "@/academy/components/States";
+import { EmptyState, InlineError } from "@/features/learn/components/States";
 import { safePercent, cn } from "../lib/utils";
 
 const avatarColors = [

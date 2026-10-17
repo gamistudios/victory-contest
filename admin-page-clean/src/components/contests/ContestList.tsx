@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { getAttemptCounts } from "@/services/assessmentServices";
 import { matchesScopeFilter } from "@/hooks/useScopeFilter";
+import { useScope } from "@/app/ProgramContext";
 
 // Shadcn/ui & Lucide Icons
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ export function ContestList({
 }) {
   const navigate = useNavigate();
   const { data: attemptCounts } = useQuery({ queryKey: ["attempt-counts"], queryFn: getAttemptCounts, retry: false });
+  const headerScope = useScope(); // "Working in" switcher (plan 5.8)
   const { data: contests, status } = useQuery({
     queryKey: ["contests"],
     queryFn: getContests,
@@ -49,6 +51,11 @@ export function ContestList({
   const filteredContests = useMemo(() => {
     if (!contests) return [];
     return contests.filter((contest) => {
+      if (headerScope.program) {
+        const sc = contest.scope;
+        if (!sc || sc.program_id !== headerScope.program) return false;
+        if (headerScope.stream && sc.stream_id !== headerScope.stream && sc.stream_id !== "common") return false;
+      }
       if (!matchesScopeFilter(contest, { programs: filters.programs ?? [], kinds: filters.kinds ?? [] })) return false;
       const gradeMatch =
         filters.grades.length === 0 || filters.grades.includes(contest.grade);
@@ -57,7 +64,7 @@ export function ContestList({
         filters.subjects.includes(contest.subject);
       return gradeMatch && subjectMatch;
     });
-  }, [contests, filters]);
+  }, [contests, filters, headerScope.program, headerScope.stream]);
 
   if (status === "pending") {
     return (

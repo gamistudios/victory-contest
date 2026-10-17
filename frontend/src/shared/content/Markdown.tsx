@@ -5,7 +5,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { AlertTriangle, BookMarked, Info, Lightbulb, PenLine, Sparkles, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ZoomableImage } from "@/academy/components/ImageViewer";
+import { ZoomableImage } from "@/features/learn/components/ImageViewer";
 
 const CALLOUTS: Record<string, { label: string; icon: LucideIcon; cls: string }> = {
   definition: { label: "Definition", icon: BookMarked, cls: "border-blue-300 bg-blue-50 text-blue-950" },

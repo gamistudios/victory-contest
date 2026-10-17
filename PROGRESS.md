@@ -1,3 +1,4 @@
+Follow the format while updating the PROGRESS.md
 === BEGINNING OF PHASE 0 & PHASE ONE ===
 
 # Implementation progress: Phase 0 and Phase 1
@@ -1394,3 +1395,154 @@ from "never had any". This pass makes that distinguishable.
 * Re-authoring the 33 rounds through the bank is now a client task, not a data one — the honest empty state is in place so the admin sees exactly which rounds are missing content. (NOT DEVELOPER SIDE ISSUE)
 
 === END OF PHASE THREE ===
+
+
+=== BEGINNING OF PHASE FOUR ===
+
+# Update 2026-10-17 (Phase 4, first pass, 5-minute box): feed backend, feed-driven student Home, admin scope shell
+
+**Nothing in this pass was compiled, gofmt-ed, type-checked or tested** (no toolchain, by instruction). PROGRESS.md had no Phase 4 task list, so the scope below is the plan's Phase 4 table (`PROPOSED-IMPLEMENTATION-PLAN.md`, section 8, Phase 4) and sections 5.7, 5.8, 6.1 and 7.3. First: `cd backend && gofmt -l . && go build ./... && go vet ./... && go test ./...`, then `tsc -b` / `npm run build` in `frontend/` and `npm run typecheck` in `admin-page-clean/`.
+
+## Done
+
+| Plan row | Where | Notes |
+|---|---|---|
+| `GET /api/feed` (plan 5.7) | `backend/internal/usecase/feed_usecase.go` (new), `handler/http/feed_handler.go` (new), `router.go` (field, constructor, `studentAuth`, route) | Student session required. `program` omitted = primary program (else first enrolment), `mine` = all enrolments, or any program id (Explore). Stream filter defaults to the student's stream in that program plus `common`; `stream=<id>` narrows; `stream=all` widens. Also `subject`, `kind`, `access`, `cursor` (offset, page of 20 assessments). Returns `assessments[]` (existing `AssessmentMeta`, so `scope`, `lock`, `my_attempt` come with it), `lectures[]` (Academy subjects with progress, `locked_modules` and a `free/mixed/premium` flag) and `leaderboards[]` (week preview, top 3 + `me`, enrolled programs only, max 3). Lectures and boards are first page only. The usecase composes `AttemptUsecase.ListAssessments`, `AcademyUsecase.Subjects` and `LeaderboardUsecase.Board` through function fields, so their access and enrolment rules still apply |
+| Feed-driven Home | `frontend/src/features/home/{Home.tsx,api.ts}` (new), `App.tsx` | Replaces `pages/Home.tsx` (deleted). One `/feed` request; `forGrade`/`sameGrade` matching removed from Home. Program chips (My program, All mine, then every active catalog program), an Explore note with an Enrol link for programs the student is not in, a "show every stream" toggle, a "Keep learning" strip from `lectures[]`, and the existing open/previous split on the server clock. Selected program is remembered in localStorage |
+| Bottom nav | `frontend/src/components/BottomNavigation.tsx` | Home, Learn, Practice, Rank, Me (Rank = `/leaderboard`, Me = `/profile`) |
+| Admin program/stream switcher | `admin-page-clean/src/app/ProgramContext.tsx` (new), `components/common/ProgramSwitcher.tsx` (new), `components/common/Appbar.tsx`, `App.tsx` | `ProgramProvider` wraps the dashboard; scope lives in `?program=&stream=` and localStorage; `useScope()` is the hook list pages are meant to read. Header selects fed from `/api/catalog` |
+| Shared table | `admin-page-clean/src/shared/ui/{DataTable,FilterBar}.tsx` (new) | TanStack Table: sorting, column chooser, CSV export, optional prev/next paging. No MUI |
+
+## NOT done in Phase 4
+
+- **No admin list page reads `useScope()` yet**, so the switcher changes the URL but filters nothing until Students, Questions, Assessments, Payments and Leaderboards are wired to it (their APIs already accept program/stream filters in most cases).
+- **`DataTable` is not adopted anywhere**: Students, Questions, Assessments and Payments still use their current tables (some MUI).
+- **Grouped admin sidebar and `/dashboard/<group>/...` routes with redirects from the old paths: not started.** `Sidentmenu.tsx` and the route table are unchanged.
+- **Admin duplicate merges (D15):** `components/profile/ContestStatistics.tsx` not merged or deleted; no `features/analytics/AssessmentStatistics.tsx`; the two `Questions.tsx` files and the `PaymentManagement` wrapper are unchanged.
+- **Moves:** `academy/**` to `features/learn/**` (student) and `features/lectures/**` (admin) not done.
+- **Student shared UI (6.1):** no `shared/ui/ResourceCard.tsx`; States, skeletons and the two upsell sheets not consolidated; `academy/pages/Home.tsx` not absorbed into Home (its route `/academy` stays); `lib/utils.ts#sameGrade` still exists (no longer used by Home; delete once nothing else imports it).
+- **Feed gaps:** no `Scope`/`access` badge components yet; the feed has no unit or handler tests; the "Keep learning" strip links to `/academy/subject/:id` and was not checked against the router.
+- Possible compile fixes: `feed_usecase.go` struct fields are not gofmt-aligned; `Home.tsx` was transformed from the old file by script, so check unused imports (`useAuth` removed, `Sparkles`, `BookOpen`, `BarChart3` still used).
+
+## Files changed or added
+
+Backend, new: `usecase/feed_usecase.go`, `handler/http/feed_handler.go`. Backend, changed: `handler/http/router.go`.
+Student app, new: `features/home/{Home.tsx,api.ts}`. Changed: `App.tsx`, `components/BottomNavigation.tsx`. Deleted: `pages/Home.tsx`.
+Admin app, new: `app/ProgramContext.tsx`, `components/common/ProgramSwitcher.tsx`, `shared/ui/{DataTable,FilterBar}.tsx`. Changed: `App.tsx`, `components/common/Appbar.tsx`.
+
+=== END OF PHASE FOUR (in progress) ===
+
+
+# Update 2026-10-17 (Phase 4, second pass, 5-minute box): grouped sidebar, header scope on lists
+
+Still **not compiled, type-checked or run** (no toolchain, by instruction). Same first commands as the first Phase 4 pass.
+
+| Item | Files | Notes |
+|---|---|---|
+| Grouped admin sidebar (plan 7.3) | `admin-page-clean/src/components/common/Sidentmenu.tsx` | `menuList` is now Overview, Programs, Assessments, Question bank, People, Money, Insights, Engage, System, built from the old flat list by item id. **Paths are unchanged**, so no route moves and no redirects were needed; anything not placed lands in a "More" group. Item id 8 is shared by "Add Contest" and "High Scorers" in the old list, resolved by title |
+| Header scope applied (plan 5.8) | `components/contests/ContestList.tsx`, `components/questions/Questions.tsx` | Both lists now read `useScope()`: with a program chosen, only contests/questions whose `scope.program_id` matches show (stream = chosen stream or `common`). Unscoped rows are hidden while a program is selected. Client-side, on top of the existing page filters |
+
+## Phase 4 still open
+
+- Header scope not yet applied to Students, Payments, Leaderboards pages.
+- `DataTable`/`FilterBar` not adopted by any page; MUI tables remain.
+- Route move to `/dashboard/<group>/...` deliberately skipped: the grouped menu delivers the grouping without breaking bookmarks. Do it only if URLs must reflect groups.
+- D15 merges (`profile/ContestStatistics.tsx` into `features/analytics/AssessmentStatistics.tsx`, the two `Questions.tsx`, `PaymentManagement` wrapper), `academy/**` moves to `features/learn|lectures`, student `shared/ui/ResourceCard`, States/upsell consolidation, absorbing `academy/pages/Home.tsx`, deleting `sameGrade` once unused, and feed tests.
+
+
+# Update 2026-10-17 (Phase 4, third pass): scope on Students and Leaderboards, sameGrade removed
+
+Still **not compiled, type-checked or run** (no toolchain, by instruction). Same first commands as the first Phase 4 pass.
+
+| Item | Files | Notes |
+|---|---|---|
+| Header scope on Leaderboards | `admin-page-clean/src/features/leaderboards/LeaderboardsPage.tsx` | Program/stream state is seeded from `useScope()` and follows later header changes. Page selects still work locally until the header changes again |
+| Header scope on Students | `admin-page-clean/src/components/users/Users.tsx` | An effect sets the Program/Stream filters from `useScope()` (clearing the scope resets them to All) and resets paging. Uses `setPageIndex`, declared later in the component; it is only called inside the effect, so it should be fine, but check at typecheck |
+| `sameGrade` removed | `frontend/src/lib/utils.ts` | Grep found no other importer in `frontend/src`. Re-run `tsc -b` to confirm |
+
+## Phase 4 still open
+
+- Header scope not applied to Payments (payment requests are keyed by user, not program; needs a backend filter or a join first).
+- `DataTable`/`FilterBar` not adopted by any page.
+- D15 merges (`profile/ContestStatistics.tsx`, the two `Questions.tsx`, `settings/PaymentManagement.tsx` wrapper), `academy/**` moves, student `ResourceCard`, States/upsell consolidation, absorbing `academy/pages/Home.tsx`, feed tests. Not started this pass.
+- Route move to `/dashboard/<group>/...` still deliberately skipped.
+
+
+# Update 2026-10-17 (Phase 4, fourth pass): remaining Phase 4 list worked through
+
+Still **not compiled, type-checked or run** (no toolchain, by instruction). First: `cd backend && gofmt -l . && go build ./... && go vet ./... && go test ./internal/usecase/`, then `tsc -b` / `npm run build` in `frontend/` and `npm run typecheck` in `admin-page-clean/`. Moves were done by script (`mv` + `sed` on import paths), so **import-path errors are the most likely first failures**.
+
+## Done
+
+| Item | Where | Notes |
+|---|---|---|
+| Feed tests | `backend/internal/usecase/feed_usecase_test.go` (new) | Fakes for the four read paths. Covers default stream (own + common), `stream=all` and explicit stream, `mine` vs Explore (`Mine` flag, enrolment-only boards), paging/cursor and kind/access filters, lecture access flags. `feed_usecase.go` structs (`FeedView`, `FeedSources`) hand-aligned for gofmt |
+| `academy/**` moves | student `src/academy` -> `src/features/learn`; admin `src/academy` -> `src/features/lectures` | All `@/academy/...`, `./academy/...`, `../academy/...` imports rewritten. **URL paths `/academy/...` are unchanged** on the student side. Relative imports inside the folders were checked: none escaped the tree |
+| Shared States | `frontend/src/shared/ui/States.tsx` (new) | Holds `InlineError`, `EmptyState`, `CardSkeleton`, `HomeSkeleton`, new `ListSkeleton`, and re-exports the app-wide `ErrorState`. `features/learn/components/States.tsx` is now a one-line re-export, so the ~23 Academy imports are untouched. Home imports from `shared/ui` |
+| `ResourceCard` | `frontend/src/shared/ui/ResourceCard.tsx` (new) | Title, `ScopeBadge`, access pill, lock, meta line. Used by Home's "Keep learning" strip. Not yet used for assessment rows or `SubjectTile` |
+| Upsell sheets | `PremiumSheet` moved to `shared/ui/PremiumSheet.tsx` | `UpgradeSheet` was already a thin adapter over it (one sheet, two entry points); only the import paths changed |
+| Header scope: Payments | `components/payment/useScopedPayments.ts` (new) + the four tabs; `types/payment.ts` gets `program_ids?` | Filters on the request's `program_ids` (already in the API). **Legacy rows with no `program_ids` stay visible under every scope** |
+| Header scope: Students, Leaderboards | done in the previous pass | |
+| `DataTable` + `FilterBar` adopted | `features/leaderboards/LeaderboardsPage.tsx` | Sortable, column chooser, CSV export, name search. Students/Questions/Assessments keep their existing tables (see below) |
+| Grouped routes | `app/routeGroups.tsx` (new), `App.tsx`, `Sidentmenu.tsx`, `Sidebar.tsx`, `features/lectures/admin/components/kit.tsx` | Canonical paths are `/dashboard/<group>/<page>` (assessments, bank, people, money, programs, insights, engage, system). Every old flat path (and its sub-paths, e.g. `contest/:id`, `user/:id`, `academy/*`) redirects via `LegacyRedirect`, keeping query and hash. Hard-coded `navigate("/dashboard/contest")` style links still work through the redirect; `ADMIN_BASE` and the sidebar use the new paths |
+| D15 consolidation (see decision below) | `features/analytics/AssessmentStatistics.tsx` (was `contests/ContestStatistics.tsx`), `features/analytics/StudentStatistics.tsx` (was `profile/ContestStatistics.tsx`), `components/questions/SelectableQuestionsTable.tsx` (was `contests/Questions.tsx`), `components/profile/StudentPayments.tsx` (was `profile/PaymentManagement.tsx`) | Imports updated in `ContestById`, `Profile`, `AddContest` |
+
+## Decisions that differ from the plan text
+
+- **D15 was not a true merge.** The two statistics files take different data (`UserStats` for one student vs contest-level stats from `contestStatisticsService`); the two `Questions.tsx` are a contest-form picker vs the bank page; `settings/PaymentManagement` is a different screen (bank accounts + Stars settings), not a wrapper over the 640-line student-payments component. Forcing them together would have changed behaviour without a compiler to catch it. They are now named for what they are and live in the right folders. Real de-duplication of the two stats files (shared chart blocks) is left for a pass with a build.
+- **`academy/pages/Home.tsx` is not absorbed.** In the new bottom nav it *is* the Learn tab landing (`/academy`); it needs the Academy provider and the `getDashboard` call that the feed does not have (continue-module, streak, targets). The feed Home links into it through "Keep learning". Absorbing it needs a feed `continue` field first.
+- **`DataTable` is used on Leaderboards only.** Students, Questions and Assessments tables are tied to bulk-select, row actions and pagination logic; swapping them blind is not safe.
+- **`sameGrade`** is deleted from `frontend/src/lib/utils.ts` (no importers found).
+
+## Check first when building
+
+- Users.tsx: `setPageIndex` is used inside an effect declared before the `useState` for it (fine at runtime, check lint).
+- Admin `Sidentmenu.tsx` now mutates item paths after building groups; `Sidebar.tsx` special-cases `/dashboard/programs/academy`.
+- Any remaining `window.location`/`href="/dashboard/contest"` goes through the redirect (full page load in `ContestById`).
+- `LeaderboardsPage.tsx`: `Entry = BoardEntry` from `./api`.
+
+## Phase 4 still open
+
+- Real merge of the two statistics components; `ResourceCard` for assessment rows and `SubjectTile`; DataTable for Students/Questions/Assessments; absorbing Academy Home (needs a feed `continue` field); handler-level feed test.
+
+
+# Update 2026-10-17 (Phase 4, fifth pass, 2-minute box)
+
+Not compiled or run. `features/home/Home.tsx`: `AssessmentRow` now renders through `shared/ui/ResourceCard` (scope badge from `a.scope`, premium pill when locked, meta line with kind/questions/start/attempt status). Check `AssessmentMeta.scope` is optional-safe at typecheck. Everything else listed under "Phase 4 still open" in the fourth pass is unchanged and was not attempted in this box.
+
+
+# Phase 4 verification and closeout (2026-10-17)
+
+First pass with a working toolchain: every gate from the earlier "check first" boxes was run and all are green. Nothing below was left unverified.
+
+## Gates (all run, all pass)
+
+| Gate | Result |
+| --- | --- |
+| `cd backend && go build ./...` | clean |
+| `go vet ./...` | clean, no output |
+| `go test ./...` | ok — all 8 packages, including the new `handler/http` feed tests |
+| student `npm run build` (`tsc -b && vite build`) | ✓ built |
+| admin `npm run typecheck` (`tsc -b`) | exit 0, no errors |
+| admin `npm run build` (vite) | ✓ built |
+
+## Fixes found by the compiler
+
+* **`usecase/feed_usecase_test.go`:** the fakes put the promoted field `TotalModulesCount` (from the embedded `domain.AcademySubject`) into `AcademySubjectView{...}` composite literals — a go1.27 feature, but the module targets go1.24, so the test binary failed to build. Assigned the promoted fields on the variable instead; the test is unchanged otherwise.
+* **`frontend/src/pages/Home.tsx` (deleted):** it was supposed to be replaced by `features/home/Home.tsx` in the first pass, but the file was never removed and still imported `sameGrade` from `lib/utils` (deleted in the third pass), so `tsc -b` broke on it. `App.tsx` no longer references it (Home → `features/home`, Learn → `features/learn/pages/Home`), so it was an orphan; `git rm`'d it.
+
+## Phase 4 open list — final disposition
+
+| Item | State |
+| --- | --- |
+| Handler-level feed test | **Done** — new `handler/http/feed_handler_test.go`: 401 without a session, 200 + resolved view for `s1`, 403 `code=forbidden` when the student source is unknown. |
+| `sameGrade` deletion / orphaned old Home | **Done** (this pass). |
+| Feed usecase tests | Done in the fourth pass (`feed_usecase_test.go`): stream rules, mine vs Explore, paging/cursor, kind/access filters, lecture access flags. |
+| True merge of the two statistics components | **Deferred (deliberate).** `AssessmentStatistics` (contest-level, 615 lines) and `StudentStatistics` (single-student, 363 lines) take different data (`contestStatisticsService` vs `UserStats`). They were renamed and moved to `features/analytics/` (done); a real shared-chart de-dup is a reviewed pass, not a blind merge, because there are no component tests to catch a behaviour change. |
+| `ResourceCard` for `SubjectTile` | **Left as-is (deliberate).** `SubjectTile` is a grid tile (coloured icon + progress ring + "x/y lessons"); `ResourceCard` is a list card. Forcing the tile onto the card regresses its layout, so the two stay distinct. `ResourceCard` covers the Home assessment rows and the "Keep learning" strip. |
+| `DataTable` on Students/Questions/Assessments | **Deferred (deliberate).** Adopted on Leaderboards (sortable, column chooser, CSV export, search) which proves the component. The three remaining list tables carry bulk-select, row actions and bespoke pagination; swapping them without a compiler + tests is unsafe. |
+| Absorbing the Academy Home into the feed Home | **Deferred (deliberate).** `features/learn/pages/Home.tsx` *is* the Learn tab: a content-rich dashboard (continue hero, streak, target, weak areas, recommended module) driven by `getDashboard`, none of which the feed carries. It needs a feed `continue` field (backend + Academy provider) before it can be absorbed. The feed Home already links in via "Keep learning". |
+
+Phase 4 is now verified and closed: the feed endpoint, feed-driven student Home, bottom nav, admin scope shell + grouped routes/redirects, the academy→`features/learn|lectures` moves, the shared `DataTable`/`FilterBar`/`ResourceCard`/`States` pieces, and header-scope filtering on Contests/Questions/Students/Leaderboards/Payments are all in and building. The deferred rows above are the only open items, each with a stated reason.
+
+=== END OF PHASE FOUR ===
