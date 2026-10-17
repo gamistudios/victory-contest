@@ -1546,3 +1546,34 @@ First pass with a working toolchain: every gate from the earlier "check first" b
 Phase 4 is now verified and closed: the feed endpoint, feed-driven student Home, bottom nav, admin scope shell + grouped routes/redirects, the academy→`features/learn|lectures` moves, the shared `DataTable`/`FilterBar`/`ResourceCard`/`States` pieces, and header-scope filtering on Contests/Questions/Students/Leaderboards/Payments are all in and building. The deferred rows above are the only open items, each with a stated reason.
 
 === END OF PHASE FOUR ===
+
+
+# Phase 3 closeout + leaderboard Top-3 (2026-10-17)
+
+Closing pass on the Phase 3 leftover list, plus the requested Top-3 podium. All gates re-run green.
+
+## Top-3 podium (the requested UI)
+
+* **Student `features/leaderboard/LeaderboardView.tsx`:** added a styled horizontal `Podium` rendered at the top of every board (`board.entries.slice(0,3)`, visual order 2·1·3, champion centered and elevated). Avatar with initials fallback, medal ring coloured by rank (gold/silver/bronze), name + points, "you" ring when it's the signed-in student. Degrades gracefully with fewer than three entries. No backend change — it reads data the board already returns.
+* **Admin `features/leaderboards/LeaderboardsPage.tsx`:** same `Podium` shown above the board `DataTable`, using each question's/entry's own fields (no `avatar_url` on the admin `BoardEntry`, so it uses initials).
+
+## Phase 3 leftover list — final disposition
+
+| Item | State |
+| --- | --- |
+| Remove the duplicate admin leaderboard | **Done.** `components/contests/Questions.tsx` (a stale copy of `SelectableQuestionsTable`, zero importers) and the orphaned `pages/Leaderboard.tsx` (unrouted; `/leaderboard` → `LeaderboardView`) are `git rm`'d. The contest-page "Top Players" sidebar card and the full `LeaderboardsPage` are complementary, not duplicates. |
+| Dead admin "View All" button | **Fixed.** The sidebar card's `View All` had no handler; it now `<Link>`s to `/dashboard/assessments/leaderboards`. |
+| Question bank as assessment picker + import scope fields | **Done (incremental).** Manual add (`ScopePicker`) and bulk import (`bulkScope`) already carried scope fields. The assessment-form picker (`AddContest` → `SelectableQuestionsTable`) was grade/subject only; added **Program** and **Stream** filters (stream list narrows to the chosen program) so the picker is scope-aware without a risky wholesale component swap. |
+| Handler route tests | **Done.** New `handler/http/leaderboard_handler_test.go` (student session/ownership rules: 401/200-own-board/403 foreign stream/403 unenrolled program/400 bad period; programs; admin cookie/program-board/needs-program) and `question_handler_test.go` (assign-scope auth + body validation + per-id results; usage contest count). |
+| Delete the scan-based `GetLeaderboardByTimeFrame` | **Kept deliberately — do NOT delete.** It is the only cross-program *global all-time* aggregate in the system: `GetStudentProfileStatistics` derives the student's global rank from it (submission_usecase.go:235) and the champion badge reads its top-10 (:934), and the admin "Top Players" card consumes it via `/submission/leaderboard?timeFrame=all`. The Phase 3 precomputed boards are **per-program/stream**, so they cannot answer a global-rank question. Retiring the scan would require a new global board + a prod backfill (`-apply`) + re-plumbing three consumers — Phase-5-scale work with prod writes. Left as the intentional global path and documented here. |
+
+## Gates (all run, all pass)
+
+| Gate | Result |
+| --- | --- |
+| `go test ./internal/handler/http/` | ok (the 14 new tests) |
+| student `npm run build` (`tsc -b && vite build`) | ✓ built, exit 0 |
+| admin `npm run typecheck` (`tsc -b`) | exit 0, no errors |
+| admin `npm run build` (vite) | ✓ built, exit 0 |
+
+Phases 0–4 are complete and build-verified. The only remaining product work is the Phase 5 scope (scope-based analytics, roles, CSV extras, pricing windows), which awaits client sign-off.

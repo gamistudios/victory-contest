@@ -42,6 +42,8 @@ type Status = "pending" | "success" | "error";
 interface Filters {
   grade: string;
   subject: string;
+  program: string;
+  stream: string;
   searchText: string;
 }
 interface SelectableQuestionsTableProps {
@@ -58,6 +60,8 @@ export default function SelectableQuestionsTable({
   const [filters, setFilters] = useState<Filters>({
     grade: "all",
     subject: "all",
+    program: "all",
+    stream: "all",
     searchText: "",
   });
 
@@ -83,11 +87,13 @@ export default function SelectableQuestionsTable({
       (q) =>
         (filters.grade === "all" || q.grade === filters.grade) &&
         (filters.subject === "all" || q.subject === filters.subject) &&
+        (filters.program === "all" || q.scope?.program_id === filters.program) &&
+        (filters.stream === "all" || q.scope?.stream_id === filters.stream) &&
         q.question_text
           .toLowerCase()
           .includes(debouncedSearchText.toLowerCase())
     );
-  }, [allQuestions, filters.grade, filters.subject, debouncedSearchText]);
+  }, [allQuestions, filters.grade, filters.subject, filters.program, filters.stream, debouncedSearchText]);
 
   useEffect(() => {
     const selectedIds = Object.keys(rowSelection).filter(
@@ -114,6 +120,22 @@ export default function SelectableQuestionsTable({
   const uniqueGrades = useMemo(
     () => [...new Set(allQuestions.map((q) => q.grade))].sort(),
     [allQuestions]
+  );
+  const uniquePrograms = useMemo(
+    () => [...new Set(allQuestions.map((q) => q.scope?.program_id).filter(Boolean))].sort() as string[],
+    [allQuestions]
+  );
+  const uniqueStreams = useMemo(
+    () =>
+      [
+        ...new Set(
+          allQuestions
+            .filter((q) => filters.program === "all" || q.scope?.program_id === filters.program)
+            .map((q) => q.scope?.stream_id)
+            .filter(Boolean),
+        ),
+      ].sort() as string[],
+    [allQuestions, filters.program]
   );
 
   const renderContent = () => {
@@ -246,6 +268,46 @@ export default function SelectableQuestionsTable({
                 {uniqueGrades.map((g) => (
                   <SelectItem key={g} value={g}>
                     Grade {g}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.program}
+            onValueChange={(value) =>
+              setFilters((prev) => ({ ...prev, program: value, stream: "all" }))
+            }
+          >
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by program" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="all">All Programs</SelectItem>
+                {uniquePrograms.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.stream}
+            onValueChange={(value) =>
+              setFilters((prev) => ({ ...prev, stream: value }))
+            }
+          >
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by stream" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="all">All Streams</SelectItem>
+                {uniqueStreams.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
                   </SelectItem>
                 ))}
               </SelectGroup>

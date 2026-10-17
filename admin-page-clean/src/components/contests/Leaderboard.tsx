@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 
 // Shadcn/ui & Lucide Icons
 import {
@@ -59,8 +60,8 @@ export function Leaderboard() {
             <Crown className="h-6 w-6 text-amber-500" />
             Top Players
           </CardTitle>
-          <Button variant="ghost" size="sm">
-            View All
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/dashboard/assessments/leaderboards">View All</Link>
           </Button>
         </div>
         <CardDescription>
