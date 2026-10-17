@@ -73,6 +73,12 @@ export interface Payment {
 }
 export interface Question {
   id?: string;
+  topic?: string;
+  difficulty?: string;
+  year?: number;
+  source?: string;
+  verified?: boolean;
+  verified_by?: string;
   question_text: string;
   multiple_choice: string[];
   answer: number | null;

@@ -9,7 +9,7 @@ import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-d
 import { useTelegram } from "./hooks/useTelegram";
 import Layout from "./components/Layout";
 import Home from "./pages/Home";
-import Leaderboard from "./pages/Leaderboard";
+import Leaderboard from "./features/leaderboard/LeaderboardView";
 import Statistics from "./pages/Statistics";
 import Profile from "./pages/Profile";
 import { FeedbackPage } from "./pages/FeedBack";

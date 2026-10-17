@@ -19,6 +19,13 @@ type Question struct {
 	// Scope (optional, Phase 1): program/stream/subject/chapter this question belongs to.
 	// Legacy rows have none and keep matching by the free-text grade/subject/chapter.
 	Scope *Scope `json:"scope,omitempty" dynamodbav:"scope,omitempty"`
+	// Phase 3 (plan 5.6): question-bank metadata, all optional.
+	Topic      string `json:"topic,omitempty"       dynamodbav:"topic,omitempty"`
+	Difficulty string `json:"difficulty,omitempty"  dynamodbav:"difficulty,omitempty"` // easy | medium | hard
+	Year       int    `json:"year,omitempty"        dynamodbav:"year,omitempty"`
+	Source     string `json:"source,omitempty"      dynamodbav:"source,omitempty"`
+	Verified   bool   `json:"verified"              dynamodbav:"verified"`
+	VerifiedBy string `json:"verified_by,omitempty" dynamodbav:"verified_by,omitempty"`
 }
 
 // QuestionPatch carries the fields provided by PATCH /question/:id. A nil
@@ -40,6 +47,13 @@ type QuestionPatch struct {
 	// Scope replaces the stored scope when non-nil; ClearScope removes it.
 	Scope      *Scope `json:"scope"`
 	ClearScope bool   `json:"clear_scope"`
+	// Phase 3 metadata.
+	Topic      *string `json:"topic"`
+	Difficulty *string `json:"difficulty"`
+	Year       *int    `json:"year"`
+	Source     *string `json:"source"`
+	Verified   *bool   `json:"verified"`
+	VerifiedBy *string `json:"verified_by"`
 }
 
 type AiPracticeSetting struct {

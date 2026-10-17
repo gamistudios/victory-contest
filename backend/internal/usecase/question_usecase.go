@@ -55,6 +55,8 @@ type QuestionUsecase interface {
 	GetQuestionByID(id string) (*domain.Question, error)
 	GetAllQuestions() ([]domain.Question, error)
 	AddMultipleQuestions(questions []domain.Question) error
+	// AssignScope stamps one scope on many questions (plan 5.6 bulk "assign scope").
+	AssignScope(ids []string, scope domain.Scope) (updated []string, failed map[string]string)
 }
 
 // BulkDeleteFailure reports one id that could not be deleted and why.
@@ -123,6 +125,27 @@ func (u *questionUsecase) UpdateQuestion(id string, patch domain.QuestionPatch) 
 	if patch.Chapter != nil {
 		updated.Chapter = *patch.Chapter
 	}
+	if patch.Topic != nil {
+		updated.Topic = *patch.Topic
+	}
+	if patch.Difficulty != nil {
+		updated.Difficulty = *patch.Difficulty
+	}
+	if patch.Year != nil {
+		updated.Year = *patch.Year
+	}
+	if patch.Source != nil {
+		updated.Source = *patch.Source
+	}
+	if patch.Verified != nil {
+		updated.Verified = *patch.Verified
+		if !updated.Verified {
+			updated.VerifiedBy = ""
+		}
+	}
+	if patch.VerifiedBy != nil && updated.Verified {
+		updated.VerifiedBy = *patch.VerifiedBy
+	}
 	if patch.ClearScope {
 		updated.Scope = nil
 	} else if patch.Scope != nil {
@@ -188,4 +211,19 @@ func (u *questionUsecase) AddMultipleQuestions(questions []domain.Question) erro
 	}
 	err := u.repo.AddMultipleQuestions(questions)
 	return err
+}
+
+// AssignScope sets the scope of each id; per-id failures are reported, not fatal.
+func (u *questionUsecase) AssignScope(ids []string, scope domain.Scope) ([]string, map[string]string) {
+	updated := []string{}
+	failed := map[string]string{}
+	for _, id := range ids {
+		sc := scope
+		if err := u.UpdateQuestion(id, domain.QuestionPatch{Scope: &sc}); err != nil {
+			failed[id] = err.Error()
+			continue
+		}
+		updated = append(updated, id)
+	}
+	return updated, failed
 }

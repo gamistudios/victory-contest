@@ -16,6 +16,11 @@ type SubmissionHandler struct {
 	studentAuthMw gin.HandlerFunc
 	// legacy routes Phase 2 contests through the attempt engine (SubmitLegacy); nil in tests.
 	legacy func(domain.SubmissionDto) (string, float64, error)
+	// boards (Phase 3) answers /leaderboard from the precomputed table when the caller is a
+	// signed-in student; anonymous callers still get the old scan until the apps move to /api/leaderboard.
+	boards interface {
+		LegacyAll(studentID string) ([]domain.LeaderboardEntry, error)
+	}
 	// studentOwnerMw (D5) guards the per-student read routes that carry
 	// :student_id in the path: a student may only read their own data, the
 	// admin cookie keeps access. Nil in handler unit tests (ungated).
@@ -180,6 +185,12 @@ func (h *SubmissionHandler) GetSubmissionsByStudent(c *gin.Context) {
 }
 func (h *SubmissionHandler) GetLeaderboardByTimeFrame(c *gin.Context) {
 	timeFrame := c.Query("timeFrame")
+	if sid := studentID(c); sid != "" && h.boards != nil && (timeFrame == "" || timeFrame == "all") {
+		if lb, err := h.boards.LegacyAll(sid); err == nil {
+			c.JSON(http.StatusOK, gin.H{"leaderboard": lb})
+			return
+		}
+	}
 	leaderboard, err := h.usecase.GetLeaderboardByTimeFrame(timeFrame)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

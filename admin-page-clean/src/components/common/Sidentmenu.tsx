@@ -195,6 +195,8 @@ export const menuList: NavGroup[] = [
         icon: CreditCard,
       },
       { id: 21, title: "Pricing & Coupons", path: "/dashboard/pricing", icon: Tag },
+      { id: 24, title: "Leaderboards", path: "/dashboard/leaderboards", icon: BarChart2 },
+      { id: 25, title: "Question Bank", path: "/dashboard/question-bank", icon: BookOpen },
       { id: 22, title: "Locations", path: "/dashboard/locations", icon: MapPin },
       { id: 23, title: "Bulk Enrolment", path: "/dashboard/enrolment", icon: KeyRound },
     ],

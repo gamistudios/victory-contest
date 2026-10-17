@@ -1,10 +1,5 @@
 package domain
 
-import (
-	"fmt"
-	"strings"
-)
-
 // StreamCommon marks content visible to every stream of a program (plan §5.1).
 const StreamCommon = "common"
 
@@ -60,25 +55,4 @@ func (s Scope) VisibleTo(e Enrollment) bool {
 		return false
 	}
 	return s.StreamID == StreamCommon || s.StreamID == e.StreamID
-}
-
-// Period kinds for leaderboards (plan §5.5).
-const (
-	PeriodDay   = "day"
-	PeriodWeek  = "week"
-	PeriodMonth = "month"
-	PeriodAll   = "all"
-)
-
-// BoardKey builds "{period}:{periodKey}:{program}:{stream or all}". An empty
-// stream means the program-wide board ("all"). For PeriodAll the period key is
-// always "all".
-func BoardKey(period, periodKey, programID, streamID string) string {
-	if period == PeriodAll {
-		periodKey = "all"
-	}
-	if strings.TrimSpace(streamID) == "" {
-		streamID = "all"
-	}
-	return fmt.Sprintf("%s:%s:%s:%s", period, periodKey, programID, streamID)
 }

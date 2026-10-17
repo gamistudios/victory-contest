@@ -47,7 +47,22 @@ export interface UpdateQuestionInput {
    *  option_image_(i+1) part, a string is sent in the JSON branch, and
    *  null/"" clears the image for that option. */
   option_images?: Array<File | string | null>;
+  /** Phase 3 bank metadata. */
+  topic?: string;
+  difficulty?: "easy" | "medium" | "hard" | "";
+  year?: number;
+  source?: string;
+  verified?: boolean;
+  verified_by?: string;
 }
+
+/** Phase 3: stamp one scope on many questions (plan 5.6 bulk "assign scope"). */
+export const assignQuestionScope = (ids: string[], scope: Scope) =>
+  api.post<{ updated: string[]; failed: Record<string, string> }>("/api/question/assign-scope", { ids, scope }).then((r) => r.data);
+
+/** Phase 3: assessments that include a question. */
+export const getQuestionUsage = (id: string) =>
+  api.get<{ question_id: string; count: number; contests: { contest_id: string; title: string }[] }>(`/api/question/${id}/usage`).then((r) => r.data);
 
 export interface MutateResult {
   message?: string;
@@ -387,4 +402,14 @@ export async function getQuestionById(id: string): Promise<Question> {
   const res = await api.get(`/api/question/${id}`);
   const { question }: { question: Question } = res.data;
   return question;
+}
+
+/** Phase 3: server-side filtered question list (scope, stream, uncategorised queue, bank metadata). */
+export interface QuestionQuery {
+  program_id?: string; stream_id?: string; subject_id?: string; chapter_id?: string;
+  scoped?: "none"; q?: string; difficulty?: string; verified?: "true" | "false"; topic?: string; year?: number;
+}
+export async function queryQuestions(params: QuestionQuery): Promise<Question[]> {
+  const res = await api.get("/api/question/", { params });
+  return (res.data as { questions: Question[] }).questions ?? [];
 }

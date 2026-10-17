@@ -90,6 +90,11 @@ var Tables = []Table{
 		{Name: "status-expires_at-index", Partition: "status", Sort: "expires_at",
 			PartType: types.ScalarAttributeTypeS, SortType: types.ScalarAttributeTypeS},
 	}},
+	// Phase 3 (plan §5.5): precomputed leaderboards. TTL attribute `ttl` (enable TTL on the table in AWS).
+	{Name: "leaderboard", GSIs: []GSI{
+		{Name: "board_key-rank_key-index", Partition: "board_key", Sort: "rank_key",
+			PartType: types.ScalarAttributeTypeS, SortType: types.ScalarAttributeTypeN},
+	}},
 	{Name: "submissions", GSIs: []GSI{
 		{Name: "contest_id-index", Partition: "contest_id", PartType: types.ScalarAttributeTypeS},
 		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},

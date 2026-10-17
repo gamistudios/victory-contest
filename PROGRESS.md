@@ -1235,3 +1235,98 @@ The legacy **endpoints** stay: `GET /api/contest*`, `/api/submission/rank/:id`, 
 | 6. `CountsByContest` full scan | Not a defect today: the `attempts` table has no prod rows yet, so the scan has nothing to aggregate; revisit after the first real contest window runs on the new build |
 | 7. Phase 3 + `-004` default price plan | Out of Phase 2; `-004` still needs a client-supplied price before it can run |
 
+
+
+# Update 2026-10-16 (Phase 3, 5-minute box): leaderboards + question-bank backend, student and admin boards
+
+Nothing was compiled, built or tested (instruction). All of it needs your `go build ./...` / `tsc` pass.
+
+## Done (backend)
+
+* **Leaderboards (plan 5.5):** `domain/leaderboard.go` (period keys in Africa/Addis_Ababa, ISO week starting Monday, `BoardKey`, `RankKey`, TTL for day 35d / week 120d), `repository/leaderboard_dynamo.go` (batch put, `Top`, `Get`, `CountAbove` for "my rank" beyond the top 100, `DeleteRow`), `usecase/leaderboard_usecase.go` (`Record`, `Board`, `BoardsForStudent`, `AdminBoard`, `LegacyAll`), `handler/http/leaderboard_handler.go`.
+* **Routes:** `GET /api/leaderboard?period=&program=&stream=` (enrolled programs only; a student cannot request another stream's board), `GET /api/leaderboard/programs`, admin `GET /api/admin/leaderboard` (by `contest_id` or program/stream/period, view-only).
+* **Write path:** `AttemptUsecase.OnFinalise` fires after finalise, admin patch (waive penalty, regrade, exclude) and delete; `Record` recomputes the student's rows from all their finalised attempts in the program and batch-writes day/week/month/all boards (program-wide + stream) plus the `contest:` row. This pass added removal of rows left stale when an exclusion/reset/delete empties a period.
+* **Schema:** `leaderboard` table + `board_key-rank_key-index`; `subject_id-index` on `question` (on `scope.subject_id`). Enable TTL on attribute `ttl` for the `leaderboard` table in AWS. **Check before `setup-tables`:** a GSI on the nested attribute `scope.subject_id` may not be creatable (DynamoDB index keys must be top-level); if it is refused, drop this GSI. Filtering is in memory today.
+* **Legacy alias:** `/submission/leaderboard` now serves the caller's active-program all-time board from the precomputed table when a student token is present and `timeFrame` is empty/`all`; otherwise it still falls back to the old scan.
+* **Backfill:** `cmd/backfill-leaderboard` (dry run by default, `-apply` writes) rebuilds boards from the `attempts` table.
+* **Question bank (plan 5.6):** `Question` gains `Topic`, `Difficulty`, `Year`, `Source`, `Verified`, `VerifiedBy`; `QuestionPatch` and `UpdateQuestion` extended; `POST /question/assign-scope` (bulk, max 500 ids, per-id failures reported); `GET /question/:id/usage` (assessments that include the question); `GET /question` now also filters by `q`, `difficulty`, `verified`, `topic`, `year` (on top of the existing scope filters and `scoped=none` for the uncategorised queue).
+* **Test:** `domain/leaderboard_test.go` (key helpers).
+
+## Done (apps)
+
+* **Student:** `features/leaderboard/LeaderboardView.tsx` + `api.ts`: Today/Week/Month/All Time, program switcher, stream chips limited to the student's own stream, pinned "my rank", "late" tag. `App.tsx` now routes `/leaderboard` to it; the old `pages/Leaderboard.tsx` is left in place, unused.
+* **Admin:** `features/leaderboards/LeaderboardsPage.tsx` + `api.ts`, route `/dashboard/leaderboards`; `questionServices.ts` gains the bank fields, `assignQuestionScope`, `getQuestionUsage`; `Question` type gains the new optional fields.
+
+## NOT done in Phase 3 (honest list)
+
+* `cmd/migrate-question-scope` (map free-text subject/grade/chapter to catalog ids): not written.
+* Admin `features/question-bank/*` (single `QuestionTable`, stream tabs, uncategorised queue UI, bulk-assign UI, scope fields in the import dialog) and the Markdown+math `QuestionEditor` with verified toggle: not built; only the service layer and API exist.
+* No sidebar link to `/dashboard/leaderboards` yet.
+* Student `shared/content/Markdown.tsx` move (+ math/tables): not done.
+* Scan-based `GetLeaderboardByTimeFrame` is not deleted (the alias falls back to it for anonymous callers); `LegacyAll` returns points as `score` and leaves correct/total at 0.
+* Deleting `pages/Leaderboard.tsx`, `LeaderboardModal.tsx`, `LeaderboardSkeleton.tsx` and admin `components/contests/Leaderboard.tsx`: not done.
+* Dynamo-local tests (GSI ordering, `MyRank`) and the broader `leaderboard_test.go` cases from plan 10.6: not written. Per-contest rows are only written for attempts finalised after this build; run the backfill after deploy.
+* Nothing deployed or migrated.
+
+
+# Update 2026-10-16 (Phase 3, second pass): question-bank UI, migration, tests, cleanups
+
+Still nothing compiled, built or run (instruction). This pass **supersedes the "NOT done in Phase 3" list above** except for the items under "Still open".
+
+## Done in this pass
+
+* **Schema fix:** removed the `subject_id-index` GSI I had put on `question`: it keyed on the nested `scope.subject_id`, and DynamoDB index keys must be top-level attributes, so `setup-tables` would have failed on it. Subject filtering stays in memory (`filterQuestionsByScope`); a real index needs a denormalised top-level `scope_subject_id` attribute first (not added).
+* **`cmd/migrate-question-scope`:** dry run by default, `-apply` writes after a JSON backup in `migration-backups/`. Grade maps to `grade-<n>` (same rule as the contest migration); subject and chapter are matched by exact case-insensitive name/code/title against the catalog (`AcademyUsecase.Catalog()`), stream taken from the matched subject, otherwise `common`. Questions that already have a scope or whose grade is unmappable are left alone and reported. Writes go through `QuestionUsecase.UpdateQuestion` (presence-aware patch). It builds the academy usecase with nil student/AI dependencies, which `Catalog()` should not touch, but that is unverified until you build/run it.
+* **Admin question bank:** `features/question-bank/QuestionBankPage.tsx` (server-side filters via `queryQuestions`; All / Natural / Social / Common tabs; **Uncategorised queue** using `scoped=none`; bulk **assign scope** to selected rows; verified/difficulty/search filters) and `QuestionEditor.tsx` (Markdown + KaTeX live preview for question and explanation, topic/difficulty/year/source, verified toggle, usage count). Routes `/dashboard/question-bank` and `/dashboard/leaderboards`, plus two menu entries (ids 24, 25).
+* **Admin API paths:** the admin axios client has no `/api` prefix, so the new admin calls use `/api/admin/leaderboard`, `/api/question/assign-scope` and `/api/question/:id/usage` (the student client already adds `/api`).
+* **Student Markdown move:** `shared/content/Markdown.tsx` now holds the component (math via remark-math/KaTeX and GFM tables were already in it); `academy/components/Markdown.tsx` re-exports it so existing imports work; `MarkdownMessage.tsx` imports the new path. Its `ImageViewer` import was changed to the absolute `@/academy/components/ImageViewer`.
+* **Cleanup:** deleted the unused student `pages/Leaderboard.tsx` and `components/LeaderboardSkeleton.tsx` (nothing imported them after the route switch; there was no `LeaderboardModal`).
+* **Tests:** `usecase/leaderboard_usecase_test.go` (in-memory board repo with GSI ordering): common-assessment stream rule, program-wide + stream + contest rows, late flag and TTL only on day/week rows, idempotent recompute summing a period, exclusion removing stale rows, forbidden stream/program, bad period, **my rank beyond the top 100**. `domain/leaderboard_test.go` gains TTL and Monday-week-boundary-in-Addis cases.
+
+## Still open in Phase 3
+
+* Scan-based `GetLeaderboardByTimeFrame` is kept: anonymous callers of `/submission/leaderboard` and non-`all` time frames still use it, and `LegacyAll` leaves correct/total at 0. Delete it once the apps only call `/api/leaderboard`.
+* Admin `components/contests/Leaderboard.tsx` is still imported by `Contest.tsx`, so it was not removed or replaced by `features/leaderboards`.
+* The question-bank page is not yet a picker for assessment forms, and the old `components/questions/Questions.tsx` / `components/contests/Questions.tsx` are still in place; the import dialog has no scope fields.
+* Dynamo-local tests (GSI ordering against a real table, `MyRank`) and handler route tests for the new endpoints are not written.
+* Not run: `go build ./...`, `go test ./...`, `tsc` for both apps, `migrate-question-scope` (dry run first), `backfill-leaderboard`, enabling TTL on `leaderboard.ttl`.
+
+# Phase 3 gates and production migration (2026-10-17)
+
+Everything below was run on this machine against the real services; the "Not run" list above is now closed.
+
+## Build break found and fixed
+
+* `domain.PeriodDay/Week/Month/All` and `BoardKey` were declared twice — the Phase 2 string-keyed versions in `domain/scope.go` and the Phase 3 time-keyed ones in `domain/leaderboard.go`. `go build` failed on 5 redeclarations.
+* Kept the Phase 3 version (every production caller in `usecase/leaderboard_usecase.go` passes a `time.Time`); deleted the `scope.go` duplicates and the `fmt`/`strings` imports they were the only users of.
+* `scope_test.go`'s `TestBoardKey` tested the deleted signature; its day/week/`StreamCommon`/empty-stream assertions were re-expressed against the surviving time-based `BoardKey` inside `leaderboard_test.go`, so no coverage was lost.
+* `repository/leaderboard_dynamo.go` had unsorted imports (`strconv` before `context`); `gofmt -w` on that file only. Note: `gofmt -l` is not a usable gate in this checkout — most committed Go files are CRLF in the worktree, so `gofmt -l` lists ~90 files whose only "problem" is line endings. Verdicts here come from `gofmt -d` diffs, not the list.
+
+## Gates
+
+| Gate | Result |
+| --- | --- |
+| `go build ./...` | clean |
+| `go vet ./...` | clean, no output |
+| `go test -count=1 ./...` | ok — domain, handler/http, repository, schema, usecase (50.8s), migrations, locnorm, cmd/migrate-answer-index. No failures. |
+| student `npm run build` (`tsc -b && vite build`) | ✓ built, no type errors |
+| admin `npm run typecheck` (`tsc -b`) | clean — admin `build` has no `tsc` step, so this is the only gate that types the new admin screens |
+| admin `npm run build` | ✓ built, PWA precache 32 entries |
+
+## Production migration (eu-north-1, root `.env` credentials, endpoint forced off dynalite)
+
+| Step | Result |
+| --- | --- |
+| `migrate-question-scope` dry run | `questions=321 already-scoped=0 to-change=321 unmapped=0` → 304 `grade-12`, 17 `grade-11`; streams 122 natural / 102 social / 97 common; 224 rows matched a catalog `subject_id`, **0 matched a chapter** (legacy free-text chapter never lines up with catalog titles) |
+| Pre-write safety check | `UpdateQuestion` is a read-modify-write `PutItem`, so an attribute the struct does not model would be erased. Full `aws dynamodb scan` of `question` (321 items) shows only `id, question_text, answer, question_img, explanation, explanation_image, subject, grade, chapter, multiple_choice` — no extras. Safe to write. Full-row backup kept out of the repo: `%LOCALAPPDATA%/Temp/migration-backups/question-full-before-scope-20261017T034339Z.json` |
+| `migrate-question-scope -apply` | `changed=321 failed=0`, tool backup `migrate-question-scope-20261017T034350Z.json` |
+| Post-apply diff (before vs after scan) | ids 321→321, missing 0, **existing attributes modified: 0**; only additions are `scope` (321), `verified=false` (321) and `option_images=[]` (321) — the struct's zero values. Idempotence re-proved: re-run reports `already-scoped=321 to-change=0` |
+| `setup-tables` | Pre-checked with a `describe-table` sweep of all 27 prod tables: `leaderboard` was the only missing table and no existing table was missing a GSI, so the reconcile pass could only add one resource. Run result: `created tables: [leaderboard]`; describe confirms `id` HASH, PAY_PER_REQUEST, `board_key-rank_key-index (board_key HASH, rank_key RANGE) status=ACTIVE` |
+| TTL | `update-time-to-live leaderboard Enabled=true AttributeName=ttl` → `describe-time-to-live` reports `ENABLED` |
+| `backfill-leaderboard` dry run | `attempts=0 students-with-finalised-scoped-attempts=0`; independent `--select COUNT` scan agrees (`ScannedCount: 0`). `-apply` is a no-op today — there are no Phase 2 attempts to replay. Run it again only if boards need rebuilding after students have used the new exam flow |
+
+## Still open after this pass (unchanged from the list above)
+
+* Chapter ids stay empty in prod until the legacy `chapter` strings are mapped by hand or in the bank UI.
+* `GetLeaderboardByTimeFrame` scan path, admin `components/contests/Leaderboard.tsx`, the old question tables and the assessment-form question picker.
+* No `-apply` backfill executed; nothing deployed — the deployed backend still predates Phase 3, so `/api/leaderboard` and the bank routes are not live yet. The `leaderboard` table and the stamped question scopes are inert until that build ships.

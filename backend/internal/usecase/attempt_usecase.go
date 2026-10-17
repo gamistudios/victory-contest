@@ -42,6 +42,9 @@ type AttemptUsecase struct {
 	// OnSubmission, when set, runs after each submission row is written
 	// (badge evaluation for THIS attempt only). Errors are logged.
 	OnSubmission SubmitHook
+	// OnFinalise, when set, runs after an attempt is finalised or changed by an admin
+	// (leaderboard recompute, plan §5.5). It must never fail the caller.
+	OnFinalise func(domain.Attempt)
 	// Roster, when set, is the contest-registration table. The legacy exam page
 	// wrote it on entry and its card let a student join only after they had
 	// signed up, so the Phase 2 routes need the same three moves.
@@ -344,6 +347,9 @@ func (u *AttemptUsecase) finalise(c domain.Contest, a *domain.Attempt, status st
 		}
 		return nil, err
 	}
+	if u.OnFinalise != nil {
+		u.OnFinalise(*a)
+	}
 	return a, nil
 }
 
@@ -484,7 +490,15 @@ func (u *AttemptUsecase) AdminAction(id, action, reason string) (*domain.Attempt
 				_ = d.DeleteSubmission(a.SubmissionID)
 			}
 		}
-		return a, u.attempts.Delete(a.ID)
+		if err := u.attempts.Delete(a.ID); err != nil {
+			return a, err
+		}
+		if u.OnFinalise != nil {
+			gone := *a
+			gone.Excluded = true // removes the contest-board row; the recompute drops the deleted attempt
+			u.OnFinalise(gone)
+		}
+		return a, nil
 	default:
 		return nil, fmt.Errorf("%w: unknown action %q", ErrInvalidAction, action)
 	}
@@ -501,7 +515,13 @@ func (u *AttemptUsecase) AdminAction(id, action, reason string) (*domain.Attempt
 		a.PenaltyPercent = PenaltyFor(*c, a.IsLate, a.PenaltyWaived)
 		a.Points = ComputePoints(a.Correct, a.Total, a.PenaltyPercent)
 	}
-	return a, u.attempts.Put(*a)
+	if err := u.attempts.Put(*a); err != nil {
+		return a, err
+	}
+	if u.OnFinalise != nil {
+		u.OnFinalise(*a)
+	}
+	return a, nil
 }
 
 // ErrNotPhase2 means the contest is a legacy row (empty mode); callers fall

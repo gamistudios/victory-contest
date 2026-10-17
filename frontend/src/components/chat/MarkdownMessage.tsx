@@ -1,4 +1,4 @@
-import { Markdown } from "@/academy/components/Markdown";
+import { Markdown } from "@/shared/content/Markdown";
 import { cn } from "@/lib/utils";
 
 interface MarkdownMessageProps {

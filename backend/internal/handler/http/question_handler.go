@@ -25,6 +25,10 @@ type QuestionHandler struct {
 	// parseJobs runs bulk-question parses in the background (edge proxies
 	// time out long requests); owned by the handler, one per process.
 	parseJobs *usecase.ParseJobManager
+	// contests, when wired, powers GET /question/:id/usage.
+	contests interface {
+		GetAllContests() ([]domain.Contest, error)
+	}
 }
 
 func NewQuestionHandler(u usecase.QuestionUsecase, imgRepo *repository.ImageRepository, ai usecase.AiUsecase) *QuestionHandler {
@@ -42,6 +46,8 @@ func (h *QuestionHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.H
 	auth.POST("/delete-all", h.DeleteAllQuestions)
 	auth.POST("/parse-document", h.ParseDocument)
 	auth.GET("/parse-document/:jobId", h.ParseDocumentStatus)
+	auth.POST("/assign-scope", h.AssignScope)
+	auth.GET("/:id/usage", h.Usage)
 	auth.PATCH("/:id", h.UpdateQuestion)
 	auth.DELETE("/delete/:id", h.DeleteQuestion)
 	auth.GET("/", h.GetAllQuestions)
@@ -550,6 +556,7 @@ func (h *QuestionHandler) GetAllQuestions(c *gin.Context) {
 		return
 	}
 	questions = filterQuestionsByScope(c, questions)
+	questions = filterQuestionsByBank(c, questions)
 	// Opt-in pagination via ?page / ?page_size; untouched full list when absent
 	// (storage-level paging is a follow-up, see pagination.go).
 	resp := gin.H{"questions": questions}

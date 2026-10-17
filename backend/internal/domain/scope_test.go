@@ -47,21 +47,6 @@ func TestScopeMatches(t *testing.T) {
 	}
 }
 
-func TestBoardKey(t *testing.T) {
-	if got := BoardKey(PeriodDay, "2026-10-13", "grade-12", "natural-science"); got != "day:2026-10-13:grade-12:natural-science" {
-		t.Errorf("got %s", got)
-	}
-	if got := BoardKey(PeriodWeek, "2026-W42", "entrance-exam", ""); got != "week:2026-W42:entrance-exam:all" {
-		t.Errorf("got %s", got)
-	}
-	if got := BoardKey(PeriodAll, "ignored", "grade-12", ""); got != "all:all:grade-12:all" {
-		t.Errorf("got %s", got)
-	}
-	if got := BoardKey(PeriodMonth, "2026-10", "freshman", StreamCommon); got != "month:2026-10:freshman:common" {
-		t.Errorf("got %s", got)
-	}
-}
-
 func TestProgramStreams(t *testing.T) {
 	g12 := AcademyProgram{AvailableStreams: []string{"natural-science", "social-science"}}
 	fresh := AcademyProgram{AvailableStreams: []string{StreamCommon}}

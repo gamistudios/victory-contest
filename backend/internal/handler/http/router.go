@@ -51,6 +51,7 @@ type Server struct {
 	pricingHandler             *PricingHandler
 	enrollmentHandler          *EnrollmentHandler
 	assessmentHandler          *AssessmentHandler
+	leaderboardHandler         *LeaderboardHandler
 	attemptUsecase             *usecase.AttemptUsecase
 	jwtSecret                  string
 	aiRequestsPerMinute        int
@@ -135,6 +136,9 @@ func NewServer() *Server {
 	submissionUsecase := usecase.NewSubmissionUsecase(submissionRepo, contestUsecase, questionRepo, studentRepo)
 	attemptRepo := repository.NewAttemptDynamoRepository(ddb, "attempts")
 	attemptUsecase := usecase.NewAttemptUsecase(attemptRepo, contestRepo, questionRepo, studentRepo, submissionRepo)
+	leaderboardUsecase := usecase.NewLeaderboardUsecase(repository.NewLeaderboardDynamoRepository(ddb, "leaderboard"), attemptRepo, studentRepo)
+	attemptUsecase.OnFinalise = leaderboardUsecase.Record
+	questionHandlerContests := contestUsecase
 	adminUsecase := usecase.NewAdminUsecase(adminRepo, studentRepo, contestRepo, submissionRepo, contestRegistrationRepo, paymentRepo, pageViewRepo).WithQuestionRepo(questionRepo)
 	pageViewUsecase := usecase.NewPageViewUsecase(pageViewRepo)
 	articleUsecase := usecase.NewArticleUsecase(articleRepo, commentRepo)
@@ -285,6 +289,7 @@ func NewServer() *Server {
 		pricingHandler:           NewPricingHandler(pricingUsecase, paymentUsecase),
 		enrollmentHandler:        NewEnrollmentHandler(enrollmentUsecase),
 		assessmentHandler:        NewAssessmentHandler(attemptUsecase),
+		leaderboardHandler:       NewLeaderboardHandler(leaderboardUsecase),
 		attemptUsecase:           attemptUsecase,
 		jwtSecret:                jwtSecret,
 		aiRequestsPerMinute:      aiRequestsPerMinute,
@@ -302,6 +307,9 @@ func NewServer() *Server {
 	server.pricingHandler.studentAuth = studentAuthMw
 	server.enrollmentHandler.studentAuth = studentAuthMw
 	server.assessmentHandler.studentAuth = studentAuthMw
+	server.leaderboardHandler.studentAuth = studentAuthMw
+	server.questionHandler.contests = questionHandlerContests
+	server.submissionHandler.boards = leaderboardUsecase
 	server.submissionHandler.legacy = attemptUsecase.SubmitLegacy
 	if b, ok := submissionUsecase.(interface{ AwardBadges(domain.Submission) error }); ok {
 		attemptUsecase.OnSubmission = b.AwardBadges
@@ -464,6 +472,7 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.pricingHandler.RegisterRoutes(api, adminAuthMw)
 	s.enrollmentHandler.RegisterRoutes(api, adminAuthMw)
 	s.assessmentHandler.RegisterRoutes(api, adminAuthMw)
+	s.leaderboardHandler.RegisterRoutes(api, adminAuthMw)
 	// Victory Academy (Learn): student routes need the student session JWT,
 	// /admin routes the admin cookie; AI routes share the Gemini rate limiter.
 	s.academyHandler.RegisterRoutes(api.Group("/academy"), studentAuth([]byte(s.jwtSecret)), adminAuthMw,
