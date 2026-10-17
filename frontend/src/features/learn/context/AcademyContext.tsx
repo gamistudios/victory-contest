@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AcademyStudent } from "@/types/academy";
-import { getMe } from "@/services/academy/academyApi";
+import { getMe, updateMe } from "@/services/academy/academyApi";
+import { myEnrollments } from "@/shared/pricing/api";
 import { ensureStudentSession } from "@/services/telegramServices";
 
 /** Reader preferences (font size, data saver) — persisted per device like the contest theme. */
@@ -37,11 +38,32 @@ function readPrefs(): Prefs {
   return { fontSize: "md", dataSaver: false };
 }
 
+/** Academy keeps its own level/stream, which only moves when the Learn sheet saves it. On first load of the
+ *  app, align it with the student's primary enrolment (and that enrolment's stream) so Learn opens on the
+ *  program they actually selected. The server derives the stream from the enrolment and rejects programs the
+ *  student has not joined. Any failure just keeps the stored track. */
+async function alignToPrimaryEnrollment(s: AcademyStudent): Promise<AcademyStudent> {
+  try {
+    const { enrollments, primary_program_id } = await myEnrollments();
+    const target = enrollments.find((e) => e.program_id === primary_program_id) ?? enrollments[0];
+    if (!target) return s;
+    const es = target.stream_id;
+    // startsWith tolerates the server's enrolment->academy stream aliases (e.g. "natural" -> "natural-science").
+    const streamDiffers = !!es && es !== "common" && s.stream_id !== es && !s.stream_id.startsWith(es);
+    if (s.level_id === target.program_id && !streamDiffers) return s;
+    const next = await updateMe({ level_id: target.program_id });
+    return next?.id ? next : s;
+  } catch {
+    return s;
+  }
+}
+
 export function AcademyProvider({ children }: { children: ReactNode }) {
   const [student, setStudent] = useState<AcademyStudent | null>(null);
   const [loading, setLoading] = useState(true);
   const [studentError, setStudentError] = useState<string | null>(null);
   const [prefs, setPrefsState] = useState<Prefs>(readPrefs);
+  const aligned = useRef(false);
 
   const refreshStudent = useCallback(async () => {
     try {
@@ -50,7 +72,14 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
       // changed payload) must not replace the cached profile with undefined -
       // every reader of `student` assumes the fields it asks for exist.
       if (!s?.id) throw new Error("Malformed profile response");
-      setStudent(s);
+      // Once per app launch: default Learn to the student's primary program. Later refreshes (and a manual
+      // pick in the Learn sheet) are left alone.
+      let current = s;
+      if (!aligned.current) {
+        aligned.current = true;
+        current = await alignToPrimaryEnrollment(s);
+      }
+      setStudent(current);
       setStudentError(null);
     } catch (e) {
       // A failed profile load must not escape as an unhandled rejection (it would
