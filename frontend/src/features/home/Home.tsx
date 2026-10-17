@@ -7,6 +7,7 @@ import { CardSkeleton, EmptyState } from "@/shared/ui/States";
 import { ResourceCard } from "@/shared/ui/ResourceCard";
 import { enc, type AssessmentMeta } from "../assessments/api";
 import { fetchFeed, type Feed } from "./api";
+import { myEnrollments, type Enrollment } from "@/shared/pricing/api";
 import { useCatalog } from "@/shared/scope/catalog";
 import { cn, safeFormatDistanceToNow } from "../../lib/utils";
 import { ArticleListForHome } from "../../components/article/ArticleList";
@@ -53,9 +54,13 @@ const Home: React.FC = () => {
   const { user, hideBackButton } = useTelegram();
   const { open: openPremium } = usePremiumSheet();
   const [feed, setFeed] = useState<Feed | null>(null);
-  // "" = my active program, "mine" = all my programs, otherwise an Explore program id.
+  // Selected chip: a program id (joined or Explore) or "mine" (= all my programs).
+  // "" only means "not resolved yet / no enrolments"; it is replaced by the primary program once enrolments load.
   const [program, setProgram] = useState<string>(() => localStorage.getItem("home_program") ?? "");
   const [widen, setWiden] = useState(false);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [primaryId, setPrimaryId] = useState("");
+  const [enrollReady, setEnrollReady] = useState(false);
   const { catalog } = useCatalog();
   // Open/ended is decided on the server clock, not this device's.
   const [serverNow, setServerNow] = useState(() => Date.now());
@@ -66,14 +71,51 @@ const Home: React.FC = () => {
     hideBackButton();
   }, [hideBackButton]);
 
+  // Joined programs lead the filter row; a failed lookup just means no "joined" group.
+  useEffect(() => {
+    let cancelled = false;
+    ensureStudentSession()
+      .then(() => myEnrollments())
+      .then((e) => {
+        if (cancelled) return;
+        setEnrollments(e.enrollments);
+        setPrimaryId(e.primary_program_id);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setEnrollReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const joinedIds = useMemo(() => enrollments.map((e) => e.program_id), [enrollments]);
+  const defaultProgram = joinedIds.includes(primaryId) ? primaryId : joinedIds[0] ?? "";
+
+  // Keep the selection valid: a stale/unknown/empty value falls back to the primary (else first) enrolled program.
+  useEffect(() => {
+    if (!enrollReady) return;
+    const isJoined = joinedIds.includes(program);
+    const isAll = program === "mine" && joinedIds.length >= 2;
+    const isExplore = !!program && program !== "mine" && !isJoined && !!catalog?.programs.some((p) => p.id === program && p.is_active);
+    if (isJoined || isAll || isExplore) return;
+    // Wait for the catalog before discarding a possible Explore id.
+    if (program && program !== "mine" && !catalog) return;
+    if (program !== defaultProgram) setProgram(defaultProgram);
+  }, [enrollReady, joinedIds, defaultProgram, program, catalog]);
+
   useEffect(() => {
     let cancelled = false;
     setFeed(null);
     setContestError(null);
     // /feed is a student read, so it waits on the Telegram session the provider is exchanging.
     // Program/stream filtering happens on the server; there is no client-side grade matching.
+    if (!enrollReady) return;
+    // The primary program is the server's default ("" = active program); anything else is sent explicitly.
+    const apiProgram = program === primaryId || (program === "" && !primaryId) ? "" : program;
     ensureStudentSession()
-      .then(() => fetchFeed({ program, stream: widen ? "all" : undefined }))
+      .then(() => fetchFeed({ program: apiProgram, stream: widen ? "all" : undefined }))
       .then((f) => {
         if (cancelled) return;
         setFeed(f);
@@ -88,7 +130,7 @@ const Home: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [triggerLoading, program, widen]);
+  }, [triggerLoading, program, widen, enrollReady, primaryId]);
 
   useEffect(() => {
     localStorage.setItem("home_program", program);
@@ -118,6 +160,19 @@ const Home: React.FC = () => {
 
   const loading = feed === null && contestError === null;
 
+  const activePrograms = (catalog?.programs ?? []).filter((p) => p.is_active);
+  const nameOf = (id: string) => {
+    const p = catalog?.programs.find((x) => x.id === id);
+    return p?.short_code || p?.name || id;
+  };
+  const joinedChips = joinedIds.map((id) => ({ id, name: nameOf(id) }));
+  const exploreChips = activePrograms.filter((p) => !joinedIds.includes(p.id)).map((p) => ({ id: p.id, name: p.short_code || p.name }));
+  const exploring = enrollReady && !!program && program !== "mine" && !joinedIds.includes(program);
+  const notJoinedAny = enrollReady && joinedIds.length === 0;
+
+  const chipBase = "inline-flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors";
+  const chipOn = "border-blue-600 bg-blue-600 text-white";
+
   return (
     <div className="p-4 space-y-6">
       <WelcomeCarousel user={user} />
@@ -127,28 +182,52 @@ const Home: React.FC = () => {
         <ArticleListForHome />
       </div>
 
-      <div>
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Program">
-          {[{ id: "", name: "My program" }, { id: "mine", name: "All mine" }].map((o) => (
-            <button key={o.id || "active"} type="button" onClick={() => setProgram(o.id)}
-              className={cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold", program === o.id ? "border-blue-600 bg-blue-50 text-blue-700" : "border-border bg-card text-muted-foreground")}>
-              {o.name}
+      <div className="space-y-2">
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5" role="tablist" aria-label="Program">
+          {joinedChips.map((c) => (
+            <button key={c.id} type="button" role="tab" aria-selected={program === c.id} onClick={() => setProgram(c.id)}
+              className={cn(chipBase, program === c.id ? chipOn : "border-border bg-card text-foreground")}>
+              {c.name}
+              {c.id === primaryId && joinedChips.length > 1 && (
+                <span className={cn("rounded-full px-1.5 text-[10px] font-bold leading-4", program === c.id ? "bg-white/25 text-white" : "bg-blue-50 text-blue-700")}>Active</span>
+              )}
             </button>
           ))}
-          {(catalog?.programs ?? []).filter((p) => p.is_active).map((p) => (
-            <button key={p.id} type="button" onClick={() => setProgram(p.id)}
-              className={cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold", program === p.id ? "border-blue-600 bg-blue-50 text-blue-700" : "border-border bg-card text-muted-foreground")}>
-              {p.short_code || p.name}
+          {joinedChips.length >= 2 && (
+            <button type="button" role="tab" aria-selected={program === "mine"} onClick={() => setProgram("mine")}
+              className={cn(chipBase, program === "mine" ? chipOn : "border-border bg-card text-foreground")}>
+              All my programs
             </button>
-          ))}
+          )}
+          {exploreChips.length > 0 && (
+            <>
+              {joinedChips.length > 0 && <span className="mx-0.5 h-4 w-px shrink-0 bg-border" aria-hidden="true" />}
+              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Explore</span>
+              {exploreChips.map((c) => (
+                <button key={c.id} type="button" role="tab" aria-selected={program === c.id} onClick={() => setProgram(c.id)}
+                  className={cn(chipBase, program === c.id ? "border-blue-600 bg-blue-50 text-blue-700" : "border-dashed border-border bg-transparent font-medium text-muted-foreground")}>
+                  {c.name}
+                </button>
+              ))}
+            </>
+          )}
         </div>
-        {feed && !feed.mine && (
-          <p className="mt-2 text-xs text-muted-foreground">Exploring a program you are not enrolled in. <Link to="/programs" className="font-semibold text-blue-600">Enrol</Link></p>
-        )}
-        <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-          <input type="checkbox" checked={widen} onChange={(e) => setWiden(e.target.checked)} />
-          Show every stream, not just mine
-        </label>
+        <div className="flex items-center justify-between gap-3">
+          <div className="inline-flex shrink-0 rounded-full bg-muted p-0.5" role="group" aria-label="Streams">
+            {([["My stream", false], ["All streams", true]] as const).map(([label, v]) => (
+              <button key={label} type="button" aria-pressed={widen === v} onClick={() => setWiden(v)}
+                className={cn("rounded-full px-3 py-1 text-xs font-semibold transition-colors", widen === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {(exploring || notJoinedAny) && (
+            <p className="min-w-0 text-right text-xs text-muted-foreground">
+              {exploring ? "Not enrolled in this program." : "You haven't joined a program yet."}{" "}
+              <Link to="/programs" className="font-semibold text-blue-600">Enrol</Link>
+            </p>
+          )}
+        </div>
       </div>
 
       {feed && feed.lectures.length > 0 && (
