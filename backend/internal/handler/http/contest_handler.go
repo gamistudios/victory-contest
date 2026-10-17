@@ -433,6 +433,7 @@ func publicContestPayload(contest *domain.ContestTypeWithQuestionObj, ended bool
 		})
 	}
 	out["questions"] = qs
+	out["question_ids"] = contest.QuestionIDs
 	return out
 }
 

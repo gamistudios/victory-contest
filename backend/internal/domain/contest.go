@@ -92,6 +92,11 @@ type ContestAnnouncementRequest struct {
 type ContestTypeWithQuestionObj struct {
 	Contest
 	Questions []Question `json:"questions"`
+	// QuestionIDs is the raw stored question-id list. The embedded Contest's
+	// Questions field is shadowed by the hydrated Questions above, so a client
+	// reading this payload cannot otherwise tell how many questions a round
+	// linked before any were archived away.
+	QuestionIDs []string `json:"question_ids,omitempty"`
 }
 
 // ContestPatch carries the Phase 2 fields of PATCH /contest/:id with pointer

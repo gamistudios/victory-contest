@@ -33,6 +33,9 @@ export interface Contest {
   title: string;
   description?: string;
   questions: Question[];
+  /** Raw stored question-id list; survives even when the questions are archived
+   *  away, so the UI can tell "N linked, none archived" from "never had any". */
+  question_ids?: string[];
   start_time: string;
   end_time: string;
   active_contenstants?: Student[];

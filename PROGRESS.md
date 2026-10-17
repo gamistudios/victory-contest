@@ -1360,3 +1360,31 @@ No JSON backup was taken of `leaderboard` first — the table was empty before t
 ## Still open
 
 * The 33 past contests whose 657 question docs are unrecoverable still show empty question lists in the editorial and in the exam. Their **leaderboards are now restored** by this replay, but the question text has no source (PITR off, no on-demand backups, no other region, nothing in git). Making those rounds "work" again is a content question, not a data question: either surface an honest empty state ("questions no longer archived") with a correct question count, or have the client re-author the rounds through the new bank.
+
+# Archived-questions honest empty state (2026-10-17)
+
+The user chose the honest-empty-state route over re-authoring for the 33
+content-less past rounds. Because the detail endpoint's `questions` is the
+hydrated list, the UI could not tell "this round linked 20 but all archived"
+from "never had any". This pass makes that distinguishable.
+
+## What changed
+
+* **`domain.ContestTypeWithQuestionObj`:** added `QuestionIDs []string json:"question_ids,omitempty"` — the raw stored question-id list, exposed because the embedded `Contest.Questions` field is shadowed by the hydrated `Questions` field in JSON and would otherwise never reach a client.
+* **`usecase.GetContestByID`:** now sets `QuestionIDs` from the contest's stored ids, so a round that lost every question still reports how many it linked.
+* **`publicContestPayload` (live path):** adds `question_ids` to the stripped payload so the pre-end and post-end shapes agree.
+* **Admin `ContestById` "Problems" tab:** when a round has no resolvable questions but `question_ids` is non-empty, it now says "This round linked N questions, but none are archived anymore. Its leaderboard is kept. Re-add the questions from the bank to reopen it." instead of the misleading generic "No questions found" + a stale count. The count line that previously echoed the stored id count is gone; a truly empty round still shows the plain "No questions found".
+* **Admin `Contest` type:** `question_ids?: string[]`.
+* **Test:** `usecase/contest_usecase_test.go` — `GetContestByID` returns an empty hydrated `Questions` but keeps `QuestionIDs`, against fakes that model the archived-33 shape.
+
+## Gates
+
+| Gate | Result |
+| --- | --- |
+| `go build ./...` / `go vet ./...` | clean |
+| `go test ./internal/usecase/` | ok (incl. new archived-ids test) |
+| admin `npm run typecheck` (`tsc -b`) | exit 0, no errors |
+
+## Still open
+
+* Re-authoring the 33 rounds through the bank is now a client task, not a data one — the honest empty state is in place so the admin sees exactly which rounds are missing content.

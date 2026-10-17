@@ -109,6 +109,9 @@ func (u *contestUsecase) GetContestByID(id string) (*domain.ContestTypeWithQuest
 	resultContest := &domain.ContestTypeWithQuestionObj{}
 	resultContest.Contest = *contest
 	resultContest.Questions = qs
+	// The raw id list survives even when every question has been archived
+	// away, so a UI can say "N questions, none archived" instead of a blank.
+	resultContest.QuestionIDs = contest.Questions
 
 	return resultContest, nil
 }

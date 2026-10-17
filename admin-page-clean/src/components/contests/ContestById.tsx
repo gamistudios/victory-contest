@@ -112,6 +112,12 @@ export default function ContestById() {
     },
   });
 
+  // question_ids is the raw stored list, so it still says how many questions a
+  // round linked even after the question table has dropped them (the 33 past
+  // rounds). The resolved list is what the table can actually show.
+  const intendedQuestionCount = contest?.question_ids?.length ?? 0;
+  const resolvedQuestionCount = managedQuestions.length;
+
   // Fetch schools and cities from contest-backend-go
   useEffect(() => {
     const fetchData = async () => {
@@ -489,18 +495,27 @@ export default function ContestById() {
                 <Standing school={school} city={city} contest={contest} />
               </TabsContent>
               <TabsContent value="1">
-                {managedQuestions.length > 0 ? (
+                {resolvedQuestionCount > 0 ? (
                   <QuestionTable
                     questions={managedQuestions}
                     onQuestionDeleted={handleQuestionDeleted}
                   />
+                ) : intendedQuestionCount > 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">
+                      This round linked {intendedQuestionCount}{" "}
+                      {intendedQuestionCount === 1 ? "question" : "questions"},
+                      but none are archived anymore.
+                    </p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Its leaderboard is kept. Re-add the questions from the
+                      bank to reopen it.
+                    </p>
+                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <p className="text-gray-500">
                       No questions found for this contest.
-                    </p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Questions count: {contest?.questions?.length || 0}
                     </p>
                   </div>
                 )}
