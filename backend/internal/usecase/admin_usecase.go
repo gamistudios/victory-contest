@@ -28,6 +28,15 @@ var ErrNotApproved = errors.New("account not approved")
 // blindly writing a new (or orphan) item.
 var ErrAdminNotFound = errors.New("admin not found")
 
+// Phase 5 role-management errors.
+var (
+	// ErrInvalidRole: the role is not one of the domain.Role* values.
+	ErrInvalidRole = errors.New("invalid admin role")
+	// ErrLastSuperAdmin: the change would leave no approved super_admin, which
+	// would lock everyone out of roster management.
+	ErrLastSuperAdmin = errors.New("cannot remove the last super admin")
+)
+
 // AdminUpdate carries the mutable fields accepted by PUT /api/admin/:id.
 // A nil field means "leave the stored value untouched", so a partial body
 // can never blank an admin's email, name or approval flag (id-vs-email fix).
@@ -35,6 +44,11 @@ type AdminUpdate struct {
 	Name       *string
 	IsApproved *bool
 	Password   *string
+	// Phase 5: nil = unchanged. An empty Role string resets to legacy
+	// (super_admin); a non-nil ProgramIDs replaces the assignment (empty slice
+	// clears it = all programs).
+	Role       *string
+	ProgramIDs *[]string
 }
 
 // contestTimeLayouts is the superset of timestamp layouts observed in stored
@@ -222,7 +236,28 @@ func (u *adminUsecase) UpdateAdmin(id string, update AdminUpdate) error {
 		existing.Name = *update.Name
 	}
 	if update.IsApproved != nil {
+		if !*update.IsApproved && existing.IsApproved && existing.EffectiveRole() == domain.RoleSuperAdmin {
+			if err := u.ensureOtherSuperAdmin(id); err != nil {
+				return err
+			}
+		}
 		existing.IsApproved = *update.IsApproved
+	}
+	if update.Role != nil || update.ProgramIDs != nil {
+		if update.Role != nil {
+			if *update.Role != "" && !domain.ValidAdminRole(*update.Role) {
+				return ErrInvalidRole
+			}
+			if existing.EffectiveRole() == domain.RoleSuperAdmin && *update.Role != "" && *update.Role != domain.RoleSuperAdmin {
+				if err := u.ensureOtherSuperAdmin(id); err != nil {
+					return err
+				}
+			}
+			existing.Role = *update.Role
+		}
+		if update.ProgramIDs != nil {
+			existing.ProgramIDs = cleanProgramIDs(*update.ProgramIDs)
+		}
 	}
 	if update.Password != nil && *update.Password != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(*update.Password), bcrypt.DefaultCost)
@@ -236,6 +271,7 @@ func (u *adminUsecase) UpdateAdmin(id string, update AdminUpdate) error {
 
 // DeleteAdmin removes the row keyed by id, answering ErrAdminNotFound for an
 // unknown id so a typo cannot silently "succeed" against a non-existent key.
+// The last approved super admin cannot be deleted.
 func (u *adminUsecase) DeleteAdmin(id string) error {
 	existing, err := u.repo.GetAdminByID(id)
 	if err != nil {
@@ -244,7 +280,42 @@ func (u *adminUsecase) DeleteAdmin(id string) error {
 	if existing == nil {
 		return ErrAdminNotFound
 	}
+	if existing.EffectiveRole() == domain.RoleSuperAdmin && existing.IsApproved {
+		if err := u.ensureOtherSuperAdmin(id); err != nil {
+			return err
+		}
+	}
 	return u.repo.DeleteAdmin(id)
+}
+
+// ensureOtherSuperAdmin returns ErrLastSuperAdmin unless some approved admin
+// other than excludeID resolves to super_admin (legacy rows count).
+func (u *adminUsecase) ensureOtherSuperAdmin(excludeID string) error {
+	admins, err := u.repo.GetAllAdmins()
+	if err != nil {
+		return err
+	}
+	for _, a := range admins {
+		if a.ID != excludeID && a.IsApproved && a.EffectiveRole() == domain.RoleSuperAdmin {
+			return nil
+		}
+	}
+	return ErrLastSuperAdmin
+}
+
+// cleanProgramIDs trims, drops blanks and de-duplicates, keeping order.
+func cleanProgramIDs(in []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(in))
+	for _, id := range in {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
 }
 func (u *adminUsecase) GetAdminByID(id string) (*domain.Admin, error) {
 	return u.repo.GetAdminByID(id)

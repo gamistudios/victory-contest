@@ -18,6 +18,8 @@ func main() {
 	// Attempt expiry sweeper (plan §5.4.2); stops on SIGINT/SIGTERM.
 	stop := make(chan struct{})
 	go server.RunAttemptSweeper(stop)
+	// Daily entitlement-expiry reminders (Phase 5): 7 days before + grace window.
+	go server.RunEntitlementReminders(stop)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() { <-sig; close(stop); os.Exit(0) }()

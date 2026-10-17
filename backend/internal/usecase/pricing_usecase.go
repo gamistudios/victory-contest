@@ -83,6 +83,23 @@ func (u *PricingUsecase) ValidatePlan(p domain.PricePlan) error {
 	default:
 		return ErrPlanInvalid
 	}
+	// A sale must be a real discount inside a sane window: both ends valid and
+	// ordered, and every sale currency priced below its normal price in whole
+	// birr. EffectivePrice silently ignores a sale that fails these, so an
+	// unvalidated one is saved garbage the student never sees.
+	if p.Sale != nil {
+		start, sok := parseTime(p.Sale.StartsAt)
+		end, eok := parseTime(p.Sale.EndsAt)
+		if !sok || !eok || start.After(end) || len(p.Sale.Prices) == 0 {
+			return ErrPlanInvalid
+		}
+		for _, s := range p.Sale.Prices {
+			base, ok := moneyIn(p.Prices, s.Currency)
+			if !ok || s.Amount < 0 || s.Amount >= base.Amount {
+				return ErrPlanInvalid
+			}
+		}
+	}
 	return nil
 }
 

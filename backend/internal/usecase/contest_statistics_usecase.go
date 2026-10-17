@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 	"victory-contest-go/internal/domain"
@@ -13,6 +14,13 @@ type ContestStatisticsUsecase interface {
 	GetContestStatistics(contestID string, filters domain.StatisticsFilters) (*domain.ContestStatistics, error)
 	GetStudentPerformancesByContest(contestID string, filters domain.StatisticsFilters, page, pageSize int) (*domain.StudentPerformanceList, error)
 	GetContestSummary(contestID string) (*domain.ContestStatistics, error)
+	// GetScopeAnalytics (Phase 5) aggregates finalised attempts for a
+	// ScopeFilter + date range instead of one contest: program/stream/subject/
+	// region breakdowns, score distribution and competency (mastery per
+	// subject/chapter). Served from the same short-TTL cache.
+	GetScopeAnalytics(q domain.AnalyticsQuery) (*domain.ScopeAnalytics, error)
+	// WithAttempts attaches the attempt source (builder, like AdminUsecase.With*).
+	WithAttempts(src AttemptAnalyticsSource) ContestStatisticsUsecase
 }
 
 type contestStatisticsUsecase struct {
@@ -21,6 +29,7 @@ type contestStatisticsUsecase struct {
 	studentUsecase    StudentUsecase
 	questionUsecase   QuestionUsecase
 	statsRepo         ContestStatisticsRepository
+	attempts          AttemptAnalyticsSource
 
 	// Short-TTL cache for the per-contest aggregates (client task 5): each
 	// call re-scans submissions + students (a GetStudents() alone is two full
@@ -30,6 +39,7 @@ type contestStatisticsUsecase struct {
 	cacheMu    sync.Mutex
 	cacheStats map[string]*domain.ContestStatistics
 	cachePerf  map[string]*domain.StudentPerformanceList
+	cacheScope map[string]*domain.ScopeAnalytics
 	cacheAt    map[string]time.Time
 }
 
@@ -64,6 +74,7 @@ func NewContestStatisticsUsecase(
 		statsRepo:         statsRepo,
 		cacheStats:        make(map[string]*domain.ContestStatistics),
 		cachePerf:         make(map[string]*domain.StudentPerformanceList),
+		cacheScope:        make(map[string]*domain.ScopeAnalytics),
 		cacheAt:           make(map[string]time.Time),
 	}
 }
@@ -120,6 +131,7 @@ func (u *contestStatisticsUsecase) evictExpiredLocked() {
 		if now.Sub(at) >= contestStatsCacheTTL {
 			delete(u.cacheStats, k)
 			delete(u.cachePerf, k)
+			delete(u.cacheScope, k)
 			delete(u.cacheAt, k)
 		}
 	}
@@ -669,4 +681,46 @@ func (u *contestStatisticsUsecase) calculateScoreDistribution(performances []dom
 	}
 
 	return distribution
+}
+
+// WithAttempts attaches the finalised-attempt source used by scope analytics.
+func (u *contestStatisticsUsecase) WithAttempts(src AttemptAnalyticsSource) ContestStatisticsUsecase {
+	u.attempts = src
+	return u
+}
+
+// scopeAnalyticsCacheKey keys the aggregate on every input; slices are sorted
+// copies so ?program_id=a&program_id=b and =b&=a share one entry.
+func scopeAnalyticsCacheKey(q domain.AnalyticsQuery) string {
+	progs := append([]string(nil), q.Filter.ProgramIDs...)
+	streams := append([]string(nil), q.Filter.StreamIDs...)
+	sort.Strings(progs)
+	sort.Strings(streams)
+	return "scope|" + strings.Join(progs, ",") + "|" + strings.Join(streams, ",") + "|" +
+		q.Filter.SubjectID + "|" + q.Filter.ChapterID + "|" + q.From + "|" + q.To
+}
+
+// GetScopeAnalytics returns the scope aggregate from the short-TTL cache when
+// hot, computing (then caching) it otherwise.
+func (u *contestStatisticsUsecase) GetScopeAnalytics(q domain.AnalyticsQuery) (*domain.ScopeAnalytics, error) {
+	key := scopeAnalyticsCacheKey(q)
+	u.cacheMu.Lock()
+	if v, ok := u.cacheScope[key]; ok && time.Since(u.cacheAt[key]) < contestStatsCacheTTL {
+		u.cacheMu.Unlock()
+		return v, nil
+	}
+	if len(u.cacheScope) > 512 {
+		u.evictExpiredLocked()
+	}
+	u.cacheMu.Unlock()
+
+	res, err := u.computeScopeAnalytics(q)
+	if err != nil {
+		return nil, err
+	}
+	u.cacheMu.Lock()
+	u.cacheScope[key] = res
+	u.cacheAt[key] = time.Now()
+	u.cacheMu.Unlock()
+	return res, nil
 }

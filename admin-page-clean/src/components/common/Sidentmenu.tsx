@@ -15,6 +15,8 @@ import {
   Tag,
   MapPin,
   KeyRound,
+  Banknote,
+  ShieldCheck,
 } from "lucide-react";
 import React from "react";
 export interface NavItem {
@@ -200,6 +202,10 @@ const rawMenu: NavGroup[] = [
       { id: 25, title: "Question Bank", path: "/dashboard/question-bank", icon: BookOpen },
       { id: 22, title: "Locations", path: "/dashboard/locations", icon: MapPin },
       { id: 23, title: "Bulk Enrolment", path: "/dashboard/enrolment", icon: KeyRound },
+      // Phase 5: analytics, revenue report and admin roles (grouped paths; no legacy redirect needed).
+      { id: 26, title: "Analytics", path: "/dashboard/insights/analytics", icon: BarChart2 },
+      { id: 27, title: "Revenue Report", path: "/dashboard/money/revenue", icon: Banknote },
+      { id: 28, title: "Admin Roles", path: "/dashboard/people/admin-roles", icon: ShieldCheck },
     ],
   },
 ];
@@ -213,9 +219,9 @@ const GROUPS: { title: string; ids: number[] }[] = [
   { title: "Programs", ids: [13] },
   { title: "Assessments", ids: [4, 8, 24] },
   { title: "Question bank", ids: [2, 9, 25] },
-  { title: "People", ids: [6, 23, 10] },
-  { title: "Money", ids: [5, 21, 12] },
-  { title: "Insights", ids: [7] },
+  { title: "People", ids: [6, 23, 10, 28] },
+  { title: "Money", ids: [5, 21, 27, 12] },
+  { title: "Insights", ids: [26, 7] },
   { title: "Engage", ids: [3] },
   { title: "System", ids: [11, 22] },
 ];

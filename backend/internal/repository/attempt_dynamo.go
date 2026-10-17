@@ -223,3 +223,45 @@ func (r *AttemptDynamoRepository) CountsByContest() (map[string]int, error) {
 		start = res.LastEvaluatedKey
 	}
 }
+
+// ListFinalisedBetween scans the attempts table for finalised attempts whose
+// submitted_at lies in [from, to] (RFC3339 UTC; an empty bound is open).
+// Admin analytics only. The range is a FilterExpression: it trims what leaves
+// DynamoDB, not what is read, which is acceptable for an admin-cached report.
+func (r *AttemptDynamoRepository) ListFinalisedBetween(from, to string) ([]domain.Attempt, error) {
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	filter := "#st <> :ip AND attribute_exists(submitted_at)"
+	vals := map[string]types.AttributeValue{":ip": &types.AttributeValueMemberS{Value: domain.AttemptInProgress}}
+	if from != "" {
+		filter += " AND submitted_at >= :from"
+		vals[":from"] = &types.AttributeValueMemberS{Value: from}
+	}
+	if to != "" {
+		filter += " AND submitted_at <= :to"
+		vals[":to"] = &types.AttributeValueMemberS{Value: to}
+	}
+	var out []domain.Attempt
+	var start map[string]types.AttributeValue
+	for {
+		res, err := r.db.Scan(ctx, &dynamodb.ScanInput{
+			TableName:                 aws.String(r.table),
+			FilterExpression:          aws.String(filter),
+			ExpressionAttributeNames:  map[string]string{"#st": "status"},
+			ExpressionAttributeValues: vals,
+			ExclusiveStartKey:         start,
+		})
+		if err != nil {
+			return nil, err
+		}
+		var page []domain.Attempt
+		if err := attributevalue.UnmarshalListOfMaps(res.Items, &page); err != nil {
+			return nil, err
+		}
+		out = append(out, page...)
+		if len(res.LastEvaluatedKey) == 0 {
+			return out, nil
+		}
+		start = res.LastEvaluatedKey
+	}
+}

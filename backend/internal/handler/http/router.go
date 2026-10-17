@@ -49,11 +49,13 @@ type Server struct {
 	academyHandler             *AcademyHandler
 	catalogHandler             *CatalogHandler
 	pricingHandler             *PricingHandler
+	revenueHandler             *RevenueHandler
 	enrollmentHandler          *EnrollmentHandler
 	assessmentHandler          *AssessmentHandler
 	leaderboardHandler         *LeaderboardHandler
 	feedHandler                *FeedHandler
 	attemptUsecase             *usecase.AttemptUsecase
+	entitlementReminder        *usecase.EntitlementReminderUsecase
 	jwtSecret                  string
 	aiRequestsPerMinute        int
 }
@@ -238,7 +240,7 @@ func NewServer() *Server {
 	studentUsecase = usecase.WithEnrollment(studentUsecase, enrollmentUsecase)
 
 	// --- Initialize Contest Statistics Use Case ---
-	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil)
+	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil).WithAttempts(attemptRepo)
 
 	// --- Initialize Feedback Use Cases ---
 	feedbackQuestionUsecase := usecase.NewFeedbackQuestionUsecase(feedbackQuestionRepo)
@@ -288,6 +290,7 @@ func NewServer() *Server {
 		academyHandler:           NewAcademyHandler(academyUsecase),
 		catalogHandler:           NewCatalogHandler(academyUsecase),
 		pricingHandler:           NewPricingHandler(pricingUsecase, paymentUsecase),
+		revenueHandler:           NewRevenueHandler(usecase.NewRevenueReportUsecase(paymentRepo, repository.NewPricePlanDynamoRepository(ddb, "price_plans"))),
 		enrollmentHandler:        NewEnrollmentHandler(enrollmentUsecase),
 		assessmentHandler:        NewAssessmentHandler(attemptUsecase),
 		leaderboardHandler:       NewLeaderboardHandler(leaderboardUsecase),
@@ -298,6 +301,21 @@ func NewServer() *Server {
 			Board:       leaderboardUsecase.Board,
 		})),
 		attemptUsecase:           attemptUsecase,
+		entitlementReminder: usecase.NewEntitlementReminderUsecase(
+			repository.NewEntitlementLister(ddb, "entitlements"),
+			notificationRepo,
+			func(programID string) string {
+				progs, _, err := academyUsecase.Programs()
+				if err != nil {
+					return ""
+				}
+				for _, p := range progs {
+					if p.ID == programID {
+						return p.Name
+					}
+				}
+				return ""
+			}),
 		jwtSecret:                jwtSecret,
 		aiRequestsPerMinute:      aiRequestsPerMinute,
 	}
@@ -307,6 +325,19 @@ func NewServer() *Server {
 	}
 	// Student session auth (S2): the token minted by /api/telegram/auth must
 	// match the client-declared Telegram id on the identity-critical routes.
+	// Phase 5: roster program assignments must name real programs.
+	server.adminHandler.validProgram = func(id string) bool {
+		progs, _, err := academyUsecase.Programs()
+		if err != nil {
+			return true // catalog unreadable: do not block the roster
+		}
+		for _, p := range progs {
+			if p.ID == id {
+				return true
+			}
+		}
+		return false
+	}
 	studentAuthMw := studentAuth([]byte(jwtSecret))
 	server.studentHandler.studentAuthMw = studentAuthMw
 	server.submissionHandler.studentAuthMw = studentAuthMw
@@ -344,6 +375,7 @@ func NewServer() *Server {
 	}
 	server.telegramHandler.studentAuthMw = studentAuthMw
 	server.submissionHandler.studentOwnerMw = studentOwnerOrAdminAuth([]byte(jwtSecret), "student_id")
+	server.paymentHandler.studentOwnerMw = studentOwnerOrAdminAuth([]byte(jwtSecret), "user_id")
 	server.contestRegistrationHandler.studentAuthMw = studentAuthMw
 	server.studentHandler.studentEditMw = studentSelfOrAdminAuth([]byte(jwtSecret))
 	return server
@@ -427,6 +459,15 @@ func corsMiddleware(allowlist []string) gin.HandlerFunc {
 	}
 }
 
+// RunEntitlementReminders sends the 7-day and grace-window expiry reminders
+// once a day until stop closes (Phase 5 item 4). Idempotent: deterministic
+// notification ids make a repeat run a no-op.
+func (s *Server) RunEntitlementReminders(stop <-chan struct{}) {
+	if s.entitlementReminder != nil {
+		s.entitlementReminder.RunDaily(stop)
+	}
+}
+
 // RunAttemptSweeper finalises expired attempts every 60 s until stop closes (plan §5.4.2).
 func (s *Server) RunAttemptSweeper(stop <-chan struct{}) {
 	if s.attemptUsecase != nil {
@@ -478,6 +519,10 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.catalogHandler.RegisterRoutes(api.Group("/catalog"))
 	s.catalogHandler.RegisterAdminRoutes(api.Group("/locations-admin", adminAuthMw))
 	s.pricingHandler.RegisterRoutes(api, adminAuthMw)
+	// Phase 5: analytics + revenue reports (super_admin/admin/analyst only).
+	reportRole := requireRole(s.adminHandler.Lookup(), s.adminHandler.AccessCache(), domain.RoleAdmin, domain.RoleAnalyst)
+	s.contestStatisticsHandler.RegisterAnalyticsRoutes(api.Group("/admin/analytics"), adminAuthMw, reportRole)
+	s.revenueHandler.RegisterRoutes(api.Group("/admin/reports"), adminAuthMw, reportRole)
 	s.enrollmentHandler.RegisterRoutes(api, adminAuthMw)
 	s.assessmentHandler.RegisterRoutes(api, adminAuthMw)
 	s.leaderboardHandler.RegisterRoutes(api, adminAuthMw)

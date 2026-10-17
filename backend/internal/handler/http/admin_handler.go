@@ -18,18 +18,54 @@ import (
 type AdminHandler struct {
 	usecase   usecase.AdminUsecase
 	jwtSecret []byte
+	// Phase 5 role resolution, shared with the router so the analytics and
+	// revenue gates read the same cache this handler invalidates on a change.
+	access *adminAccessCache
+	// validProgram, when set (router), rejects assignments to unknown program ids.
+	validProgram func(id string) bool
 }
 
 func NewAdminHandler(u usecase.AdminUsecase, jwtSecret string) *AdminHandler {
-	return &AdminHandler{usecase: u, jwtSecret: []byte(jwtSecret)}
+	return &AdminHandler{usecase: u, jwtSecret: []byte(jwtSecret), access: newAdminAccessCache(10 * time.Second)}
+}
+
+// Lookup resolves an admin by the email in the token (for role middleware).
+func (h *AdminHandler) Lookup() AdminLookup { return h.usecase.GetAdminByEmail }
+
+// AccessCache is the role cache shared with the router's role gates.
+func (h *AdminHandler) AccessCache() *adminAccessCache { return h.access }
+
+// adminRoleInfo is one entry of the role catalogue the roster UI renders.
+type adminRoleInfo struct {
+	Role        string `json:"role"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+}
+
+var adminRoleCatalog = []adminRoleInfo{
+	{domain.RoleSuperAdmin, "Super admin", "Everything, including the admin roster, roles and program assignment."},
+	{domain.RoleAdmin, "Admin", "Content, assessments, pricing and payments; limited to assigned programs when any are set."},
+	{domain.RoleAnalyst, "Analyst", "Read-only analytics and revenue reports."},
+	{domain.RoleSupport, "Support", "Students, payments and access grants; no content or analytics."},
 }
 
 func (h *AdminHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.HandlerFunc) {
 	// Everything except login requires a valid admin cookie.
 	auth := rg.Group("", adminAuth...)
-	auth.POST("/register", h.AddAdmin)
-	auth.PUT("/:id", h.UpdateAdmin)
-	auth.DELETE("/:id", h.DeleteAdmin)
+	// Roster-changing routes need super_admin. The gate is only attached when
+	// the admin cookie middleware is (production wiring); route-level tests
+	// that register without adminAuth stay ungated. A missing role is
+	// super_admin, so existing admins keep every route.
+	var superOnly []gin.HandlerFunc
+	if len(adminAuth) > 0 {
+		superOnly = []gin.HandlerFunc{requireRole(h.Lookup(), h.access)}
+	}
+	with := func(hf gin.HandlerFunc) []gin.HandlerFunc { return append(append([]gin.HandlerFunc{}, superOnly...), hf) }
+	auth.POST("/register", with(h.AddAdmin)...)
+	auth.PUT("/:id", with(h.UpdateAdmin)...)
+	auth.DELETE("/:id", with(h.DeleteAdmin)...)
+	auth.PUT("/:id/access", with(h.SetAdminAccess)...)
+	auth.GET("/roles", h.GetRoles)
 	auth.GET("/:id", h.GetAdminByID)
 	auth.GET("/me", h.GetMe)
 	auth.GET("/", h.GetAllAdmins)
@@ -63,8 +99,77 @@ func (h *AdminHandler) GetMe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, admin)
+	c.JSON(http.StatusOK, withEffectiveRole(*admin))
 
+}
+
+// withEffectiveRole fills the response-only effective_role echo (no role =
+// super_admin) so clients never have to re-implement the legacy rule.
+func withEffectiveRole(a domain.Admin) domain.Admin {
+	a.EffectiveRoleView = a.EffectiveRole()
+	return a
+}
+
+// GetRoles lists the assignable roles.
+func (h *AdminHandler) GetRoles(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"roles": adminRoleCatalog})
+}
+
+// SetAdminAccess handles PUT /admin/:id/access: set an admin's role and/or
+// program assignment. Fields left out of the body are unchanged; role "" resets
+// to the legacy super_admin; program_ids [] clears the restriction.
+func (h *AdminHandler) SetAdminAccess(c *gin.Context) {
+	var req struct {
+		Role       *string   `json:"role"`
+		ProgramIDs *[]string `json:"program_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Role == nil && req.ProgramIDs == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "role or program_ids is required"})
+		return
+	}
+	if req.Role != nil {
+		r := strings.TrimSpace(*req.Role)
+		req.Role = &r
+		if r != "" && !domain.ValidAdminRole(r) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+			return
+		}
+	}
+	if req.ProgramIDs != nil && h.validProgram != nil {
+		for _, id := range *req.ProgramIDs {
+			if id = strings.TrimSpace(id); id != "" && !h.validProgram(id) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "unknown program: " + id})
+				return
+			}
+		}
+	}
+	err := h.usecase.UpdateAdmin(c.Param("id"), usecase.AdminUpdate{Role: req.Role, ProgramIDs: req.ProgramIDs})
+	switch {
+	case errors.Is(err, usecase.ErrAdminNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "admin not found"})
+		return
+	case errors.Is(err, usecase.ErrInvalidRole):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+		return
+	case errors.Is(err, usecase.ErrLastSuperAdmin):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	case err != nil:
+		log.Printf("set admin access: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update admin access"})
+		return
+	}
+	h.access.invalidate()
+	admin, err := h.usecase.GetAdminByID(c.Param("id"))
+	if err != nil || admin == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "success"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"admin": withEffectiveRole(*admin)})
 }
 
 type adminInput struct {
@@ -119,10 +224,15 @@ func (h *AdminHandler) UpdateAdmin(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "admin not found"})
 		return
 	}
+	if errors.Is(err, usecase.ErrLastSuperAdmin) {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	h.access.invalidate()
 	c.JSON(http.StatusOK, gin.H{"message": "success"})
 }
 
@@ -133,10 +243,15 @@ func (h *AdminHandler) DeleteAdmin(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "admin not found"})
 		return
 	}
+	if errors.Is(err, usecase.ErrLastSuperAdmin) {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	h.access.invalidate()
 	c.JSON(http.StatusOK, gin.H{"message": "success"})
 }
 
@@ -151,7 +266,7 @@ func (h *AdminHandler) GetAdminByID(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "admin not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"admin": admin})
+	c.JSON(http.StatusOK, gin.H{"admin": withEffectiveRole(*admin)})
 }
 
 func (h *AdminHandler) GetAllAdmins(c *gin.Context) {
@@ -159,6 +274,9 @@ func (h *AdminHandler) GetAllAdmins(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	for i := range admins {
+		admins[i] = withEffectiveRole(admins[i])
 	}
 	c.JSON(http.StatusOK, gin.H{"admins": admins})
 }

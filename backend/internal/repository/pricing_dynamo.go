@@ -216,3 +216,12 @@ func (r *entitlementRepo) ReplaceForStudent(studentID string, es []domain.Entitl
 }
 
 var _ = time.Now
+
+// entitlementLister lists every entitlement (daily reminder job).
+type entitlementLister struct{ s docStore[domain.Entitlement] }
+
+func NewEntitlementLister(db *dynamodb.Client, table string) usecase.EntitlementLister {
+	return &entitlementLister{docStore[domain.Entitlement]{db, table}}
+}
+
+func (l *entitlementLister) ListAll() ([]domain.Entitlement, error) { return l.s.scan() }

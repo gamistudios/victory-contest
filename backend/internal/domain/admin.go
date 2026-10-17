@@ -2,12 +2,58 @@ package domain
 
 import "github.com/golang-jwt/jwt/v5"
 
+// Admin roles (Phase 5). A stored row with no role is a legacy admin and
+// behaves as RoleSuperAdmin, so existing accounts and tokens keep working.
+const (
+	RoleSuperAdmin = "super_admin" // everything, including roster/role management
+	RoleAdmin      = "admin"       // content + money, limited to ProgramIDs when set
+	RoleAnalyst    = "analyst"     // read-only analytics and revenue reports
+	RoleSupport    = "support"     // students, payments, grants; no content or analytics config
+)
+
+// ValidAdminRole reports whether r is a role the roster may assign.
+func ValidAdminRole(r string) bool {
+	switch r {
+	case RoleSuperAdmin, RoleAdmin, RoleAnalyst, RoleSupport:
+		return true
+	}
+	return false
+}
+
 type Admin struct {
 	ID         string `json:"id"          dynamodbav:"id"`
 	Email      string `json:"email"       dynamodbav:"email"`
 	IsApproved bool   `json:"is_approved" dynamodbav:"is_approved"`
 	Name       string `json:"name"        dynamodbav:"name"`
 	Password   string `json:"-"           dynamodbav:"password"`
+	// Phase 5. Role is empty on legacy rows (== super_admin, see EffectiveRole).
+	// ProgramIDs restricts a non-super admin to those programs; empty = all.
+	Role       string   `json:"role,omitempty"        dynamodbav:"role,omitempty"`
+	ProgramIDs []string `json:"program_ids,omitempty" dynamodbav:"program_ids,omitempty"`
+	// EffectiveRole is a response-only echo of EffectiveRole() (never stored).
+	EffectiveRoleView string `json:"effective_role,omitempty" dynamodbav:"-"`
+}
+
+// EffectiveRole resolves the missing-role rule: no role means super_admin.
+func (a Admin) EffectiveRole() string {
+	if a.Role == "" {
+		return RoleSuperAdmin
+	}
+	return a.Role
+}
+
+// AllowsProgram reports whether the admin may act on programID. Super admins
+// and admins with no assignment are unrestricted.
+func (a Admin) AllowsProgram(programID string) bool {
+	if a.EffectiveRole() == RoleSuperAdmin || len(a.ProgramIDs) == 0 {
+		return true
+	}
+	for _, id := range a.ProgramIDs {
+		if id == programID {
+			return true
+		}
+	}
+	return false
 }
 
 type CustomClaims struct {

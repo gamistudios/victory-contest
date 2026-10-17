@@ -19,6 +19,10 @@ type PaymentHandler struct {
 	// studentAuthMw is wired by NewRouter; when set, POST / requires a
 	// student token whose Telegram id equals the form's user_id (S2).
 	studentAuthMw gin.HandlerFunc
+	// studentOwnerMw (D5) guards GET /:user_id so a student may only read
+	// their own payment history; the admin cookie keeps cross-user access.
+	// Nil in handler unit tests (ungated), matching the submission reads.
+	studentOwnerMw gin.HandlerFunc
 }
 
 func NewPaymentHandler(paymentUsecase usecase.PaymentUsecase, imgRepo repository.ImageRepository) *PaymentHandler {
@@ -35,7 +39,8 @@ func (h *PaymentHandler) RegisterRoutes(rg *gin.RouterGroup, adminAuth ...gin.Ha
 	auth.DELETE("/:id", h.DeletePayment)
 	auth.GET("/getexpired", h.GetExpiredPayments)
 	auth.GET("/withstatus", h.GetPaymentsWithStatus)
-	rg.GET("/:user_id", h.GetByUserId)
+	// D5 / IDOR: per-user history is owner-or-admin only (was open to anyone).
+	rg.GET("/:user_id", withStudentAuth(h.studentOwnerMw, h.GetByUserId)...)
 	rg.POST("/", withStudentAuth(h.studentAuthMw, h.CreatePayment)...)
 }
 

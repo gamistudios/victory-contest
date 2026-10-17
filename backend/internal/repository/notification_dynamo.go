@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"victory-contest-go/internal/awsconfig"
 	"victory-contest-go/internal/domain"
@@ -159,4 +160,32 @@ func (r *NotificationDynamoRepository) GetNotificationsByRecipient(recipientID s
 
 	notifications = append(notifications, allNotifications...)
 	return notifications, nil
+}
+
+// PutIfAbsent stores the notification under its caller-supplied id only when
+// that id is new (conditional put). created=false means it already existed -
+// used by the entitlement-reminder job so a run can never double-notify.
+func (r *NotificationDynamoRepository) PutIfAbsent(notification domain.Notification) (bool, error) {
+	if notification.ID == "" {
+		return false, fmt.Errorf("PutIfAbsent requires a deterministic id")
+	}
+	ctx, cancel := awsconfig.CallCtx(context.Background())
+	defer cancel()
+	item, err := attributevalue.MarshalMap(notification)
+	if err != nil {
+		return false, err
+	}
+	_, err = r.db.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName:           &r.tableName,
+		Item:                item,
+		ConditionExpression: aws.String("attribute_not_exists(id)"),
+	})
+	if err != nil {
+		var ccf *types.ConditionalCheckFailedException
+		if errors.As(err, &ccf) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

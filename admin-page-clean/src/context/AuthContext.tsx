@@ -19,6 +19,10 @@ export interface AuthUser {
   email: string;
   imgurl?: string;
   is_approved?: boolean;
+  // Phase 5: granular roles. A missing role is super_admin (BE echoes effective_role).
+  role?: string;
+  program_ids?: string[];
+  effective_role?: string;
 }
 
 interface AuthContextType {

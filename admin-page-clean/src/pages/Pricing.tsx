@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Tag, Ticket, Trash2 } from "lucide-react";
+import { KeyRound, Pencil, Plus, Tag, Ticket, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -8,6 +8,10 @@ import { Chip, ConfirmDialog, Field, FormSheet, IconBtn, PageTitle, Panel, Segme
 import { getAdminCatalog } from "@/services/catalogServices";
 import type { Program } from "@/types/academy";
 import * as svc from "@/services/pricingServices";
+import GrantAccessDialog from "@/features/pricing/GrantAccessDialog";
+import PaywallPreview from "@/features/pricing/PaywallPreview";
+import SaleFields, { saleProblem, saleState } from "@/features/pricing/SaleFields";
+import { fromLocalInput, toLocalInput } from "@/features/pricing/dates";
 
 const emptyPlan = (): svc.PricePlan => ({
   name: "", description: "", program_ids: [], all_programs: false,
@@ -31,6 +35,7 @@ export default function Pricing() {
   const [plan, setPlan] = useState<svc.PricePlan | null>(null);
   const [coupon, setCoupon] = useState<svc.Coupon | null>(null);
   const [del, setDel] = useState<{ kind: "plan" | "coupon"; id: string; label: string } | null>(null);
+  const [grantOpen, setGrantOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -49,8 +54,10 @@ export default function Pricing() {
 
   const savePlan = async () => {
     if (!plan) return;
+    const problem = saleProblem(plan);
+    if (problem) { toast.error(problem); return; }
     try {
-      await svc.savePlan(plan);
+      await svc.savePlan({ ...plan, highlights: (plan.highlights ?? []).map((h) => h.trim()).filter(Boolean) });
       setPlan(null);
       toast.success("Plan saved");
       await load();
@@ -72,9 +79,14 @@ export default function Pricing() {
         title="Pricing & coupons"
         hint="Plans decide which programs a payment unlocks and for how long. The server recomputes every price."
         action={
-          <Button className="h-11 gap-1.5 rounded-xl" onClick={() => (tab === "plans" ? setPlan(emptyPlan()) : setCoupon(emptyCoupon()))}>
-            <Plus className="h-4 w-4" aria-hidden /> {tab === "plans" ? "New plan" : "New coupon"}
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" className="h-11 gap-1.5 rounded-xl" onClick={() => setGrantOpen(true)}>
+              <KeyRound className="h-4 w-4" aria-hidden /> Grant / revoke
+            </Button>
+            <Button className="h-11 gap-1.5 rounded-xl" onClick={() => (tab === "plans" ? setPlan(emptyPlan()) : setCoupon(emptyCoupon()))}>
+              <Plus className="h-4 w-4" aria-hidden /> {tab === "plans" ? "New plan" : "New coupon"}
+            </Button>
+          </div>
         }
       />
       <Segmented label="Pricing view" value={tab} onChange={setTab} options={[{ value: "plans", label: "Plans", icon: Tag }, { value: "coupons", label: "Coupons", icon: Ticket }]} />
@@ -90,7 +102,7 @@ export default function Pricing() {
                   {p.name} {p.badge && <span className="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">{p.badge}</span>}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {birr(etbOf(p))} ETB · {p.validity.type === "days" ? `${p.validity.days} days` : p.validity.type === "lifetime" ? "lifetime" : "fixed end"} {!p.is_active && "· inactive"}
+                  {birr(etbOf(p))} ETB{saleState(p) === "live" && <span className="ml-1.5 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">sale {birr(p.sale?.prices.find((m) => m.currency === "ETB")?.amount ?? 0)} ETB</span>}{saleState(p) === "scheduled" && <span className="ml-1.5 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">sale scheduled</span>} · {p.validity.type === "days" ? `${p.validity.days} days` : p.validity.type === "lifetime" ? "lifetime" : "fixed end"} {!p.is_active && "· inactive"}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {p.all_programs ? <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold">All programs</span> :
@@ -150,9 +162,15 @@ export default function Pricing() {
                 options={[{ value: "days", label: "Days" }, { value: "fixed_end", label: "Fixed end" }, { value: "lifetime", label: "Lifetime" }]} />
             </Field>
             {plan.validity.type === "days" && <Field label="Days"><input className={inputCls} type="number" min={1} value={plan.validity.days ?? 30} onChange={(e) => setPlan({ ...plan, validity: { type: "days", days: Number(e.target.value) } })} /></Field>}
-            {plan.validity.type === "fixed_end" && <Field label="Ends at"><input className={inputCls} type="datetime-local" onChange={(e) => setPlan({ ...plan, validity: { type: "fixed_end", ends_at: e.target.value ? new Date(e.target.value).toISOString() : "" } })} /></Field>}
+            {plan.validity.type === "fixed_end" && <Field label="Ends at"><input className={inputCls} type="datetime-local" value={toLocalInput(plan.validity.ends_at)} onChange={(e) => setPlan({ ...plan, validity: { type: "fixed_end", ends_at: fromLocalInput(e.target.value) } })} /></Field>}
+            <SaleFields plan={plan} onChange={setPlan} />
+            <Field label="Highlights" hint="One per line; shown as ticks on the paywall.">
+              <textarea className={inputCls + " h-24 py-2"} value={(plan.highlights ?? []).join("\n")}
+                onChange={(e) => setPlan({ ...plan, highlights: e.target.value.split("\n") })} />
+            </Field>
             <Field label="Badge"><input className={inputCls} value={plan.badge} onChange={(e) => setPlan({ ...plan, badge: e.target.value })} placeholder="Best value" /></Field>
             <div className="flex items-center gap-2 text-sm font-semibold"><Switch checked={plan.is_active} onCheckedChange={(v) => setPlan({ ...plan, is_active: v })} /> Active</div>
+            <PaywallPreview plan={plan} programName={progName} />
           </div>
         )}
       </FormSheet>
@@ -185,6 +203,8 @@ export default function Pricing() {
           </div>
         )}
       </FormSheet>
+
+      <GrantAccessDialog open={grantOpen} onOpenChange={setGrantOpen} plans={plans ?? []} programName={progName} />
 
       <ConfirmDialog
         open={!!del}

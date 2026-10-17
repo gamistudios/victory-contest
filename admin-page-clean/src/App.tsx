@@ -11,6 +11,9 @@ import AddQuestions from "./components/questions/AddQuestions";
 import AddContest from "./components/contests/AddContest";
 import AttemptsTab from "./features/assessments/AttemptsTab";
 import LeaderboardsPage from "./features/leaderboards/LeaderboardsPage";
+import AnalyticsPage from "./features/analytics/AnalyticsPage";
+import AdminRosterPage from "./features/admins/AdminRosterPage";
+import RevenueReportPage from "./features/reports/RevenueReportPage";
 import QuestionBankPage from "./features/question-bank/QuestionBankPage";
 import Login from "./components/auth/Login";
 import RootLayout from "./components/RootLoyout";
@@ -69,10 +72,13 @@ const router = createBrowserRouter(
           { path: "bank/addquestion", element: <AddQuestions /> },
           { path: "assessments/addcontest", element: <AddContest /> },
           { path: "people/admins", element: <ApproveAdmin /> },
+          { path: "people/admin-roles", element: <AdminRosterPage /> },
           { path: "people/user/:id", element: <Profile /> },
 
           { path: "insights/feedback", element: <FeedbackManagement /> },
           { path: "insights/high-scorers", element: <HighScorersContactList /> },
+          { path: "insights/analytics", element: <AnalyticsPage /> },
+          { path: "money/revenue", element: <RevenueReportPage /> },
           { path: "money/payment", element: <PaymentsPage /> },
           { path: "system/ai", element: <AiManagement /> },
           { path: "money/settings/payment", element: <PaymentManagementPage /> },

@@ -1578,3 +1578,71 @@ Phases 0–4 are complete and build-verified. The only remaining product work is
 
 
 === BEGINNING OF PHASE FIVE ===
+
+
+# Phase 5 pass (2026-10-17) - PARTIAL, written at time-out. NOTHING COMPILED OR TESTED (per instruction).
+
+Review first: every file below was written blind; expect compile fixes on first `go build`.
+
+| # | Item | State |
+| --- | --- | --- |
+| 1 | Scope analytics BE | **Done (uncompiled).** `domain/analytics.go`, `usecase/contest_scope_analytics.go` (ScopeFilter + date range; program/stream/subject/region, distribution, competency = mastery per subject/chapter from attempts, rule-based summary stub), cached in `contest_statistics_usecase.go` (`GetScopeAnalytics`, `WithAttempts`), `AttemptDynamoRepository.ListFinalisedBetween`, `handler/http/csv_export.go`, `?format=csv` on contest stats/students, `GET /api/admin/analytics/{overview,program,stream,subject,region,distribution,competency,summary}`. Legacy un-scoped submissions are not in analytics (attempts only). |
+| 2 | Analytics dashboards AD | **Deferred - not started.** No `features/analytics/*` scope pages written; existing AssessmentStatistics/StudentStatistics untouched. |
+| 3 | Admin roles BE | **Done (uncompiled).** `Role`/`ProgramIDs`/`EffectiveRole` on `domain.Admin` (missing role = super_admin); `requireRole`, `requireProgram`, `adminAccess`, `clampScopeFilter` in `auth.go` (role resolved per request from the admin row, not the JWT, so `adminAuth` is unchanged); `PUT /api/admin/:id/access`, `GET /api/admin/roles`, enriched list/me; last-super-admin guard; roster-changing routes super-only when adminAuth is attached. |
+| 3 | Admin roster AD | **Deferred - not started** (`features/admins/`). |
+| 4 | Entitlement expiry reminders | **Deferred - not started.** Needs an entitlement `ListAll`, a deterministic-ID conditional notification put (double-notify guard) and a daily goroutine in `main.go`. |
+| 5 | Revenue reports BE | **Done (uncompiled).** `domain/revenue.go`, `usecase/revenue_report_usecase.go` (by program/plan/coupon/month, whole birr, bundle split with remainder, Addis UTC+3 months, refunds/grants/stars separated), `GET /api/admin/reports/revenue[?group_by=&format=csv]`. |
+| 5 | Revenue report AD | **Deferred - not started.** |
+| 6 | Pricing extras AD | **Deferred - not started** (GrantAccessDialog, sale-window fields, paywall preview). BE grant/revoke routes already exist. |
+
+Wiring: `router.go` (revenue handler, `WithAttempts`, program validator, gated analytics/report routes).
+
+## Gates
+| Gate | Result |
+| --- | --- |
+| go build / go test / npm build / typecheck | **NOT RUN** (instructed not to) |
+| Tests for new code | **None written** |
+
+Untracked/exclude from commit: change_watcher.py, victory-contest.zip, *.txt.
+
+
+# Phase 5 verification pass (2026-10-17) — all items implemented, gates run
+
+This supersedes the "PARTIAL at time-out" pass above. The follow-up agent completed items 2, 3-frontend,
+4, 5-frontend and 6, so all six now have both halves in the tree; that pass never compiled and left the
+"Deferred" rows above stale. This pass ran the real gates and fixed everything they surfaced.
+
+## Items (all Done)
+
+| # | Item | State |
+| --- | --- | --- |
+| 1 | Scope analytics BE | Done. `domain/analytics.go`, `usecase/contest_scope_analytics.go` (ScopeFilter + date range; program/stream/subject/region, distribution, competency = mastery per subject/chapter from finalised attempts, rule-based summary stub), cached via `GetScopeAnalytics`, `?format=csv`, `GET /api/admin/analytics/{overview,program,stream,subject,region,distribution,competency,summary}`. |
+| 2 | Analytics dashboards AD | Done. `features/analytics/{AnalyticsPage,BreakdownTable,ScoreDistribution,CompetencyHeatmap,api}.tsx` + `lib/download.ts`; scope filters + tabs + distribution + heat-map + server CSV. Existing stats components untouched. |
+| 3 | Admin roles (BE + AD) | Done. `Role`/`ProgramIDs`/`EffectiveRole` on `domain.Admin` (missing role = super_admin); `requireRole`/`requireProgram`/`clampScopeFilter` in `auth.go` (role read per-request from the admin row, so `adminAuth` is unchanged); `PUT /api/admin/:id/access`, `GET /api/admin/roles`, last-super-admin guard; `features/admins/*` roster. |
+| 4 | Entitlement expiry reminders BE | Done. `usecase/entitlement_reminder.go`: ≤1 pre-reminder within 7 days + ≤1 grace reminder, deterministic-id conditional put (double-notify/restart safe), daily 09:00 Addis job in `main.go`. |
+| 5 | Revenue reports (BE + AD) | Done. `domain/revenue.go`, `usecase/revenue_report_usecase.go` (program/plan/coupon/month, whole birr, bundle split, refunds/grants/stars separate), `GET /api/admin/reports/revenue[?group_by=&format=csv]`; `features/reports/*`. |
+| 6 | Pricing extras AD | Done. `features/pricing/{GrantAccessDialog,SaleFields,PaywallPreview,dates}`; `pages/Pricing.tsx` extended (not forked). |
+
+## Defects found and fixed in this pass
+
+* **Build blocker — `entitlement_reminder.go`:** the const block was duplicated (orphaned `reminderStartupDelay`/`reminderMinSleep` + stray `)` after the closing paren) — a parse error that broke `go build`. Removed the duplicate.
+* **Build blocker — `notification_dynamo.go`:** `PutIfAbsent` used `errors.As` with no `errors` import. Added it.
+* **Item 6 gap — `ValidatePlan` ignored `p.Sale`:** a sale could be saved with an end before its start, or a sale price ≥ the normal price. Added the guard (both times valid & ordered, ≥1 sale price, every sale currency present in `Prices` and strictly below its normal amount, non-negative whole birr). Mirrors the admin form's own `saleProblem` rule, so the UI and API now agree; `EffectivePrice` already ignores any sale failing these, so bad input was never meant to persist.
+* **Item 6 / pre-existing IDOR — `GET /api/payment/:user_id`:** was on the unauthenticated group, so any caller could read another student's payment history (and `GrantAccessDialog` now calls it). Gated with the existing D5 `studentOwnerOrAdminAuth(secret, "user_id")` (owner-or-admin, admin cookie still works), wired in `router.go` alongside the submission reads.
+
+## Still open (honest)
+
+* **No automated tests for Phase 5 code** — analytics, roles, reminders, revenue and the pricing extras ship without handler/usecase tests. The two fixes above are also untested. This is the main remaining gap.
+* Scope analytics read **finalised attempts only**; legacy un-scoped submissions are excluded by design (attempts are the sole scope-carrying source).
+* The AI analytics summary is a **rule-based stub**, not wired to a model.
+
+## Gates (this pass, all run)
+
+| Gate | Result |
+| --- | --- |
+| `go build ./...` | clean (after the two build-blocker fixes) |
+| `go vet ./...` | clean |
+| `go test ./...` | ok — all packages (domain, handler/http, migrations, repository, usecase) |
+| admin `npm run typecheck` (`tsc -b`) | exit 0, no errors |
+| admin `npm run build` (vite) | ✓ built in 4m24s, exit 0 |
+| student app | not touched by Phase 5 (0 staged `frontend/` files); no rebuild needed |

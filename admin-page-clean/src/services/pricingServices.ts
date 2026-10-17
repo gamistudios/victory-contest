@@ -1,10 +1,13 @@
 import api from "./api";
 
 export interface Money { currency: "ETB" | "XTR"; amount: number }
+// Sale window (plan §5.12): inside [starts_at, ends_at] (both inclusive) the sale price replaces
+// the normal price. Whole ETB birr only.
+export interface Sale { prices: Money[]; starts_at: string; ends_at: string }
 export interface PricePlan {
   id?: string; name: string; description: string; program_ids: string[]; all_programs: boolean;
   validity: { type: "days" | "fixed_end" | "lifetime"; days?: number; ends_at?: string };
-  prices: Money[]; list_prices: Money[]; highlights: string[]; badge: string;
+  prices: Money[]; list_prices: Money[]; sale?: Sale | null; highlights: string[]; badge: string;
   is_active: boolean; visible_from: string; visible_until: string; sort_order: number;
 }
 export interface Coupon {
@@ -25,7 +28,17 @@ export const deleteCoupon = (id: string) => api.delete(`${B}/coupons/${id}`);
 export const grantPlan = (student_id: string, plan_id: string) => api.post(`${B}/grant`, { student_id, plan_id }).then((r) => r.data);
 export const revokePayment = (id: string) => api.post(`${B}/payments/${id}/revoke`);
 export const rebuildEntitlements = (studentId: string) => api.post(`${B}/entitlements/${studentId}/rebuild`).then((r) => r.data);
-export const studentEntitlements = (studentId: string) => api.get(`${B}/entitlements/${studentId}`).then((r) => r.data?.entitlements ?? []);
+export interface StudentEntitlement { id: string; student_id: string; program_id: string; expires_at: string; source: string; last_plan_id: string }
+export const studentEntitlements = (studentId: string) =>
+  api.get(`${B}/entitlements/${studentId}`).then((r) => (r.data?.entitlements ?? []) as StudentEntitlement[]);
+
+// One ledger row of a student (GET /api/payment/:user_id); revoking is per row.
+export interface StudentPayment {
+  id: string; status: string; fullName?: string; bankName?: string; createdAt: string; expirationDate?: string;
+  plan_id?: string; program_ids?: string[]; revoked?: boolean; final_amount?: number; currency?: string;
+}
+export const listStudentPayments = (studentId: string) =>
+  api.get(`/api/payment/${encodeURIComponent(studentId)}`).then((r) => (r.data?.payments ?? []) as StudentPayment[]);
 
 // Enrollment admin
 const E = "/api/enrollment-admin";
