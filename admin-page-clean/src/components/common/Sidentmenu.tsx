@@ -17,6 +17,7 @@ import {
   KeyRound,
   Banknote,
   ShieldCheck,
+  Flame,
 } from "lucide-react";
 import React from "react";
 export interface NavItem {
@@ -205,6 +206,7 @@ const rawMenu: NavGroup[] = [
       // Phase 5: analytics, revenue report and admin roles (grouped paths; no legacy redirect needed).
       { id: 26, title: "Analytics", path: "/dashboard/insights/analytics", icon: BarChart2 },
       { id: 27, title: "Revenue Report", path: "/dashboard/money/revenue", icon: Banknote },
+      { id: 29, title: "Training & Habits", path: "/dashboard/programs/training", icon: Flame },
       { id: 28, title: "Admin Roles", path: "/dashboard/people/admin-roles", icon: ShieldCheck },
     ],
   },
@@ -216,7 +218,7 @@ const rawMenu: NavGroup[] = [
 const rawItems: NavItem[] = rawMenu.flatMap((g) => g.items);
 const GROUPS: { title: string; ids: number[] }[] = [
   { title: "Overview", ids: [1] },
-  { title: "Programs", ids: [13] },
+  { title: "Programs", ids: [13, 29] },
   { title: "Assessments", ids: [4, 8, 24] },
   { title: "Question bank", ids: [2, 9, 25] },
   { title: "People", ids: [6, 23, 10, 28] },

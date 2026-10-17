@@ -14,6 +14,7 @@ import LeaderboardsPage from "./features/leaderboards/LeaderboardsPage";
 import AnalyticsPage from "./features/analytics/AnalyticsPage";
 import AdminRosterPage from "./features/admins/AdminRosterPage";
 import RevenueReportPage from "./features/reports/RevenueReportPage";
+import TrainingPage from "./features/training/TrainingPage";
 import QuestionBankPage from "./features/question-bank/QuestionBankPage";
 import Login from "./components/auth/Login";
 import RootLayout from "./components/RootLoyout";
@@ -79,6 +80,7 @@ const router = createBrowserRouter(
           { path: "insights/high-scorers", element: <HighScorersContactList /> },
           { path: "insights/analytics", element: <AnalyticsPage /> },
           { path: "money/revenue", element: <RevenueReportPage /> },
+          { path: "programs/training", element: <TrainingPage /> },
           { path: "money/payment", element: <PaymentsPage /> },
           { path: "system/ai", element: <AiManagement /> },
           { path: "money/settings/payment", element: <PaymentManagementPage /> },

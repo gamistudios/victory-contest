@@ -10,6 +10,7 @@ import { useTelegram } from "./hooks/useTelegram";
 import Layout from "./components/Layout";
 import Home from "./features/home/Home";
 import Leaderboard from "./features/leaderboard/LeaderboardView";
+import TrainingToday from "./features/training/Today";
 import Statistics from "./pages/Statistics";
 import Profile from "./pages/Profile";
 import { FeedbackPage } from "./pages/FeedBack";
@@ -82,6 +83,7 @@ function App() {
             <Route path="register" element={<RegistrationForm />} />
             <Route path="payment" element={<Payment />} />
             <Route path="programs" element={<MyPrograms />} />
+            <Route path="training" element={<TrainingToday />} />
             <Route path="practice" element={<AssessmentList />} />
             <Route path="assessment/:id" element={<Intro />} />
             <Route path="assessment/:id/exam" element={<Exam />} />

@@ -20,6 +20,8 @@ func main() {
 	go server.RunAttemptSweeper(stop)
 	// Daily entitlement-expiry reminders (Phase 5): 7 days before + grace window.
 	go server.RunEntitlementReminders(stop)
+	// Daily habit streak-at-risk nudge (Phase 6).
+	go server.RunHabitReminders(stop)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() { <-sig; close(stop); os.Exit(0) }()

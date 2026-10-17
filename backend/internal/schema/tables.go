@@ -95,6 +95,14 @@ var Tables = []Table{
 		{Name: "board_key-rank_key-index", Partition: "board_key", Sort: "rank_key",
 			PartType: types.ScalarAttributeTypeS, SortType: types.ScalarAttributeTypeN},
 	}},
+	// Phase 6 (plan §5.10): admin-authored 30-day tracks and per-student logs.
+	{Name: "habit_plans", GSIs: []GSI{
+		{Name: "program_id-index", Partition: "program_id", PartType: types.ScalarAttributeTypeS},
+	}},
+	{Name: "habit_logs", GSIs: []GSI{
+		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},
+		{Name: "plan_id-index", Partition: "plan_id", PartType: types.ScalarAttributeTypeS},
+	}},
 	{Name: "submissions", GSIs: []GSI{
 		{Name: "contest_id-index", Partition: "contest_id", PartType: types.ScalarAttributeTypeS},
 		{Name: "student_id-index", Partition: "student_id", PartType: types.ScalarAttributeTypeS},

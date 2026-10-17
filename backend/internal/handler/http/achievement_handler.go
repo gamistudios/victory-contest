@@ -93,5 +93,14 @@ func (h *AchievementHandler) GetAchievementsByStudent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	// Habit streak badges are private (decision 16/22): this route is public,
+	// so they are only served by the session-bound /api/habits/me.
+	public := make([]domain.Achievement, 0, len(achievements))
+	for _, a := range achievements {
+		if a.Type != domain.HabitBadgeType {
+			public = append(public, a)
+		}
+	}
+	achievements = public
 	c.JSON(http.StatusOK, gin.H{"achievements": achievements})
 }

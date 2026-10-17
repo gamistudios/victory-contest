@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTelegram } from "../hooks/useTelegram";
 import { ThemeToggle } from "./ThemeToggle";
-import { Bell, Lock, SlidersHorizontal, User, BarChart3, Trophy, Layers, ChevronRight } from "lucide-react";
+import { Bell, Lock, SlidersHorizontal, User, BarChart3, Trophy, Layers, ChevronRight, Flame } from "lucide-react";
 import { SettingsSheet } from "../features/learn/components/SettingsSheet";
 import NotificationCenter from "./NotificationCenter";
 import { useNotification } from "../context/NotificationContext";
@@ -23,6 +23,7 @@ import { useAuth } from "../context/AuthContext";
 import { isEntitled, useEntitlements } from "@/shared/pricing/api";
 import { usePremiumSheet } from "../context/PremiumSheetContext";
 import { getAiSettings } from "../services/aiService";
+import { useTrainingEnabled } from "../features/training/api";
 /** One row of the account menu: tinted icon chip + label (+ optional hint). */
 const MenuRow: React.FC<{
   icon: React.ReactNode;
@@ -46,6 +47,7 @@ const TopNavigation: React.FC = () => {
   const { user } = useAuth();
   const { open: openPremium } = usePremiumSheet();
   const location = useLocation();
+  const trainingEnabled = useTrainingEnabled();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showReading, setShowReading] = useState(false);
   const { notifications } = useNotification();
@@ -136,7 +138,7 @@ const TopNavigation: React.FC = () => {
     );
   };
 
-  const menuActive = ["/leaderboard", "/statistics", "/programs", "/payment-history"].includes(location.pathname);
+  const menuActive = ["/leaderboard", "/statistics", "/programs", "/training", "/payment-history"].includes(location.pathname);
 
   const handleNotificationClick = () => {
     hapticFeedback("selection");
@@ -258,6 +260,15 @@ const TopNavigation: React.FC = () => {
                       active={location.pathname === "/programs"}
                       onSelect={() => navigate("/programs")}
                     />
+                    {trainingEnabled && (
+                      <MenuRow
+                        icon={<Flame className="h-4 w-4" />}
+                        label="Training"
+                        tone="bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+                        active={location.pathname === "/training"}
+                        onSelect={() => navigate("/training")}
+                      />
+                    )}
                   </DropdownMenuGroup>
 
                   <DropdownMenuSeparator className="my-1" />

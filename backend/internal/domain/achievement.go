@@ -9,4 +9,6 @@ type Achievement struct {
 	EarnedDate  string  `json:"earned_date"  dynamodbav:"earned_date"`
 	Rarity      string  `json:"rarity"       dynamodbav:"rarity"`
 	Progress    float64 `json:"progress"     dynamodbav:"progress"`
+	// StudentID owns the badge (the by-student query already filters on it).
+	StudentID string `json:"student_id,omitempty" dynamodbav:"student_id,omitempty"`
 }

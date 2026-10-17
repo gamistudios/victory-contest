@@ -1678,3 +1678,131 @@ defects (`ValidatePlan` sale, `payment/:user_id` IDOR) fixed and now covered by 
 green, and the whole batch deployed to production (live build confirmed via read-only probes).
 
 === END OF PHASE FIVE ===
+
+
+
+=== BEGINNING OF PHASE SIX ===
+
+
+# Phase 6 (first pass) - Training & Habit Development (2026-10-17). NOTHING COMPILED OR TESTED (per instruction).
+
+Review first: every file below was written blind; expect compile/type fixes on first `go build` / `tsc`.
+
+## Done
+
+| # | Item | State |
+| --- | --- | --- |
+| 1 | Domain | `domain/habit.go`: `HabitItem/HabitDay/HabitPlan/HabitLog` (+ `ID` on the log = `{student}#{plan}`), consts, milestones 7/14/30, `HabitLogID`. No price, no points. `domain.Achievement` gained optional `StudentID` (the by-student query already filtered on `student_id`, but the struct never carried it). |
+| 2 | Schema | `habit_plans` (GSI `program_id-index`), `habit_logs` (GSIs `student_id-index`, `plan_id-index`; the second serves oversight). Created by `EnsureTables` on boot. |
+| 3 | Repository | `repository/habit_dynamo.go` on the shared `docStore` (Get/Put/Delete/ListAll plans, list-by-program; Get/Put/ListAll logs, list-by-student, list-by-plan). |
+| 4 | Usecase | `usecase/habit_usecase.go`: `Start`, `Today`, `Check` (toggle, server-derived Addis date, `time.FixedZone("EAT",3*3600)`), pure `ComputeHabitStreaks`, `Plans`, `Me`, plan normalise/save (ids preserved so logs survive edits), `Oversight`, `Nudge`, streak-at-risk job (`RunStreakReminders`/`RunDaily`, 18:00 Addis, deterministic id `habitrisk#student#plan#yyyymmdd` via `NotificationPutIfAbsent`). Access reuses `Decide` via `PricingUsecase.AccessFor` and returns the app's `LockedError`/`LockInfo` (HTTP 402 + `lock`). Badges 7/14/30 through `AchievementUsecase` with deterministic id `habit#student#plan#N` (idempotent). |
+| 5 | Handler/routes | `handler/http/habit_handler.go`, wired in `router.go` + `main.go`. Student: `POST /api/habits/start`, `GET /today`, `PUT /check`, `GET /plans`, `GET /me` (id from the session only). Admin: `/api/admin/habits/{plans,plans/:id,oversight,nudge}` behind `adminAuth` + `requireRole(admin)` (super_admin always passes; analyst/support excluded) + `requireProgram`; body/stored program also checked with `programAllowed`. |
+| 6 | Admin UI | `admin-page-clean/src/features/training/{api.ts,PlanEditor.tsx,Oversight.tsx,TrainingPage.tsx}`; route `/dashboard/programs/training`, sidebar "Training & Habits" (Programs group). Uses `kit.tsx` primitives, `DataTable`, catalog. |
+| 7 | Student UI | `frontend/src/features/training/{api.ts,Today.tsx,Streak.tsx}`; route `/training`; account-menu row appears only when `useTrainingEnabled()` (enrolled in a program whose features include `habits`). Premium plans use the yellow lock treatment + `PremiumSheet`. |
+| 8 | Test | `usecase/habit_usecase_test.go`: streak matrix + Addis date/day-number. |
+
+## Decisions taken (conflicts resolved)
+
+* **Nudge ids:** the daily job needs at-most-once, which `SendNotification` (random id) cannot give, so it uses the existing `PutIfAbsent` path from `entitlement_reminder.go`; the *admin* nudge uses `SendNotification` as instructed.
+* **Badges:** `domain.Achievement` had no owner field, so `StudentID` was added (omitempty). The public `GET /api/achievement/student/:id` now filters out `habit_streak` badges so they stay private; they are served only by the session-bound `GET /api/habits/me`.
+* **Enrollment:** Start/Today/Check also require enrollment in the plan's program and that the program has the `habits` feature (free plans are still free of entitlement, not of enrollment).
+* **Streak display:** `Today`/`Me` recompute the streak from `Done` against server "today", so a missed day shows as broken even before the next check.
+* **Oversight sort:** default newest-first, `order=asc` for stalest-first; the inactive filter excludes finished tracks.
+
+## NOT done / honest gaps
+
+* **Nothing compiled, vetted, formatted or run.** `gofmt` will want to re-align the new `Server` struct/literal lines in `router.go`.
+* Tests cover only the pure streak/date functions; no usecase/handler tests for access, check toggling, oversight, reminders or the role gates.
+* `Check` is read-modify-write on one item; two simultaneous taps from two devices could drop one (client serialises its own taps).
+* Deleting a plan leaves its logs orphaned (they are hidden from Me/Oversight). Hiding (`is_active=false`) is the safer action and the confirm dialog says so.
+* A finished track cannot be restarted. Days beyond the authored ones are simply rest days.
+* The reminder job scans all logs (no index on "has live streak"); fine at current scale.
+* No UI for the student to browse past finished tracks beyond reopening them from the list.
+* The admin "Nudge all shown" fans out one request per row from the browser.
+
+## Gates
+
+| Gate | Result |
+| --- | --- |
+| go build / vet / test, gofmt | **NOT RUN** (instructed not to) |
+| student `npm run build`, admin `npm run typecheck` / `build` | **NOT RUN** |
+
+## Commands to run next
+
+```
+cd backend && gofmt -w internal ./main.go && go build ./... && go vet ./... && go test ./internal/usecase -run 'Habit|AddisDate' -count=1 && go test ./...
+cd admin-page-clean && npm run typecheck && npm run build
+cd frontend && npm run build
+```
+
+## Files
+
+Created: `backend/internal/domain/habit.go`, `backend/internal/repository/habit_dynamo.go`, `backend/internal/usecase/habit_usecase.go`, `backend/internal/usecase/habit_usecase_test.go`, `backend/internal/handler/http/habit_handler.go`, `admin-page-clean/src/features/training/{api.ts,PlanEditor.tsx,Oversight.tsx,TrainingPage.tsx}`, `frontend/src/features/training/{api.ts,Today.tsx,Streak.tsx}`.
+Changed: `backend/internal/domain/achievement.go`, `backend/internal/schema/tables.go`, `backend/internal/handler/http/router.go`, `backend/internal/handler/http/achievement_handler.go`, `backend/main.go`, `admin-page-clean/src/App.tsx`, `admin-page-clean/src/components/common/Sidentmenu.tsx`, `frontend/src/App.tsx`, `frontend/src/components/TopNavigation.tsx`, `PROGRESS.md`.
+
+=== END OF PHASE SIX (first pass) ===
+
+
+# Phase 6 (verification pass) - independent review, fixes, all gates (2026-10-18).
+
+The first pass was written blind. This pass independently reviewed the staged tree
+against the code, fixed the two defects the first pass itself flagged, closed the
+test-coverage gap, and ran every gate. All are green. Nothing here is a stand-in:
+it is the real §5.10 implementation running on the shared Africa/Addis_Ababa
+(UTC+3) clock.
+
+## Fixes applied
+
+* **Build blocker:** `addisZone` was declared twice (habit_usecase.go and the
+  Phase 5 `revenue_report_usecase.go`). Removed the habit copy so both share the
+  single definition; the feature compiles on top of it.
+* **Concurrency defect** (a flagged gap): `Check` is a `GetLog -> toggle -> PutLog`
+  read-modify-write and the Dynamo repo writes a plain item, so two devices tapping
+  the same day could clobber each other. Wrapped that read-modify-write in an
+  in-process mutex (`checkMu`), the same pattern the coupon redeem guard uses;
+  badge/notification stores stay outside it because they are idempotent. `Start`
+  keeps a benign create-if-absent (concurrent starts write the identical empty log).
+
+## Tests added (the flagged coverage gap)
+
+| File | Covers |
+| --- | --- |
+| `usecase/habit_ops_test.go` | gate + `Check` toggle end-to-end on a free plan; the premium gate through the real `Decide` (`*LockedError` without an entitlement, allowed with a lifetime one); unknown item -> `ErrHabitItemUnknown`; unenrolled -> `ErrNotEnrolled`; the 7-day badge mints once and is idempotent; `Me` returns only private habit badges; `Oversight` inactive filter; `Nudge` requires a started track and tags `NotificationTypeHabit`; `RunStreakReminders` sends then skips (deterministic-id guard); concurrent `Check` of 8 items lands all 8 (no lost update). |
+| `handler/http/phase6_habit_routes_test.go` | student routes need a student session (anonymous 401, admin-cookie-as-student 401, a valid student clears the gate so a bad body is 400 not 403); admin routes are role + program gated (anonymous 401, student bearer 401, support/analyst 403, assigned admin off-program 403). |
+
+## Security review (pass)
+
+* The student id comes from the session token only (`studentID(c)`); no habit route
+  trusts a client-supplied id, so there is no habit IDOR by construction.
+* Habit badges are filtered out of the public `GET /api/achievement/student/:id`
+  (decision 16 - progress is private) and served only by the session-bound `/habits/me`.
+* Premium plans use the real `Decide`/`AccessFor` and surface HTTP 402 + `lock`.
+* Admin plan/oversight/nudge sit behind `adminAuth` + `requireRole(admin)` +
+  `requireProgram`, with the stored and submitted program re-checked by `programAllowed`.
+
+## Accepted design choices (documented, not defects)
+
+* Deleting a plan orphans its logs (hidden from `Me`/`Oversight`); deactivating
+  (`is_active=false`) is the intended, confirm-dialog-recommended path.
+* A finished 30-day track is not restartable; days beyond the authored ones are rest days.
+* The reminder job scans all logs each evening (fine at current scale).
+* The admin "nudge all shown" fans out one request per row from the browser.
+
+## Gates (this pass, all run and green)
+
+| Gate | Result |
+| --- | --- |
+| `go build ./...` | clean |
+| `go vet ./...` | clean |
+| `go test ./...` | ok (every package) |
+| new habit tests (`-v -count=1`) | 12/12 PASS (10 usecase + 2 handler) |
+| `gofmt` on the Phase 6 files | clean (the rest of the repo is a pre-existing CRLF baseline, deliberately left untouched) |
+| admin `npm run typecheck` (`tsc -b`) | clean |
+| admin `npm run build` (`vite build`) | built (~3m38s) |
+| student `npm run build` (`tsc -b && vite build`) | built (~4m) |
+
+Both frontends were type-checked and production-built and the API wiring was read
+against the real routes, but the Training screens were **not** exercised in a
+browser this pass, so their runtime behaviour is unverified beyond the compiled code.
+
+=== END OF PHASE SIX ===

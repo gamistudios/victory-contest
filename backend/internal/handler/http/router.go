@@ -54,6 +54,8 @@ type Server struct {
 	assessmentHandler          *AssessmentHandler
 	leaderboardHandler         *LeaderboardHandler
 	feedHandler                *FeedHandler
+	habitHandler               *HabitHandler
+	habitUsecase               *usecase.HabitUsecase
 	attemptUsecase             *usecase.AttemptUsecase
 	entitlementReminder        *usecase.EntitlementReminderUsecase
 	jwtSecret                  string
@@ -239,6 +241,12 @@ func NewServer() *Server {
 	enrollmentUsecase := usecase.NewEnrollmentUsecase(studentRepo, programList).WithLocations(academyUsecase.Locations)
 	studentUsecase = usecase.WithEnrollment(studentUsecase, enrollmentUsecase)
 
+	// Phase 6: Training & habits (plan §5.10). Private streaks, no points/board.
+	habitUsecase := usecase.NewHabitUsecase(
+		repository.NewHabitDynamoRepository(ddb, "habit_plans", "habit_logs"),
+		studentRepo, pricingUsecase, programList, achievementUsecase, notificationUsecase,
+	).WithReminders(notificationRepo)
+
 	// --- Initialize Contest Statistics Use Case ---
 	contestStatisticsUsecase := usecase.NewContestStatisticsUsecase(contestUsecase, submissionUsecase, studentUsecase, questionUsecase, nil).WithAttempts(attemptRepo)
 
@@ -300,7 +308,9 @@ func NewServer() *Server {
 			Subjects:    academyUsecase.Subjects,
 			Board:       leaderboardUsecase.Board,
 		})),
-		attemptUsecase:           attemptUsecase,
+		attemptUsecase: attemptUsecase,
+		habitUsecase:   habitUsecase,
+		habitHandler:   NewHabitHandler(habitUsecase),
 		entitlementReminder: usecase.NewEntitlementReminderUsecase(
 			repository.NewEntitlementLister(ddb, "entitlements"),
 			notificationRepo,
@@ -316,8 +326,8 @@ func NewServer() *Server {
 				}
 				return ""
 			}),
-		jwtSecret:                jwtSecret,
-		aiRequestsPerMinute:      aiRequestsPerMinute,
+		jwtSecret:           jwtSecret,
+		aiRequestsPerMinute: aiRequestsPerMinute,
 	}
 	server.telegramAuthHandler = newTelegramAuthHandler(jwtSecret, botToken, os.Getenv("ALLOW_DEV_AUTH") == "true")
 	if server.telegramAuthHandler.allowDevAuth {
@@ -347,6 +357,7 @@ func NewServer() *Server {
 	server.assessmentHandler.studentAuth = studentAuthMw
 	server.leaderboardHandler.studentAuth = studentAuthMw
 	server.feedHandler.studentAuth = studentAuthMw
+	server.habitHandler.studentAuth = studentAuthMw
 	server.questionHandler.contests = questionHandlerContests
 	server.submissionHandler.boards = leaderboardUsecase
 	server.submissionHandler.legacy = attemptUsecase.SubmitLegacy
@@ -468,6 +479,13 @@ func (s *Server) RunEntitlementReminders(stop <-chan struct{}) {
 	}
 }
 
+// RunHabitReminders sends the daily streak-at-risk nudge until stop closes.
+func (s *Server) RunHabitReminders(stop <-chan struct{}) {
+	if s.habitUsecase != nil {
+		s.habitUsecase.RunDaily(stop)
+	}
+}
+
 // RunAttemptSweeper finalises expired attempts every 60 s until stop closes (plan §5.4.2).
 func (s *Server) RunAttemptSweeper(stop <-chan struct{}) {
 	if s.attemptUsecase != nil {
@@ -527,6 +545,10 @@ func (s *Server) NewRouter() *gin.Engine {
 	s.assessmentHandler.RegisterRoutes(api, adminAuthMw)
 	s.leaderboardHandler.RegisterRoutes(api, adminAuthMw)
 	s.feedHandler.RegisterRoutes(api)
+	// Phase 6: habits. Admin routes need the admin role (super_admin always passes) and program assignment.
+	s.habitHandler.RegisterRoutes(api, adminAuthMw,
+		requireRole(s.adminHandler.Lookup(), s.adminHandler.AccessCache(), domain.RoleAdmin),
+		requireProgram(s.adminHandler.Lookup(), s.adminHandler.AccessCache(), ""))
 	// Victory Academy (Learn): student routes need the student session JWT,
 	// /admin routes the admin cookie; AI routes share the Gemini rate limiter.
 	s.academyHandler.RegisterRoutes(api.Group("/academy"), studentAuth([]byte(s.jwtSecret)), adminAuthMw,
