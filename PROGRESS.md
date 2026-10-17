@@ -1237,6 +1237,10 @@ The legacy **endpoints** stay: `GET /api/contest*`, `/api/submission/rank/:id`, 
 
 
 
+=== END OF PHASE TWO ===
+
+=== BEGINNING OF PHASE THREE ===
+
 # Update 2026-10-16 (Phase 3, 5-minute box): leaderboards + question-bank backend, student and admin boards
 
 Nothing was compiled, built or tested (instruction). All of it needs your `go build ./...` / `tsc` pass.
@@ -1387,4 +1391,6 @@ from "never had any". This pass makes that distinguishable.
 
 ## Still open
 
-* Re-authoring the 33 rounds through the bank is now a client task, not a data one — the honest empty state is in place so the admin sees exactly which rounds are missing content.
+* Re-authoring the 33 rounds through the bank is now a client task, not a data one — the honest empty state is in place so the admin sees exactly which rounds are missing content. (NOT DEVELOPER SIDE ISSUE)
+
+=== END OF PHASE THREE ===
