@@ -1330,3 +1330,33 @@ Everything below was run on this machine against the real services; the "Not run
 * Chapter ids stay empty in prod until the legacy `chapter` strings are mapped by hand or in the bank UI.
 * `GetLeaderboardByTimeFrame` scan path, admin `components/contests/Leaderboard.tsx`, the old question tables and the assessment-form question picker.
 * No `-apply` backfill executed; nothing deployed — the deployed backend still predates Phase 3, so `/api/leaderboard` and the bank routes are not live yet. The `leaderboard` table and the stamped question scopes are inert until that build ships.
+
+# Legacy submissions leaderboard replay (2026-10-17)
+
+The old contest rounds exist only in `submissions` (their 657 question rows are gone), so their leaderboards had never been migrated. This pass restores them by replaying the submissions table into the precomputed `leaderboard` boards, using only data a submission still carries: score, the missed-answer sheet, and the stored time.
+
+## What was built
+
+* **`usecase/leaderboard_replay.go`:** `LeaderboardUsecase.ReplayLegacy(rows, apply)` plus `LegacyBoardRow` / `ReplayReport` / `PeriodContest`. For each row it feeds every time board the submission's own date lands in (`day`/`week`/`month`/`all`, each summed across the student's submissions in that period, stream board only when the row has a stream), and one `contest:<id>` board that keeps the student's **best** submission rather than summing. Period rows sum; the contest board keeps the highest `RankKey` (points, then faster time). TTL is set on day/week rows only — month, all-time and contest rows never expire, matching `Record`. Keys are deterministic and rows are put, never incremented, so the replay is idempotent; `apply=false` computes the report and writes nothing.
+* **`cmd/backfill-leaderboard/main.go`:** gained a `-submissions` flag alongside the original attempts replay. It loads every submission, every contest, and every structured student, then resolves each submission's board with `resolveProgramStream` — the contest's stamped scope when present, otherwise the student's primary program / first enrollment (so a round whose contest row was deleted still lands on a board). `legacyRow` prefers the Phase 2 fields (`Points`, `DurationSeconds`) and falls back to `int(Score)` and `ParseTimeSpend(TimeSpend)`, with `Correct = points` and `Total = points + len(MissedQuestions)` — the same numbers the old `GetRankingsForContest` ranked by. Submissions with no resolvable program are skipped and reported.
+
+## Production replay (eu-north-1, root `.env`, dynalite endpoint off)
+
+| Step | Result |
+| --- | --- |
+| Dry run (`-submissions`) | `submissions=1242 students=151 rows=5109 (dry run) skipped-no-scope=0 per-period=map[all:339 contest:1225 day:1615 month:721 week:1209]` |
+| Apply (`-submissions -apply`) | same counts, `rows=5109 (written)`; day/week rows carry TTL, month/all/contest rows do not |
+
+No JSON backup was taken of `leaderboard` first — the table was empty before this replay, and the operation is a recompute over deterministic keys, so a re-run is safe and idempotent.
+
+## Gates (replay slice only)
+
+| Gate | Result |
+| --- | --- |
+| `go build ./...` | clean |
+| `go test ./internal/usecase/...` | ok — four `ReplayLegacy` tests: every board a submission touches, contest board keeps best, ties rank on time + unscoped skipped, dry run writes nothing + idempotent re-run |
+| `gofmt -d` on the two new/changed files | clean |
+
+## Still open
+
+* The 33 past contests whose 657 question docs are unrecoverable still show empty question lists in the editorial and in the exam. Their **leaderboards are now restored** by this replay, but the question text has no source (PITR off, no on-demand backups, no other region, nothing in git). Making those rounds "work" again is a content question, not a data question: either surface an honest empty state ("questions no longer archived") with a correct question count, or have the client re-author the rounds through the new bank.
